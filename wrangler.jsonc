@@ -1,0 +1,18 @@
+{
+	"name": "sahti-as-a-service",
+	"main": "src/index.js",
+	"compatibility_date": "2026-02-27",
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "sahti-as-a-service-db",
+			"database_id": "a2ed7cad-784e-4c87-bcbc-3deea19429b0"
+		},
+		{
+			"binding": "sahti_as_a_service_db",
+			"database_name": "sahti-as-a-service-db",
+			"database_id": "a2ed7cad-784e-4c87-bcbc-3deea19429b0",
+			"remote": true
+		}
+	]
+}
