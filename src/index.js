@@ -1,3 +1,5 @@
+import QRCode from "qrcode";
+
 export default {
     async fetch(request, env) {
         try {
@@ -28,6 +30,10 @@ export default {
             const resultsMatch = pathname.match(/^\/api\/games\/(\d+)\/results$/);
             if (resultsMatch && request.method === "GET") {
                 return await handleGetResults(Number(resultsMatch[1]), env);
+            }
+
+            if (pathname === "/api/qr" && request.method === "GET") {
+                return await handleGetQr(url);
             }
 
             // UI routes (/, /12, etc)
@@ -385,6 +391,44 @@ async function handleGetResults(gameId, env) {
     });
 }
 
+async function handleGetQr(url) {
+    const target = String(url.searchParams.get("url") || "").trim();
+    if (!target) {
+        return json({ error: "url-parametri puuttuu" }, 400);
+    }
+    if (target.length > 2048) {
+        return json({ error: "URL on liian pitkä" }, 400);
+    }
+
+    let parsed;
+    try {
+        parsed = new URL(target);
+    } catch {
+        return json({ error: "Virheellinen URL" }, 400);
+    }
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return json({ error: "Vain http/https URL:t sallitaan" }, 400);
+    }
+
+    const svg = await QRCode.toString(target, {
+        type: "svg",
+        width: 320,
+        margin: 1,
+        color: {
+            dark: "#111111",
+            light: "#ffffff",
+        },
+    });
+
+    return new Response(svg, {
+        headers: {
+            "content-type": "image/svg+xml; charset=utf-8",
+            "cache-control": "public, max-age=300",
+        },
+    });
+}
+
 function renderHtml() {
     return `<!doctype html>
 <html lang="fi">
@@ -512,7 +556,6 @@ function renderHtml() {
     loading: false,
     error: '',
   };
-  let qrLibraryPromise = null;
 
   function getClientId() {
     const key = 'saas_client_id';
@@ -580,53 +623,18 @@ function renderHtml() {
     return location.origin + '/' + gameId;
   }
 
-  function ensureQrLibrary() {
-    if (window.QRCode) {
-      return Promise.resolve(window.QRCode);
-    }
-    if (qrLibraryPromise) {
-      return qrLibraryPromise;
-    }
-
-    qrLibraryPromise = new Promise((resolve, reject) => {
-      const existing = document.querySelector('script[data-qr-lib="qrcode"]');
-      if (existing) {
-        existing.remove();
-      }
-
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js';
-      script.async = true;
-      script.defer = true;
-      script.dataset.qrLib = 'qrcode';
-      script.onload = () => {
-        if (window.QRCode) {
-          resolve(window.QRCode);
-          return;
-        }
-        qrLibraryPromise = null;
-        reject(new Error('QR-kirjasto latautui virheellisesti'));
-      };
-      script.onerror = () => {
-        qrLibraryPromise = null;
-        reject(new Error('QR-kirjaston lataus epäonnistui'));
-      };
-      document.head.appendChild(script);
-    });
-
-    return qrLibraryPromise;
+  function getQrApiPath(targetUrl) {
+    return '/api/qr?url=' + encodeURIComponent(targetUrl);
   }
 
-  async function generateQrDataUrl(url) {
-    const QRCode = await ensureQrLibrary();
-    return QRCode.toDataURL(url, {
-      width: 320,
-      margin: 1,
-      color: {
-        dark: '#111111',
-        light: '#ffffff'
-      }
-    });
+  async function generateQrDataUrl(targetUrl) {
+    const res = await fetch(getQrApiPath(targetUrl));
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.error || 'QR-koodin lataus epäonnistui');
+    }
+    const svg = await res.text();
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
 
   async function copyTextToClipboard(text) {
