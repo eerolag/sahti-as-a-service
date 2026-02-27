@@ -23,8 +23,14 @@ export default {
             }
 
             const ratingsMatch = pathname.match(/^\/api\/games\/(\d+)\/ratings$/);
-            if (ratingsMatch && request.method === "POST") {
-                return await handleSaveRatings(Number(ratingsMatch[1]), request, env);
+            if (ratingsMatch) {
+                const gameId = Number(ratingsMatch[1]);
+                if (request.method === "POST") {
+                    return await handleSaveRatings(gameId, request, env);
+                }
+                if (request.method === "GET") {
+                    return await handleGetRatings(gameId, request, env);
+                }
             }
 
             const resultsMatch = pathname.match(/^\/api\/games\/(\d+)\/results$/);
@@ -279,8 +285,8 @@ async function handleUpdateGame(gameId, request, env) {
 }
 
 async function getOrCreatePlayerId(env, gameId, clientId) {
-    const cleanClientId = String(clientId || "").trim();
-    if (!cleanClientId || cleanClientId.length > 200) return null;
+    const cleanClientId = normalizeClientId(clientId);
+    if (!cleanClientId) return null;
 
     let player = await env.DB.prepare(
         "SELECT id FROM players WHERE game_id = ? AND client_id = ?"
@@ -303,6 +309,51 @@ async function getOrCreatePlayerId(env, gameId, clientId) {
         .first();
 
     return player?.id || null;
+}
+
+function normalizeClientId(clientId) {
+    const cleanClientId = String(clientId || "").trim();
+    if (!cleanClientId || cleanClientId.length > 200) return null;
+    return cleanClientId;
+}
+
+async function handleGetRatings(gameId, request, env) {
+    const game = await env.DB.prepare("SELECT id FROM games WHERE id = ?")
+        .bind(gameId)
+        .first();
+    if (!game) return json({ error: "Peliä ei löytynyt" }, 404);
+
+    const url = new URL(request.url);
+    const clientId = normalizeClientId(url.searchParams.get("clientId"));
+    if (!clientId) {
+        return json({ error: "clientId puuttuu tai virheellinen" }, 400);
+    }
+
+    const rows = await env.DB.prepare(`
+    SELECT
+      r.beer_id AS beerId,
+      r.score AS score
+    FROM ratings r
+    INNER JOIN players p
+      ON p.id = r.player_id
+    WHERE r.game_id = ?
+      AND p.game_id = ?
+      AND p.client_id = ?
+    ORDER BY r.beer_id ASC
+  `)
+        .bind(gameId, gameId, clientId)
+        .all();
+
+    const ratings = [];
+    for (const row of rows.results || []) {
+        const beerId = Number(row?.beerId);
+        const score = Number(row?.score);
+        if (!Number.isInteger(beerId) || !Number.isFinite(score)) continue;
+        const clamped = Math.min(10, Math.max(0, score));
+        ratings.push({ beerId, score: Number(clamped.toFixed(2)) });
+    }
+
+    return json({ ok: true, ratings });
 }
 
 async function handleSaveRatings(gameId, request, env) {
@@ -544,6 +595,9 @@ function renderHtml() {
 <script>
 (() => {
   const app = document.getElementById('app');
+  const DRAFT_STORAGE_PREFIX = 'saas_ratings_draft_v1';
+  const DRAFT_SAVE_DEBOUNCE_MS = 300;
+  let draftSaveTimer = null;
   const state = {
     clientId: getClientId(),
     game: null,
@@ -557,12 +611,42 @@ function renderHtml() {
     error: '',
   };
 
+  function readStorage(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  function writeStorage(key, value) {
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function removeStorage(key) {
+    try {
+      localStorage.removeItem(key);
+    } catch {}
+  }
+
+  function normalizeScore(value) {
+    const score = Number(value);
+    if (!Number.isFinite(score)) return null;
+    const clamped = Math.min(10, Math.max(0, score));
+    return Number(clamped.toFixed(2));
+  }
+
   function getClientId() {
     const key = 'saas_client_id';
-    let id = localStorage.getItem(key);
+    let id = readStorage(key);
     if (!id) {
       id = 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-      localStorage.setItem(key, id);
+      writeStorage(key, id);
     }
     return id;
   }
@@ -590,11 +674,15 @@ function renderHtml() {
 
   function hasDirty() {
     const ids = state.beers.map(b => b.id);
-    return ids.some(id => Number((state.ratings[id] ?? 0).toFixed(2)) !== Number((state.savedRatings[id] ?? 0).toFixed(2)));
+    return ids.some((id) => {
+      const localScore = normalizeScore(state.ratings[id]) ?? 0;
+      const savedScore = normalizeScore(state.savedRatings[id]) ?? 0;
+      return localScore !== savedScore;
+    });
   }
 
   function formatScore(n) {
-    return Number(n || 0).toFixed(2);
+    return Number(normalizeScore(n) ?? 0).toFixed(2);
   }
 
   function gameDisplayName(gameId) {
@@ -606,8 +694,8 @@ function renderHtml() {
     const nextRatings = {};
     const nextSavedRatings = {};
     for (const beer of beers) {
-      nextRatings[beer.id] = Number((state.ratings[beer.id] ?? 0).toFixed(2));
-      nextSavedRatings[beer.id] = Number((state.savedRatings[beer.id] ?? 0).toFixed(2));
+      nextRatings[beer.id] = normalizeScore(state.ratings[beer.id]) ?? 0;
+      nextSavedRatings[beer.id] = normalizeScore(state.savedRatings[beer.id]) ?? 0;
     }
     state.ratings = nextRatings;
     state.savedRatings = nextSavedRatings;
@@ -617,6 +705,108 @@ function renderHtml() {
     state.game = game || null;
     state.beers = beers || [];
     syncLocalRatingsWithBeers(state.beers);
+  }
+
+  function getDraftStorageKey(gameId, clientId) {
+    return DRAFT_STORAGE_PREFIX + ':' + gameId + ':' + clientId;
+  }
+
+  function loadDraft(gameId, clientId, validBeerIds) {
+    const key = getDraftStorageKey(gameId, clientId);
+    const raw = readStorage(key);
+    if (!raw) return {};
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      removeStorage(key);
+      return {};
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      removeStorage(key);
+      return {};
+    }
+
+    const draft = {};
+    for (const [beerIdRaw, scoreRaw] of Object.entries(parsed)) {
+      const beerId = Number(beerIdRaw);
+      if (!Number.isInteger(beerId) || !validBeerIds.has(beerId)) continue;
+      const score = normalizeScore(scoreRaw);
+      if (score == null) continue;
+      draft[beerId] = score;
+    }
+
+    return draft;
+  }
+
+  function saveDraft(gameId, clientId, ratings) {
+    const key = getDraftStorageKey(gameId, clientId);
+    const payload = {};
+    for (const beer of state.beers) {
+      const beerId = Number(beer?.id);
+      if (!Number.isInteger(beerId)) continue;
+      const score = normalizeScore(ratings[beerId]);
+      if (score == null) continue;
+      payload[beerId] = score;
+    }
+    writeStorage(key, JSON.stringify(payload));
+  }
+
+  function clearDraft(gameId, clientId) {
+    removeStorage(getDraftStorageKey(gameId, clientId));
+  }
+
+  function clearPendingDraftSave() {
+    if (draftSaveTimer == null) return;
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+  }
+
+  function scheduleDraftSave(gameId, clientId) {
+    clearPendingDraftSave();
+    draftSaveTimer = setTimeout(() => {
+      draftSaveTimer = null;
+      saveDraft(gameId, clientId, state.ratings);
+    }, DRAFT_SAVE_DEBOUNCE_MS);
+  }
+
+  async function fetchMyRatings(gameId, clientId) {
+    const data = await api('/api/games/' + gameId + '/ratings?clientId=' + encodeURIComponent(clientId));
+    const ratingsMap = {};
+    const rows = Array.isArray(data?.ratings) ? data.ratings : [];
+    for (const row of rows) {
+      const beerId = Number(row?.beerId);
+      const score = normalizeScore(row?.score);
+      if (!Number.isInteger(beerId) || score == null) continue;
+      ratingsMap[beerId] = score;
+    }
+    return ratingsMap;
+  }
+
+  async function hydrateRatingsState(gameId) {
+    const backendRatings = await fetchMyRatings(gameId, state.clientId);
+    const validBeerIds = new Set();
+    const nextSavedRatings = {};
+    const nextRatings = {};
+
+    for (const beer of state.beers) {
+      const beerId = Number(beer?.id);
+      if (!Number.isInteger(beerId)) continue;
+      validBeerIds.add(beerId);
+      const savedScore = normalizeScore(backendRatings[beerId]) ?? 0;
+      nextSavedRatings[beerId] = savedScore;
+      nextRatings[beerId] = savedScore;
+    }
+
+    const draftRatings = loadDraft(gameId, state.clientId, validBeerIds);
+    for (const [beerId, score] of Object.entries(draftRatings)) {
+      nextRatings[beerId] = score;
+    }
+
+    state.savedRatings = nextSavedRatings;
+    state.ratings = nextRatings;
   }
 
   function getGameUrl(gameId) {
@@ -862,9 +1052,11 @@ function renderHtml() {
   }
 
   async function ensureGameLoaded(gameId) {
-    if (state.game && Number(state.game.id) === Number(gameId) && state.beers.length) return;
-    const data = await api('/api/games/' + gameId);
-    applyGamePayload(data.game, data.beers);
+    if (!state.game || Number(state.game.id) !== Number(gameId) || !state.beers.length) {
+      const data = await api('/api/games/' + gameId);
+      applyGamePayload(data.game, data.beers);
+    }
+    await hydrateRatingsState(gameId);
   }
 
   function renderGamePage(gameId) {
@@ -993,13 +1185,14 @@ function renderHtml() {
     app.querySelectorAll('.score-slider').forEach(sl => {
       sl.addEventListener('input', (e) => {
         const beerId = Number(e.target.dataset.beerId);
-        const value = Number(e.target.value);
-        state.ratings[beerId] = Number(value.toFixed(2));
+        const value = normalizeScore(e.target.value);
+        state.ratings[beerId] = value ?? 0;
         const out = document.getElementById('score-val-' + beerId);
-        if (out) out.textContent = formatScore(value);
+        if (out) out.textContent = formatScore(value ?? 0);
 
         const saveBtn = document.getElementById('save-btn');
         if (saveBtn) saveBtn.disabled = !hasDirty();
+        scheduleDraftSave(gameId, state.clientId);
       });
     });
 
@@ -1086,8 +1279,8 @@ function renderHtml() {
         const changed = state.beers
           .map(b => ({
             beerId: b.id,
-            score: Number((state.ratings[b.id] ?? 0).toFixed(2)),
-            prev: Number((state.savedRatings[b.id] ?? 0).toFixed(2))
+            score: normalizeScore(state.ratings[b.id]) ?? 0,
+            prev: normalizeScore(state.savedRatings[b.id]) ?? 0
           }))
           .filter(x => x.score !== x.prev)
           .map(({ beerId, score }) => ({ beerId, score }));
@@ -1107,6 +1300,8 @@ function renderHtml() {
         });
 
         for (const item of changed) state.savedRatings[item.beerId] = item.score;
+        clearPendingDraftSave();
+        clearDraft(gameId, state.clientId);
 
         btn.textContent = 'Tallennettu';
         setTimeout(() => {
