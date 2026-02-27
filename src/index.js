@@ -438,6 +438,14 @@ function renderHtml() {
       min-height: 42px;
     }
     .small { font-size: 12px; color: var(--muted); }
+    .id-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .btn.qr-toggle-btn {
+      min-height: 30px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
     .beer-card { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: start; }
     .beer-img {
       width: 72px; height: 72px; border-radius: 12px; border: 1px solid var(--line);
@@ -464,6 +472,26 @@ function renderHtml() {
     .divider { height: 1px; background: var(--line); margin: 12px 0; }
     .file-note { font-size: 11px; color: var(--muted); }
     .empty { text-align: center; color: var(--muted); padding: 22px 10px; }
+    .share-panel {
+      border: 1px solid var(--line);
+      background: #11151c;
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .qr-wrap { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .qr-img {
+      width: 132px;
+      height: 132px;
+      object-fit: contain;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 6px;
+      flex-shrink: 0;
+    }
+    .qr-status { min-height: 16px; font-size: 12px; color: var(--muted); }
+    .share-link { font-size: 12px; word-break: break-all; overflow-wrap: anywhere; }
+    .share-link a { color: var(--text); text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -484,6 +512,7 @@ function renderHtml() {
     loading: false,
     error: '',
   };
+  let qrLibraryPromise = null;
 
   function getClientId() {
     const key = 'saas_client_id';
@@ -545,6 +574,59 @@ function renderHtml() {
     state.game = game || null;
     state.beers = beers || [];
     syncLocalRatingsWithBeers(state.beers);
+  }
+
+  function getGameUrl(gameId) {
+    return location.origin + '/' + gameId;
+  }
+
+  function ensureQrLibrary() {
+    if (window.QRCode) {
+      return Promise.resolve(window.QRCode);
+    }
+    if (qrLibraryPromise) {
+      return qrLibraryPromise;
+    }
+
+    qrLibraryPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-qr-lib="qrcode"]');
+      if (existing) {
+        existing.remove();
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js';
+      script.async = true;
+      script.defer = true;
+      script.dataset.qrLib = 'qrcode';
+      script.onload = () => {
+        if (window.QRCode) {
+          resolve(window.QRCode);
+          return;
+        }
+        qrLibraryPromise = null;
+        reject(new Error('QR-kirjasto latautui virheellisesti'));
+      };
+      script.onerror = () => {
+        qrLibraryPromise = null;
+        reject(new Error('QR-kirjaston lataus epäonnistui'));
+      };
+      document.head.appendChild(script);
+    });
+
+    return qrLibraryPromise;
+  }
+
+  async function generateQrDataUrl(url) {
+    const QRCode = await ensureQrLibrary();
+    return QRCode.toDataURL(url, {
+      width: 320,
+      margin: 1,
+      color: {
+        dark: '#111111',
+        light: '#ffffff'
+      }
+    });
   }
 
   async function copyTextToClipboard(text) {
@@ -849,6 +931,7 @@ function renderHtml() {
   }
 
   function renderPlayView(gameId) {
+    const targetUrl = getGameUrl(gameId);
     app.innerHTML = \`
       <div class="title">Sahti as a Service</div>
       <div class="sub">\${escapeHtml(gameDisplayName(gameId))} • Arvostele oluet</div>
@@ -858,7 +941,10 @@ function renderHtml() {
           <div class="row" style="justify-content:space-between; align-items:flex-start;">
             <div class="col">
               <div><strong>\${escapeHtml(gameDisplayName(gameId))}</strong></div>
-              <div class="small">Peli-ID: \${gameId} • \${state.beers.length} olutta</div>
+              <div class="id-row">
+                <div class="small">Peli-ID: \${gameId} • \${state.beers.length} olutta</div>
+                <button class="btn qr-toggle-btn" type="button" id="toggle-qr-btn" aria-expanded="false">QR</button>
+              </div>
               <div class="small">Client ID: \${escapeHtml(state.clientId.slice(-8))} (selainkohtainen)</div>
             </div>
             <a href="/" class="btn" style="text-decoration:none">Etusivu</a>
@@ -866,6 +952,18 @@ function renderHtml() {
           <div class="row">
             <button class="btn grow" id="copy-game-url-btn">Kopioi pelin URL</button>
             <button class="btn" id="edit-game-btn">Muokkaa</button>
+          </div>
+          <div class="share-panel hidden" id="share-panel">
+            <div class="qr-wrap">
+              <img class="qr-img hidden" id="share-qr-img" alt="QR-koodi pelin linkille" />
+              <div class="col grow" style="gap:6px;">
+                <div class="small">Jaa peli skannaamalla QR-koodi tai kopioi URL-linkki.</div>
+                <div class="qr-status" id="share-qr-status"></div>
+                <div class="share-link">
+                  <a id="share-game-link" href="\${escapeHtml(targetUrl)}">\${escapeHtml(targetUrl)}</a>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -897,9 +995,62 @@ function renderHtml() {
       });
     });
 
+    const sharePanel = document.getElementById('share-panel');
+    const toggleQrBtn = document.getElementById('toggle-qr-btn');
+    const qrImg = document.getElementById('share-qr-img');
+    const qrStatus = document.getElementById('share-qr-status');
+    let qrDataReady = false;
+    let qrGenerationPromise = null;
+
+    toggleQrBtn.onclick = async () => {
+      const opening = sharePanel.classList.contains('hidden');
+      if (!opening) {
+        sharePanel.classList.add('hidden');
+        toggleQrBtn.setAttribute('aria-expanded', 'false');
+        return;
+      }
+
+      sharePanel.classList.remove('hidden');
+      toggleQrBtn.setAttribute('aria-expanded', 'true');
+
+      if (qrDataReady) {
+        return;
+      }
+
+      if (qrGenerationPromise) {
+        qrStatus.textContent = 'Luodaan QR-koodia...';
+        try {
+          await qrGenerationPromise;
+        } catch (_) {}
+        return;
+      }
+
+      qrStatus.textContent = 'Luodaan QR-koodia...';
+      qrGenerationPromise = generateQrDataUrl(targetUrl)
+        .then((dataUrl) => {
+          qrImg.src = dataUrl;
+          qrImg.classList.remove('hidden');
+          qrStatus.textContent = 'Skannaa QR avataksesi pelin';
+          qrDataReady = true;
+        })
+        .catch((err) => {
+          qrImg.classList.add('hidden');
+          qrStatus.textContent =
+            (err && err.message)
+              ? err.message + ' - voit silti jakaa linkin.'
+              : 'QR-koodin luonti epäonnistui - voit silti jakaa linkin.';
+        })
+        .finally(() => {
+          qrGenerationPromise = null;
+        });
+
+      try {
+        await qrGenerationPromise;
+      } catch (_) {}
+    };
+
     document.getElementById('copy-game-url-btn').onclick = async () => {
       const btn = document.getElementById('copy-game-url-btn');
-      const targetUrl = location.origin + '/' + gameId;
       try {
         await copyTextToClipboard(targetUrl);
         btn.textContent = 'Kopioitu!';
