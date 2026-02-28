@@ -12,6 +12,7 @@ Sovellus tarjoaa sekä käyttöliittymän että API:n saman Workerin kautta.
 - Pelaajat antavat pisteet väliltä `0.00–10.00`.
 - Tulokset lasketaan keskiarvona ja näytetään järjestettynä.
 - Pelin ja olutlistan muokkaus jälkikäteen.
+- Olutlistan järjestyksen vaihto raahaamalla (luonti- ja muokkausnäkymä).
 
 ## Teknologiat
 

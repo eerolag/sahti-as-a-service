@@ -1126,6 +1126,40 @@ function renderHtml() {
       word-break: break-all;
       overflow-wrap: anywhere;
     }
+    .beer-edit-row {
+      transition: border-color .12s ease, box-shadow .12s ease, opacity .12s ease;
+    }
+    .beer-edit-row.dragging {
+      opacity: .7;
+      border-color: #d97706;
+      box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25);
+    }
+    .beer-edit-row.drag-over {
+      border-color: #f59e0b;
+      box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35);
+    }
+    .drag-handle {
+      width: 34px;
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #11151c;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 16px;
+      line-height: 1;
+      cursor: grab;
+      touch-action: none;
+      padding: 0;
+    }
+    .drag-handle:active {
+      cursor: grabbing;
+      color: var(--text);
+    }
+    .drag-handle:disabled {
+      cursor: not-allowed;
+      opacity: .45;
+    }
     @media (min-width: 700px) {
       .modal-overlay {
         align-items: center;
@@ -1571,6 +1605,149 @@ function renderHtml() {
     });
   }
 
+  function moveArrayItem(items, fromIdx, toIdx) {
+    if (!Array.isArray(items)) return false;
+    if (!Number.isInteger(fromIdx) || !Number.isInteger(toIdx)) return false;
+    if (fromIdx === toIdx) return false;
+    if (fromIdx < 0 || toIdx < 0 || fromIdx >= items.length || toIdx >= items.length) return false;
+
+    const [moved] = items.splice(fromIdx, 1);
+    items.splice(toIdx, 0, moved);
+    return true;
+  }
+
+  function setupBeerRowReorder(options = {}) {
+    const container = options.container;
+    const rows = options.rows;
+    const onReorder = options.onReorder;
+    const handleSelector = String(options.handleSelector || '.drag-handle');
+    const rowSelector = '[data-row]';
+
+    if (!container || !Array.isArray(rows) || rows.length < 2 || typeof onReorder !== 'function') return;
+
+    let armedMouseDragIdx = null;
+    let draggingFromIdx = null;
+
+    function allRows() {
+      return Array.from(container.querySelectorAll(rowSelector));
+    }
+
+    function clearVisualState() {
+      allRows().forEach((row) => {
+        row.classList.remove('drag-over');
+        row.classList.remove('dragging');
+      });
+    }
+
+    function applyReorder(fromIdx, toIdx) {
+      if (moveArrayItem(rows, fromIdx, toIdx)) {
+        onReorder();
+      } else {
+        clearVisualState();
+      }
+    }
+
+    allRows().forEach((rowEl) => {
+      const rowIdx = Number(rowEl.dataset.row);
+      if (!Number.isInteger(rowIdx)) return;
+      rowEl.draggable = true;
+
+      rowEl.addEventListener('dragstart', (event) => {
+        if (armedMouseDragIdx !== rowIdx) {
+          event.preventDefault();
+          return;
+        }
+
+        draggingFromIdx = rowIdx;
+        rowEl.classList.add('dragging');
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', String(rowIdx));
+        }
+      });
+
+      rowEl.addEventListener('dragover', (event) => {
+        if (draggingFromIdx == null) return;
+        event.preventDefault();
+        clearVisualState();
+        rowEl.classList.add('drag-over');
+      });
+
+      rowEl.addEventListener('dragleave', () => {
+        rowEl.classList.remove('drag-over');
+      });
+
+      rowEl.addEventListener('drop', (event) => {
+        if (draggingFromIdx == null) return;
+        event.preventDefault();
+        const toIdx = Number(rowEl.dataset.row);
+        const fromIdx = draggingFromIdx;
+        draggingFromIdx = null;
+        armedMouseDragIdx = null;
+        applyReorder(fromIdx, toIdx);
+      });
+
+      rowEl.addEventListener('dragend', () => {
+        draggingFromIdx = null;
+        armedMouseDragIdx = null;
+        clearVisualState();
+      });
+    });
+
+    container.querySelectorAll(handleSelector).forEach((handleEl) => {
+      const handleIdx = Number(handleEl.dataset.idx);
+      if (!Number.isInteger(handleIdx)) return;
+
+      handleEl.addEventListener('mousedown', () => {
+        armedMouseDragIdx = handleIdx;
+      });
+      handleEl.addEventListener('mouseup', () => {
+        armedMouseDragIdx = null;
+      });
+      handleEl.addEventListener('mouseleave', () => {
+        if (draggingFromIdx == null) armedMouseDragIdx = null;
+      });
+
+      handleEl.addEventListener('pointerdown', (event) => {
+        if (event.pointerType === 'mouse') return;
+        event.preventDefault();
+
+        const fromIdx = Number(handleEl.dataset.idx);
+        if (!Number.isInteger(fromIdx)) return;
+
+        let toIdx = fromIdx;
+        clearVisualState();
+        const fromRow = container.querySelector('[data-row="' + fromIdx + '"]');
+        if (fromRow) fromRow.classList.add('dragging');
+
+        const onPointerMove = (moveEvent) => {
+          if (moveEvent.pointerId !== event.pointerId) return;
+          const target = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+          const rowEl = target?.closest ? target.closest(rowSelector) : null;
+          if (!rowEl || !container.contains(rowEl)) return;
+          const candidateIdx = Number(rowEl.dataset.row);
+          if (!Number.isInteger(candidateIdx)) return;
+          toIdx = candidateIdx;
+          clearVisualState();
+          if (fromRow) fromRow.classList.add('dragging');
+          rowEl.classList.add('drag-over');
+        };
+
+        const onPointerEnd = (endEvent) => {
+          if (endEvent.pointerId !== event.pointerId) return;
+          document.removeEventListener('pointermove', onPointerMove);
+          document.removeEventListener('pointerup', onPointerEnd);
+          document.removeEventListener('pointercancel', onPointerEnd);
+          applyReorder(fromIdx, toIdx);
+        };
+
+        document.addEventListener('pointermove', onPointerMove);
+        document.addEventListener('pointerup', onPointerEnd);
+        document.addEventListener('pointercancel', onPointerEnd);
+      });
+    });
+  }
+
   function render() {
     const gameId = getPathGameId();
 
@@ -1638,9 +1815,17 @@ function renderHtml() {
 
     function rowHtml(row, idx) {
       return \`
-        <div class="card" data-row="\${idx}">
+        <div class="card beer-edit-row" data-row="\${idx}">
           <div class="col">
             <div class="row">
+              <button
+                type="button"
+                class="drag-handle create-drag-handle"
+                data-idx="\${idx}"
+                aria-label="Raahaa olut \${idx + 1} toiseen kohtaan"
+                title="Raahaa tästä järjestyksen vaihtamiseksi"
+                \${draft.beers.length < 2 ? 'disabled' : ''}
+              >⋮⋮</button>
               <div class="grow"><strong>Olut \${idx + 1}</strong></div>
               <button type="button" class="btn danger remove-row" data-idx="\${idx}" \${draft.beers.length === 1 ? 'disabled' : ''}>Poista</button>
             </div>
@@ -1666,6 +1851,7 @@ function renderHtml() {
           <div class="col">
             <div><strong>Luo uusi peli</strong></div>
             <div class="small">Pelin nimi ja oluen nimi ovat pakollisia.</div>
+            <div class="small">Raahaa oluita kahvasta (⋮⋮) vaihtaaksesi järjestystä.</div>
             <label class="small">Pelin nimi</label>
             <input class="input" id="game-name-input" value="\${escapeHtml(draft.gameName)}" placeholder="esim. Sahtitesti 2026" />
           </div>
@@ -1719,6 +1905,12 @@ function renderHtml() {
           draft.beers.splice(idx, 1);
           rerender();
         };
+      });
+      setupBeerRowReorder({
+        container: panel.querySelector('#rows'),
+        rows: draft.beers,
+        onReorder: rerender,
+        handleSelector: '.create-drag-handle',
       });
 
       document.getElementById('add-row').onclick = () => {
@@ -2069,9 +2261,17 @@ function renderHtml() {
 
     function rowHtml(row, idx) {
       return \`
-        <div class="card">
+        <div class="card beer-edit-row" data-row="\${idx}">
           <div class="col">
             <div class="row">
+              <button
+                type="button"
+                class="drag-handle edit-drag-handle"
+                data-idx="\${idx}"
+                aria-label="Raahaa olut \${idx + 1} toiseen kohtaan"
+                title="Raahaa tästä järjestyksen vaihtamiseksi"
+                \${draft.beers.length < 2 ? 'disabled' : ''}
+              >⋮⋮</button>
               <div class="grow"><strong>Olut \${idx + 1}</strong></div>
               <button type="button" class="btn danger edit-remove-row" data-idx="\${idx}" \${draft.beers.length === 1 ? 'disabled' : ''}>Poista</button>
             </div>
@@ -2101,10 +2301,11 @@ function renderHtml() {
             <label class="small">Pelin nimi</label>
             <input class="input" id="edit-game-name" value="\${escapeHtml(draft.gameName)}" placeholder="Pelin nimi" />
             <div class="small">Voit lisätä, poistaa ja muokata oluita.</div>
+            <div class="small">Raahaa oluita kahvasta (⋮⋮) vaihtaaksesi järjestystä.</div>
           </div>
         </div>
 
-        <div>
+        <div id="edit-rows">
           \${draft.beers.map((beer, idx) => rowHtml(beer, idx)).join('')}
         </div>
 
@@ -2154,6 +2355,12 @@ function renderHtml() {
           draft.beers.splice(idx, 1);
           rerender();
         };
+      });
+      setupBeerRowReorder({
+        container: app.querySelector('#edit-rows'),
+        rows: draft.beers,
+        onReorder: rerender,
+        handleSelector: '.edit-drag-handle',
       });
 
       document.getElementById('edit-add-row').onclick = () => {
