@@ -1,6 +1,10 @@
 import type { BeerDto, ResultBeerDto } from "../../shared/api-contracts";
 import { normalizeScore } from "../../shared/scoring";
 
+const SCORE_MIN = 0;
+const SCORE_MAX = 10;
+const SCORE_STEP = 0.5;
+
 interface BeerCardProps {
   beer: BeerDto | ResultBeerDto;
   mode: "play" | "results";
@@ -29,6 +33,7 @@ export function BeerCard({ beer, mode, score, onScoreChange }: BeerCardProps) {
     : undefined;
 
   const untappdUrl = beerUntappdUrl(beer);
+  const normalizedScore = normalizeScore(score) ?? 0;
 
   return (
     <div className="card">
@@ -64,15 +69,27 @@ export function BeerCard({ beer, mode, score, onScoreChange }: BeerCardProps) {
               <input
                 className="range"
                 type="range"
-                min={0}
-                max={10}
-                step={0.01}
-                value={normalizeScore(score) ?? 0}
+                min={SCORE_MIN}
+                max={SCORE_MAX}
+                step={SCORE_STEP}
+                value={normalizedScore}
                 onChange={(event) => onScoreChange?.(Number(event.target.value))}
+                aria-label={`Arvosana oluelle ${beer.name}`}
               />
-              <div className="w-14 rounded-lg border border-line bg-slate-950 px-2 py-1 text-right tabular-nums">
-                {formatScore(score)}
-              </div>
+              <input
+                className="w-20 rounded-lg border border-line bg-slate-950 px-2 py-1 text-right tabular-nums text-text"
+                type="number"
+                min={SCORE_MIN}
+                max={SCORE_MAX}
+                step={SCORE_STEP}
+                value={normalizedScore}
+                onChange={(event) => {
+                  const next = normalizeScore(event.target.value);
+                  if (next == null) return;
+                  onScoreChange?.(next);
+                }}
+                aria-label={`Arvosana numerona oluelle ${beer.name}`}
+              />
             </div>
           )}
         </div>
