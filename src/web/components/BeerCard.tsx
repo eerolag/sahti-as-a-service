@@ -6,7 +6,7 @@ const SCORE_MIN = 0;
 const SCORE_MAX = 10;
 const DESKTOP_SLIDER_STEP = 0.01;
 const MOBILE_SLIDER_STEP = 0.5;
-const COARSE_POINTER_QUERY = "(pointer: coarse)";
+const MOBILE_LIKE_QUERY = "(pointer: coarse), (hover: none), (max-width: 768px)";
 
 interface BeerCardProps {
   beer: BeerDto | ResultBeerDto;
@@ -44,19 +44,21 @@ export function BeerCard({ beer, mode, score, onScoreChange }: BeerCardProps) {
   const untappdUrl = beerUntappdUrl(beer);
   const normalizedScore = normalizeScore(score) ?? 0;
   const [scoreInput, setScoreInput] = useState(() => formatScore(normalizedScore));
+  const [isEditingInput, setIsEditingInput] = useState(false);
   const [isCoarsePointer, setIsCoarsePointer] = useState(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-    return window.matchMedia(COARSE_POINTER_QUERY).matches;
+    return window.matchMedia(MOBILE_LIKE_QUERY).matches;
   });
   const sliderStep = isCoarsePointer ? MOBILE_SLIDER_STEP : DESKTOP_SLIDER_STEP;
 
   useEffect(() => {
+    if (isEditingInput) return;
     setScoreInput(formatScore(normalizedScore));
-  }, [normalizedScore]);
+  }, [isEditingInput, normalizedScore]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mediaQuery = window.matchMedia(COARSE_POINTER_QUERY);
+    const mediaQuery = window.matchMedia(MOBILE_LIKE_QUERY);
     const updatePointer = () => setIsCoarsePointer(mediaQuery.matches);
     updatePointer();
 
@@ -119,6 +121,7 @@ export function BeerCard({ beer, mode, score, onScoreChange }: BeerCardProps) {
                 type="text"
                 inputMode="decimal"
                 value={scoreInput}
+                onFocus={() => setIsEditingInput(true)}
                 onChange={(event) => {
                   const raw = event.target.value;
                   setScoreInput(raw);
@@ -128,6 +131,7 @@ export function BeerCard({ beer, mode, score, onScoreChange }: BeerCardProps) {
                 }}
                 onBlur={() => {
                   const parsed = parseScoreInput(scoreInput);
+                  setIsEditingInput(false);
                   setScoreInput(formatScore(parsed ?? normalizedScore));
                 }}
                 aria-label={`Arvosana numerona oluelle ${beer.name}`}
