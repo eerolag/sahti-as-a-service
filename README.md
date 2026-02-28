@@ -122,6 +122,21 @@ npm run build:web
 npx wrangler deploy
 ```
 
+## Auto deploy GitHub pushista
+
+Repoon on lisätty GitHub Actions workflow:
+- [deploy-worker.yml](/Users/anttieerola/Documents/GitHub/sahti-as-a-service/.github/workflows/deploy-worker.yml)
+
+Se ajaa `push`-eventillä (`main` / `master`):
+1. `npm ci`
+2. `npm test`
+3. `npm run build:web`
+4. `npx wrangler deploy`
+
+Jotta workflow voi deployata Cloudflareen, lisää GitHub-repoon `Settings -> Secrets and variables -> Actions`:
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
 ## API-päätepisteet
 
 - `POST /api/create-game`
