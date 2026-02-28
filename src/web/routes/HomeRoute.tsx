@@ -27,9 +27,12 @@ export function HomeRoute() {
       if (!trimmedName) throw new Error("Anna pelille nimi");
 
       const payloadBeers: CreateGameRequest["beers"] = [];
-      for (const row of beers) {
+      for (let index = 0; index < beers.length; index += 1) {
+        const row = beers[index];
         const name = row.name.trim();
-        if (!name) continue;
+        if (!name) {
+          throw new Error(`Anna nimi kaikille oluille tai poista tyhjä rivi (rivi ${index + 1})`);
+        }
 
         let image_url = row.imageUrl.trim() || null;
         if (!image_url && row.file) {

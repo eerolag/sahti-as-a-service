@@ -28,6 +28,15 @@ describe("shared/validation", () => {
     ], { allowIds: true });
     expect("beers" in ok).toBe(true);
 
+    const missingName = normalizeBeersPayload(
+      [
+        { id: 1, name: "Beer 1", image_url: null },
+        { id: 2, name: "   ", image_url: null },
+      ],
+      { allowIds: true },
+    );
+    expect(missingName).toEqual({ error: "Anna nimi kaikille oluille (rivi 2)" });
+
     const bad = normalizeBeersPayload([{ id: -1, name: "Beer", image_url: null }], { allowIds: true });
     expect("error" in bad).toBe(true);
   });

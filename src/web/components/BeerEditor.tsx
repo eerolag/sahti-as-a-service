@@ -116,7 +116,10 @@ export function BeerEditor({
                   >
                     ⋮⋮
                   </button>
-                  <div className="grow font-semibold">Olut {idx + 1}</div>
+                  <div className="grow">
+                    <div className="font-semibold">{beer.name.trim() || "Nimeä olut"}</div>
+                    <div className="text-xs text-muted">Rivi {idx + 1}</div>
+                  </div>
                   <button
                     type="button"
                     className="btn btn-danger"

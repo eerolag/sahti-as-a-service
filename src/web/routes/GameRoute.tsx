@@ -158,9 +158,12 @@ export function GameRoute({ gameId }: { gameId: number }) {
       }
 
       const payloadBeers: UpdateGameRequest["beers"] = [];
-      for (const row of editDraft.beers) {
+      for (let index = 0; index < editDraft.beers.length; index += 1) {
+        const row = editDraft.beers[index];
         const name = row.name.trim();
-        if (!name) continue;
+        if (!name) {
+          throw new Error(`Anna nimi kaikille oluille tai poista tyhjä rivi (rivi ${index + 1})`);
+        }
 
         let image_url = row.imageUrl.trim() || null;
         if (row.file) {

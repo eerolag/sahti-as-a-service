@@ -26,7 +26,9 @@ export function normalizeBeersPayload(
   for (let i = 0; i < input.length; i += 1) {
     const b = input[i] as BeerPayloadInput;
     const name = String(b?.name ?? "").trim();
-    if (!name) continue;
+    if (!name) {
+      return { error: `Anna nimi kaikille oluille (rivi ${i + 1})` };
+    }
 
     const imageUrlRaw = typeof b?.image_url === "string" && b.image_url.trim() ? b.image_url.trim() : null;
     const normalizedImageUrl = normalizeImageUrl(imageUrlRaw);

@@ -68,6 +68,24 @@ describe("worker api", () => {
     expect(gamePayload.beers).toHaveLength(2);
   });
 
+  it("rejects create when a beer name is empty", async () => {
+    const response = await call(env, "/api/create-game", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Invalid Create",
+        beers: [
+          { name: "Beer A", image_url: null },
+          { name: "   ", image_url: null },
+        ],
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    const payload = await json(response);
+    expect(payload.error).toBe("Anna nimi kaikille oluille (rivi 2)");
+  });
+
   it("updates game and validates beer ids", async () => {
     await call(env, "/api/create-game", {
       method: "POST",
@@ -109,6 +127,33 @@ describe("worker api", () => {
     expect(payload.ok).toBe(true);
     expect(payload.game.name).toBe("Updated");
     expect(payload.beers).toHaveLength(2);
+  });
+
+  it("rejects update when an existing beer name is emptied", async () => {
+    await call(env, "/api/create-game", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Update Empty Name",
+        beers: [{ name: "Beer A", image_url: null }],
+      }),
+    });
+
+    const current = await json(await call(env, "/api/games/1"));
+    const existingId = current.beers[0].id;
+
+    const response = await call(env, "/api/games/1", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Updated",
+        beers: [{ id: existingId, name: " ", image_url: null }],
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    const payload = await json(response);
+    expect(payload.error).toBe("Anna nimi kaikille oluille (rivi 1)");
   });
 
   it("saves ratings and returns per-client ratings", async () => {
