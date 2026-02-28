@@ -38,6 +38,10 @@ export default {
                 return await handleGetResults(Number(resultsMatch[1]), env);
             }
 
+            if (pathname === "/api/image-search" && request.method === "GET") {
+                return await handleImageSearch(url, env);
+            }
+
             if (pathname === "/api/qr" && request.method === "GET") {
                 return await handleGetQr(url);
             }
@@ -78,6 +82,13 @@ async function parseJson(request) {
 }
 
 const MAX_GAME_NAME_LENGTH = 120;
+const UNTAPPD_SEARCH_SOURCE = "search-link";
+const UNTAPPD_API_SOURCE = "untappd-api";
+const UNTAPPD_MAX_API_AGE_MS = 24 * 60 * 60 * 1000;
+const UNTAPPD_RESOLVE_LIMIT = 25;
+const UNTAPPD_RESOLVE_CONCURRENCY = 4;
+const UNTAPPD_RESOLVE_TIMEOUT_MS = 3500;
+const UNTAPPD_MATCH_THRESHOLD = 0.9;
 
 function normalizeGameName(raw) {
     const name = String(raw || "").trim();
@@ -86,6 +97,337 @@ function normalizeGameName(raw) {
         return { error: `Pelin nimi on liian pitkä (max ${MAX_GAME_NAME_LENGTH} merkkiä)` };
     }
     return { value: name };
+}
+
+function normalizeImageUrl(raw) {
+    const value = String(raw || "").trim();
+    if (!value) return { value: null };
+
+    if (/^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(value)) {
+        return { value };
+    }
+
+    let parsed;
+    try {
+        parsed = new URL(value);
+    } catch {
+        return { error: "Virheellinen kuva-URL" };
+    }
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return { error: "Kuva-URL:ssa sallitaan vain http/https tai data:image/*" };
+    }
+
+    return { value };
+}
+
+function sanitizeHttpsUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+
+    let parsed;
+    try {
+        parsed = new URL(raw.startsWith("//") ? `https:${raw}` : raw);
+    } catch {
+        return null;
+    }
+
+    if (parsed.protocol !== "https:") return null;
+    return parsed.toString();
+}
+
+function sanitizeUntappdUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+
+    let parsed;
+    try {
+        parsed = new URL(raw.startsWith("//") ? `https:${raw}` : raw);
+    } catch {
+        return null;
+    }
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    if (!parsed.hostname.toLowerCase().endsWith("untappd.com")) return null;
+    parsed.protocol = "https:";
+    return parsed.toString();
+}
+
+function createUntappdSearchUrl(name) {
+    return `https://untappd.com/search?q=${encodeURIComponent(String(name || "").trim())}`;
+}
+
+function createSearchLinkUntappdMeta(name, resolvedAt = new Date().toISOString()) {
+    return {
+        untappd_url: createUntappdSearchUrl(name),
+        untappd_source: UNTAPPD_SEARCH_SOURCE,
+        untappd_confidence: null,
+        untappd_resolved_at: resolvedAt,
+    };
+}
+
+function normalizeSearchText(value) {
+    return String(value || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+}
+
+function scoreUntappdCandidate(query, candidateName) {
+    const q = normalizeSearchText(query);
+    const c = normalizeSearchText(candidateName);
+    if (!q || !c) return 0;
+    if (q === c) return 1;
+    if (c.includes(q) || q.includes(c)) return 0.92;
+
+    const qTokens = new Set(q.split(" ").filter(Boolean));
+    const cTokens = new Set(c.split(" ").filter(Boolean));
+    if (!qTokens.size || !cTokens.size) return 0;
+
+    let overlap = 0;
+    for (const token of qTokens) {
+        if (cTokens.has(token)) overlap++;
+    }
+    if (!overlap) return 0;
+
+    const ratio = overlap / Math.max(qTokens.size, cTokens.size);
+    return Number(Math.min(ratio * 0.89, 0.89).toFixed(3));
+}
+
+function clampInteger(value, min, max, fallback) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return fallback;
+    const int = Math.trunc(num);
+    if (int < min) return min;
+    if (int > max) return max;
+    return int;
+}
+
+function pickFirstHttpsUrl(candidates) {
+    for (const candidate of candidates) {
+        const sanitized = sanitizeHttpsUrl(candidate);
+        if (sanitized) return sanitized;
+    }
+    return null;
+}
+
+function getUrlDomain(url) {
+    try {
+        return new URL(url).hostname.replace(/^www\./i, "");
+    } catch {
+        return "";
+    }
+}
+
+function normalizeBraveImageResult(row) {
+    const imageUrl = pickFirstHttpsUrl([
+        row?.properties?.url,
+        row?.image?.url,
+        row?.src,
+        row?.url,
+    ]);
+    if (!imageUrl) return null;
+
+    const thumbnailUrl =
+        pickFirstHttpsUrl([
+            row?.thumbnail?.src,
+            row?.thumbnail?.url,
+            row?.thumbnail,
+            row?.properties?.thumbnail,
+        ]) || imageUrl;
+    const sourceUrl = pickFirstHttpsUrl([
+        row?.page_url,
+        row?.meta_url?.url,
+        row?.source?.url,
+        row?.source_url,
+        row?.url,
+    ]);
+
+    return {
+        imageUrl,
+        thumbnailUrl,
+        title: String(row?.title || row?.description || "").trim(),
+        sourceUrl: sourceUrl || null,
+        sourceDomain: getUrlDomain(sourceUrl || imageUrl),
+    };
+}
+
+function buildUntappdBeerUrl(item) {
+    const beer = item?.beer || item || {};
+
+    const directUrl = sanitizeUntappdUrl(
+        beer?.beer_url || beer?.url || item?.url || item?.beer_url
+    );
+    if (directUrl) return directUrl;
+
+    const slug = String(beer?.beer_slug || "").trim();
+    const bid = Number(beer?.bid || item?.bid);
+    if (!slug || !Number.isInteger(bid) || bid <= 0) return null;
+
+    return `https://untappd.com/b/${encodeURIComponent(slug)}/${bid}`;
+}
+
+function isUntappdApiRecordExpired(resolvedAt) {
+    const ts = Date.parse(String(resolvedAt || ""));
+    if (!Number.isFinite(ts)) return true;
+    return Date.now() - ts > UNTAPPD_MAX_API_AGE_MS;
+}
+
+async function runWithConcurrency(items, limit, handler) {
+    if (!Array.isArray(items) || items.length === 0) return;
+    const concurrency = Math.max(1, Math.min(limit, items.length));
+    let cursor = 0;
+
+    await Promise.all(
+        Array.from({ length: concurrency }).map(async () => {
+            while (true) {
+                const currentIndex = cursor;
+                cursor += 1;
+                if (currentIndex >= items.length) return;
+                await handler(items[currentIndex], currentIndex);
+            }
+        })
+    );
+}
+
+async function resolveUntappdFromApi(env, beerName) {
+    const clientId = String(env.UNTAPPD_CLIENT_ID || "").trim();
+    const clientSecret = String(env.UNTAPPD_CLIENT_SECRET || "").trim();
+    const name = String(beerName || "").trim();
+    if (!clientId || !clientSecret || !name) return null;
+
+    const endpoint = new URL("https://api.untappd.com/v4/search/beer");
+    endpoint.searchParams.set("q", name);
+    endpoint.searchParams.set("limit", "10");
+    endpoint.searchParams.set("client_id", clientId);
+    endpoint.searchParams.set("client_secret", clientSecret);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), UNTAPPD_RESOLVE_TIMEOUT_MS);
+
+    let data = null;
+    try {
+        const res = await fetch(endpoint.toString(), {
+            method: "GET",
+            signal: controller.signal,
+            headers: { accept: "application/json" },
+        });
+        if (!res.ok) return null;
+        data = await res.json();
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timeout);
+    }
+
+    const items = Array.isArray(data?.response?.beers?.items)
+        ? data.response.beers.items
+        : [];
+    let best = null;
+    for (const item of items) {
+        const beer = item?.beer || item || {};
+        const brewery = item?.brewery || {};
+        const candidateName = String(beer?.beer_name || item?.beer_name || "").trim();
+        const candidateUrl = buildUntappdBeerUrl(item);
+        if (!candidateName || !candidateUrl) continue;
+
+        const breweryName = String(brewery?.brewery_name || "").trim();
+        const combinedName = breweryName
+            ? `${candidateName} ${breweryName}`
+            : candidateName;
+        const score = Math.max(
+            scoreUntappdCandidate(name, candidateName),
+            scoreUntappdCandidate(name, combinedName)
+        );
+        if (!best || score > best.score) {
+            best = { score, url: candidateUrl };
+        }
+    }
+
+    if (!best || best.score < UNTAPPD_MATCH_THRESHOLD) return null;
+
+    return {
+        untappd_url: best.url,
+        untappd_source: UNTAPPD_API_SOURCE,
+        untappd_confidence: Number(best.score.toFixed(3)),
+        untappd_resolved_at: new Date().toISOString(),
+    };
+}
+
+async function enrichBeersWithUntappd(env, beers) {
+    const enriched = beers.map((beer) => ({
+        ...beer,
+        ...createSearchLinkUntappdMeta(beer.name),
+    }));
+
+    const hasUntappdCredentials =
+        String(env.UNTAPPD_CLIENT_ID || "").trim() &&
+        String(env.UNTAPPD_CLIENT_SECRET || "").trim();
+    if (!hasUntappdCredentials) {
+        return enriched;
+    }
+
+    const resolveTargets = enriched
+        .map((beer, idx) => ({ idx, beer }))
+        .slice(0, UNTAPPD_RESOLVE_LIMIT);
+    await runWithConcurrency(
+        resolveTargets,
+        UNTAPPD_RESOLVE_CONCURRENCY,
+        async (target) => {
+            const resolved = await resolveUntappdFromApi(env, target.beer.name);
+            if (!resolved) return;
+            enriched[target.idx] = {
+                ...enriched[target.idx],
+                ...resolved,
+            };
+        }
+    );
+
+    return enriched;
+}
+
+async function ensureUntappdLinksForGame(env, gameId) {
+    const rows = await env.DB.prepare(
+        "SELECT id, name, untappd_url, untappd_source, untappd_resolved_at FROM beers WHERE game_id = ?"
+    )
+        .bind(gameId)
+        .all();
+    const beers = rows.results || [];
+    if (!beers.length) return;
+
+    const updateStmt = env.DB.prepare(
+        "UPDATE beers SET untappd_url = ?, untappd_source = ?, untappd_confidence = ?, untappd_resolved_at = ? WHERE game_id = ? AND id = ?"
+    );
+    const nowIso = new Date().toISOString();
+    const updates = [];
+
+    for (const beer of beers) {
+        const source = String(beer?.untappd_source || "").trim();
+        const hasLink = Boolean(String(beer?.untappd_url || "").trim());
+        const sourceKnown =
+            source === UNTAPPD_SEARCH_SOURCE || source === UNTAPPD_API_SOURCE;
+        const expiredApiRecord =
+            source === UNTAPPD_API_SOURCE &&
+            isUntappdApiRecordExpired(beer?.untappd_resolved_at);
+
+        if ((hasLink && sourceKnown && !expiredApiRecord) || !beer?.name) continue;
+
+        const fallback = createSearchLinkUntappdMeta(beer.name, nowIso);
+        updates.push(
+            updateStmt.bind(
+                fallback.untappd_url,
+                fallback.untappd_source,
+                fallback.untappd_confidence,
+                fallback.untappd_resolved_at,
+                gameId,
+                beer.id
+            )
+        );
+    }
+
+    if (updates.length) {
+        await env.DB.batch(updates);
+    }
 }
 
 function normalizeBeersPayload(input, { allowIds = false } = {}) {
@@ -99,12 +441,20 @@ function normalizeBeersPayload(input, { allowIds = false } = {}) {
         const name = String(b?.name || "").trim();
         if (!name) continue;
 
+        const imageUrlRaw =
+            typeof b?.image_url === "string" && b.image_url.trim()
+                ? b.image_url.trim()
+                : null;
+        const normalizedImageUrl = normalizeImageUrl(imageUrlRaw);
+        if (normalizedImageUrl.error) {
+            return {
+                error: `Virheellinen kuva oluelle "${name}": ${normalizedImageUrl.error}`,
+            };
+        }
+
         const normalized = {
             name,
-            image_url:
-                typeof b?.image_url === "string" && b.image_url.trim()
-                    ? b.image_url.trim()
-                    : null,
+            image_url: normalizedImageUrl.value,
             sort_order: beers.length,
         };
 
@@ -138,7 +488,7 @@ async function getGameWithBeers(env, gameId) {
     if (!game) return null;
 
     const beersRes = await env.DB.prepare(
-        "SELECT id, name, image_url, sort_order FROM beers WHERE game_id = ? ORDER BY sort_order ASC, id ASC"
+        "SELECT id, name, image_url, sort_order, untappd_url, untappd_source, untappd_confidence, untappd_resolved_at FROM beers WHERE game_id = ? ORDER BY sort_order ASC, id ASC"
     )
         .bind(gameId)
         .all();
@@ -161,7 +511,7 @@ async function handleCreateGame(request, env) {
     if (normalizedBeers.error) {
         return json({ error: normalizedBeers.error }, 400);
     }
-    const beers = normalizedBeers.beers;
+    const beers = await enrichBeersWithUntappd(env, normalizedBeers.beers);
 
     const gameInsert = await env.DB.prepare("INSERT INTO games (name) VALUES (?)")
         .bind(gameName.value)
@@ -173,11 +523,20 @@ async function handleCreateGame(request, env) {
     }
 
     const stmt = env.DB.prepare(
-        "INSERT INTO beers (game_id, name, image_url, sort_order) VALUES (?, ?, ?, ?)"
+        "INSERT INTO beers (game_id, name, image_url, sort_order, untappd_url, untappd_source, untappd_confidence, untappd_resolved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     const batch = beers.map((b) =>
-        stmt.bind(gameId, b.name, b.image_url, b.sort_order)
+        stmt.bind(
+            gameId,
+            b.name,
+            b.image_url,
+            b.sort_order,
+            b.untappd_url,
+            b.untappd_source,
+            b.untappd_confidence,
+            b.untappd_resolved_at
+        )
     );
     await env.DB.batch(batch);
 
@@ -185,6 +544,7 @@ async function handleCreateGame(request, env) {
 }
 
 async function handleGetGame(gameId, env) {
+    await ensureUntappdLinksForGame(env, gameId);
     const payload = await getGameWithBeers(env, gameId);
     if (!payload) {
         return json({ error: "Peliä ei löytynyt" }, 404);
@@ -208,7 +568,7 @@ async function handleUpdateGame(gameId, request, env) {
     if (normalizedBeers.error) {
         return json({ error: normalizedBeers.error }, 400);
     }
-    const beers = normalizedBeers.beers;
+    const beers = await enrichBeersWithUntappd(env, normalizedBeers.beers);
 
     const game = await env.DB.prepare("SELECT id FROM games WHERE id = ?")
         .bind(gameId)
@@ -242,16 +602,25 @@ async function handleUpdateGame(gameId, request, env) {
     ];
 
     const insertStmt = env.DB.prepare(
-        "INSERT INTO beers (game_id, name, image_url, sort_order) VALUES (?, ?, ?, ?)"
+        "INSERT INTO beers (game_id, name, image_url, sort_order, untappd_url, untappd_source, untappd_confidence, untappd_resolved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     );
     const updateStmt = env.DB.prepare(
-        "UPDATE beers SET name = ?, image_url = ?, sort_order = ? WHERE game_id = ? AND id = ?"
+        "UPDATE beers SET name = ?, image_url = ?, sort_order = ?, untappd_url = ?, untappd_source = ?, untappd_confidence = ?, untappd_resolved_at = ? WHERE game_id = ? AND id = ?"
     );
 
     for (const beer of beers) {
         if (beer.id == null) {
             statements.push(
-                insertStmt.bind(gameId, beer.name, beer.image_url, beer.sort_order)
+                insertStmt.bind(
+                    gameId,
+                    beer.name,
+                    beer.image_url,
+                    beer.sort_order,
+                    beer.untappd_url,
+                    beer.untappd_source,
+                    beer.untappd_confidence,
+                    beer.untappd_resolved_at
+                )
             );
             continue;
         }
@@ -261,6 +630,10 @@ async function handleUpdateGame(gameId, request, env) {
                 beer.name,
                 beer.image_url,
                 beer.sort_order,
+                beer.untappd_url,
+                beer.untappd_source,
+                beer.untappd_confidence,
+                beer.untappd_resolved_at,
                 gameId,
                 beer.id
             )
@@ -404,6 +777,7 @@ async function handleSaveRatings(gameId, request, env) {
 }
 
 async function handleGetResults(gameId, env) {
+    await ensureUntappdLinksForGame(env, gameId);
     const game = await env.DB.prepare("SELECT id, name, created_at FROM games WHERE id = ?")
         .bind(gameId)
         .first();
@@ -414,6 +788,10 @@ async function handleGetResults(gameId, env) {
       b.id,
       b.name,
       b.image_url,
+      b.untappd_url,
+      b.untappd_source,
+      b.untappd_confidence,
+      b.untappd_resolved_at,
       b.sort_order,
       ROUND(COALESCE(AVG(r.score), 0), 2) AS avg_score,
       COUNT(r.player_id) AS rating_count
@@ -421,7 +799,15 @@ async function handleGetResults(gameId, env) {
     LEFT JOIN ratings r
       ON r.beer_id = b.id AND r.game_id = b.game_id
     WHERE b.game_id = ?
-    GROUP BY b.id, b.name, b.image_url, b.sort_order
+    GROUP BY
+      b.id,
+      b.name,
+      b.image_url,
+      b.untappd_url,
+      b.untappd_source,
+      b.untappd_confidence,
+      b.untappd_resolved_at,
+      b.sort_order
     ORDER BY avg_score DESC, b.sort_order ASC, b.id ASC
   `)
         .bind(gameId)
@@ -439,6 +825,59 @@ async function handleGetResults(gameId, env) {
             players: Number(playersCountRes?.c || 0),
         },
         beers: rows.results || [],
+    });
+}
+
+async function handleImageSearch(url, env) {
+    const query = String(url.searchParams.get("q") || "").trim();
+    if (query.length < 2 || query.length > 120) {
+        return json({ error: "Kyselyn pituuden tulee olla 2-120 merkkiä" }, 400);
+    }
+
+    const count = clampInteger(url.searchParams.get("count"), 1, 12, 10);
+    const apiKey = String(env.BRAVE_SEARCH_API_KEY || "").trim();
+    if (!apiKey) {
+        return json({ error: "Kuvahaku ei ole kaytossa (BRAVE_SEARCH_API_KEY puuttuu)" }, 503);
+    }
+
+    const endpoint = new URL("https://api.search.brave.com/res/v1/images/search");
+    endpoint.searchParams.set("q", query);
+    endpoint.searchParams.set("count", String(count));
+    endpoint.searchParams.set("safesearch", "moderate");
+
+    let payload = null;
+    try {
+        const res = await fetch(endpoint.toString(), {
+            method: "GET",
+            headers: {
+                accept: "application/json",
+                "X-Subscription-Token": apiKey,
+            },
+        });
+        if (!res.ok) {
+            return json({ error: "Kuvahaun pyynto epannistui" }, 502);
+        }
+        payload = await res.json();
+    } catch {
+        return json({ error: "Kuvahaku ei onnistunut juuri nyt" }, 502);
+    }
+
+    const rawResults = Array.isArray(payload?.results) ? payload.results : [];
+    const unique = new Set();
+    const results = [];
+    for (const row of rawResults) {
+        const normalized = normalizeBraveImageResult(row);
+        if (!normalized) continue;
+        if (unique.has(normalized.imageUrl)) continue;
+        unique.add(normalized.imageUrl);
+        results.push(normalized);
+        if (results.length >= count) break;
+    }
+
+    return json({
+        ok: true,
+        provider: "brave",
+        results,
     });
 }
 
@@ -587,6 +1026,111 @@ function renderHtml() {
     .qr-status { min-height: 16px; font-size: 12px; color: var(--muted); }
     .share-link { font-size: 12px; word-break: break-all; overflow-wrap: anywhere; }
     .share-link a { color: var(--text); text-decoration: underline; }
+    .untappd-link { color: #fbbf24; text-decoration: underline; }
+    .untappd-link:hover { color: #fde68a; }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(6, 10, 16, 0.85);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-card {
+      width: min(760px, 100%);
+      max-height: 92vh;
+      overflow: hidden;
+      background: #121722;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+    }
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .modal-close-btn {
+      min-height: 36px;
+      padding: 7px 11px;
+      border-radius: 10px;
+      font-size: 13px;
+    }
+    .search-row { display: flex; gap: 8px; }
+    .search-results {
+      overflow: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+      padding-right: 2px;
+    }
+    .search-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #0e131d;
+      display: flex;
+      flex-direction: column;
+      min-height: 210px;
+    }
+    .search-card img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      background: #0b1018;
+      border-bottom: 1px solid var(--line);
+    }
+    .search-card-body {
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+    }
+    .search-card-title {
+      font-size: 12px;
+      color: var(--text);
+      line-height: 1.3;
+      min-height: 32px;
+      overflow: hidden;
+    }
+    .search-card-domain {
+      font-size: 11px;
+      color: var(--muted);
+      word-break: break-word;
+    }
+    .search-status {
+      min-height: 18px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .row-image-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn.image-search-btn {
+      min-height: 38px;
+      padding: 8px 11px;
+      font-size: 13px;
+    }
+    .untappd-preview {
+      font-size: 12px;
+      color: var(--muted);
+      word-break: break-all;
+      overflow-wrap: anywhere;
+    }
+    @media (min-width: 700px) {
+      .modal-overlay {
+        align-items: center;
+      }
+    }
   </style>
 </head>
 <body>
@@ -817,6 +1361,167 @@ function renderHtml() {
     return '/api/qr?url=' + encodeURIComponent(targetUrl);
   }
 
+  function getUntappdSearchUrl(name) {
+    return 'https://untappd.com/search?q=' + encodeURIComponent(String(name || '').trim());
+  }
+
+  function getBeerUntappdUrl(beer) {
+    const explicit = String(beer?.untappd_url || '').trim();
+    if (explicit) return explicit;
+    return getUntappdSearchUrl(beer?.name || '');
+  }
+
+  function untappdLinkHtml(url) {
+    const safeUrl = escapeHtml(url);
+    return '<a class="untappd-link" href="' + safeUrl + '" target="_blank" rel="noopener noreferrer">Untappd</a>';
+  }
+
+  async function searchInternetImages(query, count) {
+    const q = String(query || '').trim();
+    if (q.length < 2) {
+      throw new Error('Anna hakusanaksi vähintään 2 merkkiä');
+    }
+    const limit = Math.min(12, Math.max(1, Number(count) || 10));
+    return await api('/api/image-search?q=' + encodeURIComponent(q) + '&count=' + limit, {
+      method: 'GET'
+    });
+  }
+
+  function openImageSearchModal(options = {}) {
+    const initialQuery = String(options.initialQuery || '').trim();
+    const onSelect = typeof options.onSelect === 'function' ? options.onSelect : null;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+      '<div class="modal-card" role="dialog" aria-modal="true" aria-label="Hae oluen kuva internetistä">' +
+        '<div class="modal-head">' +
+          '<div><strong>Hae internetistä</strong></div>' +
+          '<button type="button" class="btn modal-close-btn" data-close-modal="1">Sulje</button>' +
+        '</div>' +
+        '<div class="small">Valitse kuvaehdotus. Tarkista aina kuvan käyttöoikeus ennen julkista käyttöä.</div>' +
+        '<div class="search-row">' +
+          '<input class="input" id="image-search-input" placeholder="Kirjoita oluen nimi..." />' +
+          '<button type="button" class="btn primary" id="image-search-run">Hae</button>' +
+        '</div>' +
+        '<div class="search-status" id="image-search-status"></div>' +
+        '<div class="search-results" id="image-search-results"></div>' +
+      '</div>';
+
+    const modalCard = overlay.querySelector('.modal-card');
+    const closeBtn = overlay.querySelector('[data-close-modal="1"]');
+    const searchInput = overlay.querySelector('#image-search-input');
+    const searchBtn = overlay.querySelector('#image-search-run');
+    const status = overlay.querySelector('#image-search-status');
+    const results = overlay.querySelector('#image-search-results');
+    let disposed = false;
+
+    function closeModal() {
+      if (disposed) return;
+      disposed = true;
+      document.removeEventListener('keydown', onKeyDown);
+      overlay.remove();
+    }
+
+    function onKeyDown(e) {
+      if (e.key === 'Escape') {
+        closeModal();
+      }
+    }
+
+    function createResultCard(item) {
+      const card = document.createElement('div');
+      card.className = 'search-card';
+
+      const img = document.createElement('img');
+      img.src = item.thumbnailUrl || item.imageUrl;
+      img.alt = item.title || 'Kuvaehdotus';
+      card.appendChild(img);
+
+      const body = document.createElement('div');
+      body.className = 'search-card-body';
+      card.appendChild(body);
+
+      const title = document.createElement('div');
+      title.className = 'search-card-title';
+      title.textContent = item.title || 'Kuvaehdotus';
+      body.appendChild(title);
+
+      const domain = document.createElement('div');
+      domain.className = 'search-card-domain';
+      domain.textContent = item.sourceDomain || '';
+      body.appendChild(domain);
+
+      const useBtn = document.createElement('button');
+      useBtn.type = 'button';
+      useBtn.className = 'btn image-search-btn';
+      useBtn.textContent = 'Valitse kuva';
+      useBtn.onclick = () => {
+        if (onSelect) {
+          onSelect(item);
+        }
+        closeModal();
+      };
+      body.appendChild(useBtn);
+
+      return card;
+    }
+
+    async function runSearch(query) {
+      status.textContent = 'Haetaan kuvia...';
+      results.innerHTML = '';
+      searchBtn.disabled = true;
+      try {
+        const data = await searchInternetImages(query, 10);
+        const list = Array.isArray(data?.results) ? data.results : [];
+        if (!list.length) {
+          status.textContent = 'Ei kuvaehdotuksia tällä haulla.';
+          return;
+        }
+
+        status.textContent = 'Valitse sopiva kuvaehdotus.';
+        for (const item of list) {
+          const imageUrl = String(item?.imageUrl || '').trim();
+          if (!imageUrl) continue;
+          results.appendChild(createResultCard(item));
+        }
+      } catch (err) {
+        status.textContent = err?.message || 'Kuvahaku epäonnistui.';
+      } finally {
+        searchBtn.disabled = false;
+      }
+    }
+
+    closeBtn.onclick = closeModal;
+    overlay.onclick = (e) => {
+      if (e.target === overlay) closeModal();
+    };
+    searchBtn.onclick = () => {
+      runSearch(searchInput.value);
+    };
+    searchInput.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        runSearch(searchInput.value);
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    document.body.appendChild(overlay);
+    searchInput.value = initialQuery;
+    searchInput.focus();
+    if (initialQuery.length >= 2) {
+      runSearch(initialQuery);
+    } else {
+      status.textContent = 'Kirjoita oluen nimi ja hae kuvaehdotuksia.';
+    }
+    requestAnimationFrame(() => {
+      if (!disposed) {
+        modalCard.scrollTop = 0;
+      }
+    });
+  }
+
   async function generateQrDataUrl(targetUrl) {
     const res = await fetch(getQrApiPath(targetUrl));
     if (!res.ok) {
@@ -943,9 +1648,13 @@ function renderHtml() {
             <input class="input beer-name-input" data-idx="\${idx}" value="\${escapeHtml(row.name)}" placeholder="esim. Sahti Special 2026" />
             <label class="small">Kuva URL (optional)</label>
             <input class="input beer-image-url-input" data-idx="\${idx}" value="\${escapeHtml(row.imageUrl)}" placeholder="https://..." />
+            <div class="row-image-actions">
+              <button type="button" class="btn image-search-btn create-image-search-btn" data-idx="\${idx}">Hae internetistä</button>
+            </div>
             <label class="small">Tai kuva tiedostona (optional)</label>
             <input class="input beer-file-input" data-idx="\${idx}" type="file" accept="image/*" />
             <div class="file-note">MVP: tiedosto tallennetaan data-URL:na D1:een, joten pidä kuvat pieniä (mieluiten pakattuja).</div>
+            <div class="untappd-preview">Untappd: \${untappdLinkHtml(getUntappdSearchUrl(row.name))}</div>
           </div>
         </div>
       \`;
@@ -988,6 +1697,21 @@ function renderHtml() {
       });
       panel.querySelectorAll('.beer-file-input').forEach(el => {
         el.onchange = (e) => { draft.beers[Number(e.target.dataset.idx)].file = e.target.files?.[0] || null; };
+      });
+      panel.querySelectorAll('.create-image-search-btn').forEach(btn => {
+        btn.onclick = () => {
+          const idx = Number(btn.dataset.idx);
+          const row = draft.beers[idx];
+          openImageSearchModal({
+            initialQuery: row?.name || '',
+            onSelect: (selected) => {
+              if (!draft.beers[idx]) return;
+              draft.beers[idx].imageUrl = String(selected?.imageUrl || '').trim();
+              draft.beers[idx].file = null;
+              rerender();
+            }
+          });
+        };
       });
       panel.querySelectorAll('.remove-row').forEach(btn => {
         btn.onclick = () => {
@@ -1094,6 +1818,10 @@ function renderHtml() {
     const img = beer.image_url
       ? \`<div class="beer-img" style="\${imageStyle(beer.image_url)}"></div>\`
       : \`<div class="beer-img">Ei kuvaa</div>\`;
+    const untappdUrl = getBeerUntappdUrl(beer);
+    const untappdHtml = untappdUrl
+      ? \`<div class="small">\${untappdLinkHtml(untappdUrl)}</div>\`
+      : '';
 
     if (opts.results) {
       return \`
@@ -1102,6 +1830,7 @@ function renderHtml() {
             \${img}
             <div>
               <div class="beer-name">\${escapeHtml(beer.name)}</div>
+              \${untappdHtml}
               <div class="row">
                 <div class="score-value"><strong>\${formatScore(beer.avg_score)}</strong></div>
                 <div class="small">keskiarvo</div>
@@ -1120,6 +1849,7 @@ function renderHtml() {
           \${img}
           <div>
             <div class="beer-name">\${escapeHtml(beer.name)}</div>
+            \${untappdHtml}
             <div class="score-row">
               <input type="range" min="0" max="10" step="0.01" value="\${value}" data-beer-id="\${beer.id}" class="score-slider" />
               <div class="score-value" id="score-val-\${beer.id}">\${formatScore(value)}</div>
@@ -1331,6 +2061,7 @@ function renderHtml() {
         id: beer.id,
         name: beer.name || '',
         imageUrl: beer.image_url || '',
+        untappdUrl: beer.untappd_url || '',
         file: null,
       })),
       submitting: false,
@@ -1348,9 +2079,13 @@ function renderHtml() {
             <input class="input edit-beer-name" data-idx="\${idx}" value="\${escapeHtml(row.name)}" placeholder="esim. Sahti Special 2026" />
             <label class="small">Kuva URL (optional)</label>
             <input class="input edit-beer-image-url" data-idx="\${idx}" value="\${escapeHtml(row.imageUrl)}" placeholder="https://..." />
+            <div class="row-image-actions">
+              <button type="button" class="btn image-search-btn edit-image-search-btn" data-idx="\${idx}">Hae internetistä</button>
+            </div>
             <label class="small">Tai uusi kuva tiedostona (optional)</label>
             <input class="input edit-beer-file" data-idx="\${idx}" type="file" accept="image/*" />
             <div class="file-note">Jos valitset tiedoston, se korvaa URL-kentän arvon tallennuksessa.</div>
+            <div class="untappd-preview">Untappd: \${untappdLinkHtml(row.untappdUrl || getUntappdSearchUrl(row.name))}</div>
           </div>
         </div>
       \`;
@@ -1397,6 +2132,21 @@ function renderHtml() {
       });
       app.querySelectorAll('.edit-beer-file').forEach((el) => {
         el.onchange = (e) => { draft.beers[Number(e.target.dataset.idx)].file = e.target.files?.[0] || null; };
+      });
+      app.querySelectorAll('.edit-image-search-btn').forEach((btn) => {
+        btn.onclick = () => {
+          const idx = Number(btn.dataset.idx);
+          const row = draft.beers[idx];
+          openImageSearchModal({
+            initialQuery: row?.name || '',
+            onSelect: (selected) => {
+              if (!draft.beers[idx]) return;
+              draft.beers[idx].imageUrl = String(selected?.imageUrl || '').trim();
+              draft.beers[idx].file = null;
+              rerender();
+            }
+          });
+        };
       });
       app.querySelectorAll('.edit-remove-row').forEach((btn) => {
         btn.onclick = () => {

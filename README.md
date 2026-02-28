@@ -6,6 +6,8 @@ Sovellus tarjoaa sekä käyttöliittymän että API:n saman Workerin kautta.
 ## Ominaisuudet
 
 - Luo uusi peli ja lisää oluet (nimi + kuvan URL/tiedosto data-URL:na).
+- Hae kuvia internetistä oluille (`Hae internetistä`-modal, Brave API backendin kautta).
+- Luo Untappd-linkki automaattisesti oluen nimen perusteella (hybridi: API-osuma tai hakulinkki).
 - Jaa pelin linkki muille (`/{gameId}`) ja näytä QR-koodi pelinäkymässä.
 - Pelaajat antavat pisteet väliltä `0.00–10.00`.
 - Tulokset lasketaan keskiarvona ja näytetään järjestettynä.
@@ -35,6 +37,20 @@ Sovellus tarjoaa sekä käyttöliittymän että API:n saman Workerin kautta.
 - Node.js 18+ (suositus: Node.js 20+)
 - npm
 - Cloudflare-tili + Wrangler-autentikointi (`npx wrangler login`)
+
+## API-avaimet (valinnainen)
+
+Sovellus toimii ilman ulkoisia avaimia:
+- ilman Brave-avainta internet-kuvahaku palauttaa `503`, mutta manuaalinen kuva-URL/tiedosto toimii
+- ilman Untappd-avaimia oluille tallennetaan automaattisesti Untappd-hakulinkki
+
+Aseta halutessa secretit:
+
+```bash
+npx wrangler secret put BRAVE_SEARCH_API_KEY
+npx wrangler secret put UNTAPPD_CLIENT_ID
+npx wrangler secret put UNTAPPD_CLIENT_SECRET
+```
 
 ## Käyttöönotto lokaalisti
 
@@ -81,6 +97,7 @@ npx wrangler deploy
 - `POST /api/create-game`
   - Body: `{ "name": "Pelin nimi", "beers": [{ "name": "Olut", "image_url": "https://..." }] }`
 - `GET /api/games/:id`
+  - `beers[]` sisältää myös Untappd-kentät: `untappd_url`, `untappd_source`, `untappd_confidence`, `untappd_resolved_at`
 - `PUT /api/games/:id`
   - Body: `{ "name": "Uusi nimi", "beers": [{ "id": 1, "name": "Olut", "image_url": null }] }`
 - `POST /api/games/:id/ratings`
@@ -88,8 +105,17 @@ npx wrangler deploy
 - `GET /api/games/:id/ratings?clientId=client-123`
   - Response: `{ "ok": true, "ratings": [{ "beerId": 1, "score": 8.5 }] }`
 - `GET /api/games/:id/results`
+- `GET /api/image-search?q=<query>&count=<1-12>`
+  - 200: `{ "ok": true, "provider": "brave", "results": [{ "imageUrl": "...", "thumbnailUrl": "...", "title": "...", "sourceUrl": "...", "sourceDomain": "..." }] }`
+  - 400: virheellinen kysely
+  - 503: Brave-avain puuttuu
 - `GET /api/qr?url=https%3A%2F%2Fexample.com%2F123`
   - Palauttaa SVG-muotoisen QR-koodin annetulle `http/https`-URL:lle.
+
+## Untappd-linkityksen cache-käytös
+
+- Jos Untappd API on käytössä, top-1 osuma hyväksytään vain riittävällä varmuudella.
+- Untappd API -peräinen osuma vanhenee 24 tunnissa, jonka jälkeen rivi downgradeataan automaattisesti takaisin hakulinkiksi.
 
 ## Lisenssi
 
