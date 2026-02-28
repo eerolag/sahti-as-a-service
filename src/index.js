@@ -285,6 +285,28 @@ function buildUntappdBeerUrl(item) {
     return `https://untappd.com/b/${encodeURIComponent(slug)}/${bid}`;
 }
 
+function buildImageSearchQuery(query) {
+    const base = String(query || "").replace(/"/g, " ").trim();
+    if (!base) return "";
+
+    const normalized = base.toLowerCase();
+    const hints = [];
+    if (!/\b(beer|olut|lager|ipa|stout|sahti)\b/i.test(normalized)) {
+        hints.push("beer", "olut");
+    }
+    if (!/\b(bottle|pullo|can|t\u00f6lkki)\b/i.test(normalized)) {
+        hints.push("bottle");
+    }
+    if (!/\b(label|etiketti)\b/i.test(normalized)) {
+        hints.push("label", "etiketti");
+    }
+    if (!/\b(brand|product|packaging)\b/i.test(normalized)) {
+        hints.push("brand", "product", "packaging");
+    }
+
+    return (`"${base}" ${hints.join(" ")}`).trim();
+}
+
 function isUntappdApiRecordExpired(resolvedAt) {
     const ts = Date.parse(String(resolvedAt || ""));
     if (!Number.isFinite(ts)) return true;
@@ -851,6 +873,7 @@ async function handleImageSearch(url, env) {
     if (query.length < 2 || query.length > 120) {
         return json({ error: "Kyselyn pituuden tulee olla 2-120 merkkiä" }, 400);
     }
+    const effectiveQuery = buildImageSearchQuery(query);
 
     const count = clampInteger(url.searchParams.get("count"), 1, 12, 10);
     const apiKey = String(env.BRAVE_SEARCH_API_KEY || "").trim();
@@ -859,9 +882,9 @@ async function handleImageSearch(url, env) {
     }
 
     const endpoint = new URL("https://api.search.brave.com/res/v1/images/search");
-    endpoint.searchParams.set("q", query);
+    endpoint.searchParams.set("q", effectiveQuery);
     endpoint.searchParams.set("count", String(count));
-    endpoint.searchParams.set("safesearch", "moderate");
+    endpoint.searchParams.set("safesearch", "strict");
 
     let payload = null;
     try {
