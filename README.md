@@ -1,51 +1,62 @@
 # Sahti as a Service
 
-Cloudflare Worker + D1 -pohjainen sovellus oluiden pisteyttämiseen pelimuodossa.
-Sovellus tarjoaa sekä käyttöliittymän että API:n saman Workerin kautta.
+Cloudflare Worker + D1 -sovellus oluiden pisteyttämiseen pelimuodossa.
 
-## Ominaisuudet
-
-- Luo uusi peli ja lisää oluet (nimi + kuvan URL/tiedosto data-URL:na).
-- Hae kuvia internetistä oluille (`Hae internetistä`-modal, Brave API backendin kautta).
-- Luo Untappd-linkki automaattisesti oluen nimen perusteella (hybridi: API-osuma tai hakulinkki).
-- Jaa pelin linkki muille (`/{gameId}`) ja näytä QR-koodi pelinäkymässä.
-- Pelaajat antavat pisteet väliltä `0.00–10.00`.
-- Tulokset lasketaan keskiarvona ja näytetään järjestettynä.
-- Pelin ja olutlistan muokkaus jälkikäteen.
-- Olutlistan järjestyksen vaihto raahaamalla (luonti- ja muokkausnäkymä).
-
-## Teknologiat
-
-- Cloudflare Workers
-- Cloudflare D1 (SQLite)
-- Wrangler v4
-- qrcode (server-side QR-generointi)
-- Vanilla JS (ei erillistä frontend-buildia)
+Uusi arkkitehtuuri:
+- `src/worker`: API-reitit, handlerit, palvelut ja repositoryt
+- `src/shared`: framework-agnostinen domain-logiikka ja API-tyypit
+- `src/web`: React + Tailwind -käyttöliittymä
 
 ## Projektirakenne
 
 ```txt
 .
-├── src/index.js               # Worker + UI + API
-├── migrations/                # D1-migraatiot
-├── wrangler.jsonc             # Worker- ja D1-konfiguraatio
-├── package.json
-└── .gitignore
+├── src
+│   ├── worker
+│   │   ├── index.ts
+│   │   ├── router.ts
+│   │   ├── env.ts
+│   │   ├── http.ts
+│   │   ├── handlers/
+│   │   ├── repositories/
+│   │   └── services/
+│   ├── shared/
+│   └── web/
+├── tests
+│   ├── api/
+│   └── shared/
+├── migrations/
+├── wrangler.jsonc
+├── vite.config.ts
+├── tailwind.config.ts
+├── vitest.config.ts
+└── tsconfig.json
 ```
+
+## Teknologiat
+
+- Cloudflare Workers
+- Cloudflare D1 (SQLite)
+- TypeScript
+- React
+- Tailwind CSS
+- Vite
+- Vitest
+- qrcode
 
 ## Vaatimukset
 
-- Node.js 18+ (suositus: Node.js 20+)
+- Node.js 18+ (suositus: 20+)
 - npm
-- Cloudflare-tili + Wrangler-autentikointi (`npx wrangler login`)
+- Cloudflare-tili + Wrangler-login
 
 ## API-avaimet (valinnainen)
 
 Sovellus toimii ilman ulkoisia avaimia:
-- ilman Brave-avainta internet-kuvahaku palauttaa `503`, mutta manuaalinen kuva-URL/tiedosto toimii
-- ilman Untappd-avaimia oluille tallennetaan automaattisesti Untappd-hakulinkki
+- ilman Brave-avainta internet-kuvahaku palauttaa `503`
+- ilman Untappd-avaimia oluille tallennetaan automaattinen Untappd-hakulinkki
 
-Aseta halutessa secretit:
+Aseta halutessa:
 
 ```bash
 npx wrangler secret put BRAVE_SEARCH_API_KEY
@@ -53,7 +64,7 @@ npx wrangler secret put UNTAPPD_CLIENT_ID
 npx wrangler secret put UNTAPPD_CLIENT_SECRET
 ```
 
-## Käyttöönotto lokaalisti
+## Kehitys
 
 1. Asenna riippuvuudet:
 
@@ -67,11 +78,15 @@ npm install
 npx wrangler d1 migrations apply sahti-as-a-service-db --local
 ```
 
-3. Käynnistä kehityspalvelin:
+3. Käynnistä kehitys:
 
 ```bash
-npx wrangler dev
+npm run dev
 ```
+
+Tämä käynnistää:
+- `npm run dev:web` -> build-watch `dist/web`-kansioon
+- `npm run dev:worker` -> `wrangler dev`
 
 4. Avaa selaimessa:
 
@@ -79,7 +94,15 @@ npx wrangler dev
 http://127.0.0.1:8787
 ```
 
-## Julkaisu (deploy)
+## Build, test ja tyypitys
+
+```bash
+npm run test
+npm run typecheck
+npm run build
+```
+
+## Deploy
 
 1. Aja migraatiot etäkantaan:
 
@@ -87,7 +110,13 @@ http://127.0.0.1:8787
 npx wrangler d1 migrations apply sahti-as-a-service-db --remote
 ```
 
-2. Julkaise Worker:
+2. Rakenna web-assetit:
+
+```bash
+npm run build:web
+```
+
+3. Julkaise Worker:
 
 ```bash
 npx wrangler deploy
@@ -96,27 +125,15 @@ npx wrangler deploy
 ## API-päätepisteet
 
 - `POST /api/create-game`
-  - Body: `{ "name": "Pelin nimi", "beers": [{ "name": "Olut", "image_url": "https://..." }] }`
 - `GET /api/games/:id`
-  - `beers[]` sisältää myös Untappd-kentät: `untappd_url`, `untappd_source`, `untappd_confidence`, `untappd_resolved_at`
 - `PUT /api/games/:id`
-  - Body: `{ "name": "Uusi nimi", "beers": [{ "id": 1, "name": "Olut", "image_url": null }] }`
 - `POST /api/games/:id/ratings`
-  - Body: `{ "clientId": "client-123", "ratings": [{ "beerId": 1, "score": 8.5 }] }`
-- `GET /api/games/:id/ratings?clientId=client-123`
-  - Response: `{ "ok": true, "ratings": [{ "beerId": 1, "score": 8.5 }] }`
+- `GET /api/games/:id/ratings?clientId=...`
 - `GET /api/games/:id/results`
 - `GET /api/image-search?q=<query>&count=<1-12>`
-  - 200: `{ "ok": true, "provider": "brave", "results": [{ "imageUrl": "...", "thumbnailUrl": "...", "title": "...", "sourceUrl": "...", "sourceDomain": "..." }] }`
-  - 400: virheellinen kysely
-  - 503: Brave-avain puuttuu
-- `GET /api/qr?url=https%3A%2F%2Fexample.com%2F123`
-  - Palauttaa SVG-muotoisen QR-koodin annetulle `http/https`-URL:lle.
+- `GET /api/qr?url=<http/https-url-encoded>`
 
-## Untappd-linkityksen cache-käytös
-
-- Jos Untappd API on käytössä, top-1 osuma hyväksytään vain riittävällä varmuudella.
-- Untappd API -peräinen osuma vanhenee 24 tunnissa, jonka jälkeen rivi downgradeataan automaattisesti takaisin hakulinkiksi.
+Vastauskentät ovat taaksepäin yhteensopivat aiemman version kanssa.
 
 ## Lisenssi
 

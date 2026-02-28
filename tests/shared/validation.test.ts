@@ -1,0 +1,34 @@
+import { describe, expect, it } from "vitest";
+import { normalizeClientId, normalizeGameName, normalizeImageUrl } from "../../src/shared/validation";
+import { normalizeBeersPayload } from "../../src/shared/game-domain";
+
+describe("shared/validation", () => {
+  it("validates game name", () => {
+    expect(normalizeGameName(" ")).toEqual({ error: "Anna pelille nimi" });
+    const tooLong = "a".repeat(121);
+    expect(normalizeGameName(tooLong)).toHaveProperty("error");
+    expect(normalizeGameName("Testipeli")).toEqual({ value: "Testipeli" });
+  });
+
+  it("validates image urls", () => {
+    expect(normalizeImageUrl("https://example.com/a.jpg")).toEqual({ value: "https://example.com/a.jpg" });
+    expect(normalizeImageUrl("data:image/png;base64,abc")).toEqual({ value: "data:image/png;base64,abc" });
+    expect(normalizeImageUrl("ftp://example.com")).toHaveProperty("error");
+  });
+
+  it("validates client id", () => {
+    expect(normalizeClientId("client-1")).toBe("client-1");
+    expect(normalizeClientId("")).toBeNull();
+  });
+
+  it("normalizes beer payload and validates ids", () => {
+    const ok = normalizeBeersPayload([
+      { id: 1, name: "Beer 1", image_url: null },
+      { id: 2, name: "Beer 2", image_url: "https://example.com/b.png" },
+    ], { allowIds: true });
+    expect("beers" in ok).toBe(true);
+
+    const bad = normalizeBeersPayload([{ id: -1, name: "Beer", image_url: null }], { allowIds: true });
+    expect("error" in bad).toBe(true);
+  });
+});

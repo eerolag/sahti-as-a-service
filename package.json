@@ -1,8 +1,37 @@
 {
-  "devDependencies": {
-    "wrangler": "^4.69.0"
+  "name": "sahti-as-a-service",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:web": "vite build --watch --outDir dist/web",
+    "dev:worker": "wrangler dev",
+    "dev": "concurrently -k \"npm:dev:web\" \"npm:dev:worker\"",
+    "build:web": "vite build --outDir dist/web",
+    "build": "npm run build:web && npm run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260226.0",
+    "@types/node": "^22.10.1",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.8",
+    "wrangler": "^4.69.0"
   }
 }
