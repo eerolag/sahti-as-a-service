@@ -211,6 +211,24 @@ function pickFirstHttpsUrl(candidates) {
     return null;
 }
 
+async function readUpstreamErrorMessage(response) {
+    const bodyText = await response.text().catch(() => "");
+    if (!bodyText) return "";
+
+    try {
+        const body = JSON.parse(bodyText);
+        const nestedError = body?.error;
+        const code = String(nestedError?.code || body?.code || "").trim();
+        const message = String(
+            nestedError?.message || body?.message || nestedError || body?.detail || ""
+        ).trim();
+        const merged = [code, message].filter(Boolean).join(": ");
+        return merged.slice(0, 240);
+    } catch {
+        return bodyText.trim().slice(0, 240);
+    }
+}
+
 function getUrlDomain(url) {
     try {
         return new URL(url).hostname.replace(/^www\./i, "");
@@ -855,11 +873,20 @@ async function handleImageSearch(url, env) {
             },
         });
         if (!res.ok) {
-            return json({ error: "Kuvahaun pyynto epannistui" }, 502);
+            const upstreamMessage = await readUpstreamErrorMessage(res);
+            const status = res.status === 429 ? 429 : 502;
+            const message = upstreamMessage
+                ? `Kuvahaun pyynto epannistui (Brave ${res.status}): ${upstreamMessage}`
+                : `Kuvahaun pyynto epannistui (Brave ${res.status})`;
+            return json({ error: message }, status);
         }
         payload = await res.json();
-    } catch {
-        return json({ error: "Kuvahaku ei onnistunut juuri nyt" }, 502);
+    } catch (err) {
+        const details = String(err?.message || "").trim();
+        const message = details
+            ? `Kuvahaku ei onnistunut juuri nyt: ${details}`
+            : "Kuvahaku ei onnistunut juuri nyt";
+        return json({ error: message }, 502);
     }
 
     const rawResults = Array.isArray(payload?.results) ? payload.results : [];
