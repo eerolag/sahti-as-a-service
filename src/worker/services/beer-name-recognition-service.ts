@@ -49,8 +49,89 @@ function cleanupCandidateName(raw: string): string {
   return firstLine.replace(/^['"]+|['"]+$/g, "").trim();
 }
 
+function sanitizeCandidate(value: string): string {
+  return String(value ?? "")
+    .replace(/^[-*•\d.)\s]+/, "")
+    .replace(/^['"]+|['"]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isStrictUnknown(value: string): boolean {
+  const normalized = sanitizeCandidate(value).toLowerCase();
+  return (
+    normalized === "unknown" ||
+    normalized === "tuntematon" ||
+    normalized === "en osaa" ||
+    normalized === "en tunnista"
+  );
+}
+
+function isClearlyUncertainSentence(value: string): boolean {
+  const normalized = sanitizeCandidate(value).toLowerCase();
+  if (!normalized) return true;
+
+  return (
+    /\b(cannot identify|can't identify|cannot determine|unable to identify|not sure|en pysty tunnistamaan)\b/i.test(
+      normalized,
+    ) && !/\b(best guess|maybe|ehka)\b/i.test(normalized)
+  );
+}
+
+function extractBestGuessFromLine(value: string): string | null {
+  const line = sanitizeCandidate(value);
+  if (!line) return null;
+
+  const labeled = line.match(/^(?:beer\s*name|name|oluen\s*nimi|nimi|best\s*guess)\s*[:\-]\s*(.+)$/i);
+  if (labeled?.[1]) {
+    return sanitizeCandidate(labeled[1]);
+  }
+
+  const maybeGuess = line.match(/\b(?:best guess|maybe|ehka)\s*[:\-]?\s*(.+)$/i);
+  if (maybeGuess?.[1]) {
+    return sanitizeCandidate(maybeGuess[1]);
+  }
+
+  return null;
+}
+
+function extractCandidateBeerName(raw: string): string {
+  const normalized = String(raw ?? "")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/\r/g, "\n")
+    .replace(/```/g, "")
+    .trim();
+
+  const lines = normalized
+    .split("\n")
+    .map((line) => sanitizeCandidate(line))
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const guessed = extractBestGuessFromLine(line);
+    const candidate = guessed ?? line;
+
+    if (!candidate) continue;
+    if (isStrictUnknown(candidate)) continue;
+    if (isClearlyUncertainSentence(candidate)) continue;
+
+    const words = candidate.split(/\s+/).filter(Boolean).length;
+    if (words > 8) continue;
+    if (/^https?:\/\//i.test(candidate)) continue;
+
+    return candidate;
+  }
+
+  return cleanupCandidateName(normalized);
+}
+
 function isUncertainName(candidate: string): boolean {
-  return /\b(unknown|tuntematon|en\s+osaa|cannot|can\s*not|can't)\b/i.test(candidate);
+  const value = sanitizeCandidate(candidate);
+  if (!value) return true;
+  if (isStrictUnknown(value)) return true;
+  if (isClearlyUncertainSentence(value)) return true;
+  return false;
 }
 
 function ensureValidImage(file: File): void {
@@ -172,10 +253,12 @@ export async function identifyBeerNameFromImage(env: Env, file: File): Promise<I
   }
 
   const rawContent = parseModelContent(payload ?? {});
-  const beerName = cleanupCandidateName(rawContent);
+  const beerName = extractCandidateBeerName(rawContent);
 
   if (!beerName || beerName.length < 2 || beerName.length > 120 || isUncertainName(beerName)) {
-    const err = new Error("Nimea ei saatu tunnistettua kuvasta luotettavasti");
+    const preview = sanitizeCandidate(rawContent).slice(0, 160);
+    const detail = preview ? ` (malli vastasi: ${preview})` : "";
+    const err = new Error(`Nimea ei saatu tunnistettua kuvasta luotettavasti${detail}`);
     (err as any).statusCode = 422;
     throw err;
   }

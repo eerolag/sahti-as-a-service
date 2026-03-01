@@ -502,6 +502,44 @@ describe("worker api", () => {
     });
 
     expect(response.status).toBe(422);
+    const payload = await json(response);
+    expect(String(payload.error)).toContain("malli vastasi");
+  });
+
+  it("extracts beer name from best-guess style model response", async () => {
+    env.KILO_API_KEY = "kilo-test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "I cannot determine this with full certainty. Best guess: Karhu III",
+                },
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        );
+      }),
+    );
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([5, 5])], { type: "image/jpeg" }), "beer.jpg");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await json(response);
+    expect(payload.beerName).toBe("Karhu III");
   });
 
   it("maps Kilo 429 to API 429", async () => {
