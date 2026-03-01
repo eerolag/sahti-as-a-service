@@ -180,8 +180,8 @@ describe("worker api", () => {
         clientId: "client-1",
         nickname: "Maistelija",
         ratings: [
-          { beerId: game.beers[0].id, score: 8.5 },
-          { beerId: game.beers[1].id, score: 7.25 },
+          { beerId: game.beers[0].id, score: 8.5, comment: "Toimii hyvin sahtina" },
+          { beerId: game.beers[1].id, score: 7.25, comment: "" },
         ],
       }),
     });
@@ -192,6 +192,8 @@ describe("worker api", () => {
     const payload = await json(getRes);
     expect(payload.ok).toBe(true);
     expect(payload.ratings).toHaveLength(2);
+    expect(payload.ratings[0].comment).toBe("Toimii hyvin sahtina");
+    expect(payload.ratings[1].comment).toBeNull();
   });
 
   it("rejects save ratings when nickname is too long", async () => {
@@ -218,6 +220,31 @@ describe("worker api", () => {
     expect(response.status).toBe(400);
     const payload = await json(response);
     expect(payload.error).toContain("Nimimerkki on liian pitkä");
+  });
+
+  it("rejects save ratings when comment is too long", async () => {
+    await call(env, "/api/create-game", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Ratings comment check",
+        beers: [{ name: "Beer A", image_url: null }],
+      }),
+    });
+
+    const game = await json(await call(env, "/api/games/1"));
+    const response = await call(env, "/api/games/1/ratings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: "client-comment",
+        ratings: [{ beerId: game.beers[0].id, score: 7, comment: "x".repeat(256) }],
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    const payload = await json(response);
+    expect(payload.error).toContain("Kommentti on liian pitkä");
   });
 
   it("updates player nickname for an existing client id", async () => {

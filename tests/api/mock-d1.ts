@@ -34,6 +34,7 @@ type RatingRow = {
   beer_id: number;
   player_id: number;
   score: number;
+  comment: string | null;
   updated_at: string;
 };
 
@@ -217,20 +218,29 @@ export class MockD1Database implements D1Database {
       return { success: true, meta: {} };
     }
 
-    if (sql.startsWith("insert into ratings (game_id, beer_id, player_id, score, updated_at) values (?, ?, ?, ?, datetime('now')) on conflict(game_id, beer_id, player_id) do update set score = excluded.score, updated_at = datetime('now')")) {
+    if (sql.startsWith("insert into ratings (game_id, beer_id, player_id, score, comment, updated_at) values (?, ?, ?, ?, ?, datetime('now')) on conflict(game_id, beer_id, player_id) do update set score = excluded.score, comment = excluded.comment, updated_at = datetime('now')")) {
       const gameId = Number(values[0]);
       const beerId = Number(values[1]);
       const playerId = Number(values[2]);
       const score = Number(values[3]);
+      const comment = values[4] == null ? null : String(values[4]);
 
       const existing = this.ratings.find(
         (r) => r.game_id === gameId && r.beer_id === beerId && r.player_id === playerId,
       );
       if (existing) {
         existing.score = score;
+        existing.comment = comment;
         existing.updated_at = now();
       } else {
-        this.ratings.push({ game_id: gameId, beer_id: beerId, player_id: playerId, score, updated_at: now() });
+        this.ratings.push({
+          game_id: gameId,
+          beer_id: beerId,
+          player_id: playerId,
+          score,
+          comment,
+          updated_at: now(),
+        });
       }
 
       return { success: true, meta: {} };
@@ -336,7 +346,7 @@ export class MockD1Database implements D1Database {
       const ratings = this.ratings
         .filter((r) => r.game_id === gameId && r.player_id === player.id)
         .sort((a, b) => a.beer_id - b.beer_id)
-        .map((r) => ({ beerId: r.beer_id, score: r.score }));
+        .map((r) => ({ beerId: r.beer_id, score: r.score, comment: r.comment }));
 
       return { results: ratings };
     }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { BeerDto, ResultBeerDto } from "../../shared/api-contracts";
 import { normalizeScore } from "../../shared/scoring";
+import { MAX_RATING_COMMENT_LENGTH } from "../../shared/validation";
 
 const SCORE_MIN = 0;
 const SCORE_MAX = 10;
@@ -12,7 +13,9 @@ interface BeerCardProps {
   beer: BeerDto | ResultBeerDto;
   mode: "play" | "results";
   score?: number;
+  comment?: string;
   onScoreChange?: (score: number) => void;
+  onCommentChange?: (comment: string) => void;
 }
 
 function formatScore(value: unknown): string {
@@ -36,13 +39,14 @@ function beerUntappdUrl(beer: BeerDto | ResultBeerDto): string {
   return untappdSearchUrl(beer.name);
 }
 
-export function BeerCard({ beer, mode, score, onScoreChange }: BeerCardProps) {
+export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentChange }: BeerCardProps) {
   const imageStyle = beer.image_url
     ? { backgroundImage: `url("${beer.image_url.replace(/"/g, "&quot;")}")` }
     : undefined;
 
   const untappdUrl = beerUntappdUrl(beer);
   const normalizedScore = normalizeScore(score) ?? 0;
+  const normalizedComment = String(comment ?? "");
   const [scoreInput, setScoreInput] = useState(() => formatScore(normalizedScore));
   const [isEditingInput, setIsEditingInput] = useState(false);
   const [isCoarsePointer, setIsCoarsePointer] = useState(() => {
@@ -101,41 +105,58 @@ export function BeerCard({ beer, mode, score, onScoreChange }: BeerCardProps) {
               <div className="badge">{Number((beer as ResultBeerDto).rating_count ?? 0)} arvosanaa</div>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
-              <input
-                className="range"
-                type="range"
-                min={SCORE_MIN}
-                max={SCORE_MAX}
-                step={sliderStep}
-                value={normalizedScore}
-                onChange={(event) => {
-                  const next = normalizeScore(event.target.value);
-                  if (next == null) return;
-                  onScoreChange?.(next);
-                }}
-                aria-label={`Arvosana oluelle ${beer.name}`}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <input
+                  className="range"
+                  type="range"
+                  min={SCORE_MIN}
+                  max={SCORE_MAX}
+                  step={sliderStep}
+                  value={normalizedScore}
+                  onChange={(event) => {
+                    const next = normalizeScore(event.target.value);
+                    if (next == null) return;
+                    onScoreChange?.(next);
+                  }}
+                  aria-label={`Arvosana oluelle ${beer.name}`}
+                />
+                <input
+                  className="w-20 rounded-lg border border-line bg-slate-950 px-2 py-1 text-right tabular-nums text-text"
+                  type="text"
+                  inputMode="decimal"
+                  value={scoreInput}
+                  onFocus={() => setIsEditingInput(true)}
+                  onChange={(event) => {
+                    const raw = event.target.value;
+                    setScoreInput(raw);
+                    const next = parseScoreInput(raw);
+                    if (next == null) return;
+                    onScoreChange?.(next);
+                  }}
+                  onBlur={() => {
+                    const parsed = parseScoreInput(scoreInput);
+                    setIsEditingInput(false);
+                    setScoreInput(formatScore(parsed ?? normalizedScore));
+                  }}
+                  aria-label={`Arvosana numerona oluelle ${beer.name}`}
+                />
+              </div>
+
+              <label className="text-sm text-muted" htmlFor={`beer-comment-${beer.id}`}>
+                Kommentti (valinnainen)
+              </label>
+              <textarea
+                id={`beer-comment-${beer.id}`}
+                className="input min-h-20 resize-y"
+                maxLength={MAX_RATING_COMMENT_LENGTH}
+                value={normalizedComment}
+                onChange={(event) => onCommentChange?.(event.target.value)}
+                aria-label={`Kommentti oluelle ${beer.name}`}
               />
-              <input
-                className="w-20 rounded-lg border border-line bg-slate-950 px-2 py-1 text-right tabular-nums text-text"
-                type="text"
-                inputMode="decimal"
-                value={scoreInput}
-                onFocus={() => setIsEditingInput(true)}
-                onChange={(event) => {
-                  const raw = event.target.value;
-                  setScoreInput(raw);
-                  const next = parseScoreInput(raw);
-                  if (next == null) return;
-                  onScoreChange?.(next);
-                }}
-                onBlur={() => {
-                  const parsed = parseScoreInput(scoreInput);
-                  setIsEditingInput(false);
-                  setScoreInput(formatScore(parsed ?? normalizedScore));
-                }}
-                aria-label={`Arvosana numerona oluelle ${beer.name}`}
-              />
+              <div className="text-right text-xs text-muted">
+                {normalizedComment.length}/{MAX_RATING_COMMENT_LENGTH}
+              </div>
             </div>
           )}
         </div>

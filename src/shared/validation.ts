@@ -1,5 +1,6 @@
 export const MAX_GAME_NAME_LENGTH = 120;
 export const MAX_NICKNAME_LENGTH = 40;
+export const MAX_RATING_COMMENT_LENGTH = 255;
 
 export function normalizeGameName(raw: unknown): { value: string } | { error: string } {
   const name = String(raw ?? "").trim();
@@ -43,6 +44,15 @@ export function normalizeNickname(raw: unknown): { value: string | null } | { er
   if (!value) return { value: null };
   if (value.length > MAX_NICKNAME_LENGTH) {
     return { error: `Nimimerkki on liian pitkä (max ${MAX_NICKNAME_LENGTH} merkkiä)` };
+  }
+  return { value };
+}
+
+export function normalizeRatingComment(raw: unknown): { value: string | null } | { error: string } {
+  const value = String(raw ?? "");
+  if (!value.trim()) return { value: null };
+  if (value.length > MAX_RATING_COMMENT_LENGTH) {
+    return { error: `Kommentti on liian pitkä (max ${MAX_RATING_COMMENT_LENGTH} merkkiä)` };
   }
   return { value };
 }

@@ -55,6 +55,7 @@ export interface UpdateGameResponse {
 export interface RatingDto {
   beerId: number;
   score: number;
+  comment?: string | null;
 }
 
 export interface SaveRatingsRequest {

@@ -1,6 +1,6 @@
 import type { GetRatingsResponse, SaveRatingsRequest, SaveRatingsResponse } from "../../shared/api-contracts";
 import { normalizeScore } from "../../shared/scoring";
-import { normalizeClientId, normalizeNickname } from "../../shared/validation";
+import { normalizeClientId, normalizeNickname, normalizeRatingComment } from "../../shared/validation";
 import type { Env } from "../env";
 import { json, parseJson } from "../http";
 import { listBeerIdsByGameId } from "../repositories/beers-repo";
@@ -41,14 +41,19 @@ export async function handleSaveRatings(gameId: number, request: Request, env: E
   if (!playerId) return json({ error: "clientId puuttuu" }, 400);
 
   const validBeerIds = new Set(await listBeerIdsByGameId(env, gameId));
-  const normalized: Array<{ beerId: number; score: number }> = [];
+  const normalized: Array<{ beerId: number; score: number; comment: string | null }> = [];
 
-  for (const r of body.ratings) {
+  for (let index = 0; index < body.ratings.length; index += 1) {
+    const r = body.ratings[index];
     const beerId = Number(r?.beerId);
     const score = normalizeScore(r?.score);
+    const comment = normalizeRatingComment(r?.comment);
+    if ("error" in comment) {
+      return json({ error: `${comment.error} (rivi ${index + 1})` }, 400);
+    }
     if (!Number.isInteger(beerId) || !validBeerIds.has(beerId)) continue;
     if (score == null) continue;
-    normalized.push({ beerId, score });
+    normalized.push({ beerId, score, comment: comment.value });
   }
 
   if (!normalized.length) {

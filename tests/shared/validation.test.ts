@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_NICKNAME_LENGTH,
+  MAX_RATING_COMMENT_LENGTH,
   normalizeClientId,
   normalizeGameName,
   normalizeImageUrl,
   normalizeNickname,
+  normalizeRatingComment,
 } from "../../src/shared/validation";
 import { normalizeBeersPayload } from "../../src/shared/game-domain";
 
@@ -31,6 +33,12 @@ describe("shared/validation", () => {
     expect(normalizeNickname("")).toEqual({ value: null });
     expect(normalizeNickname("  Maistelija ")).toEqual({ value: "Maistelija" });
     expect(normalizeNickname("a".repeat(MAX_NICKNAME_LENGTH + 1))).toHaveProperty("error");
+  });
+
+  it("validates rating comment", () => {
+    expect(normalizeRatingComment("")).toEqual({ value: null });
+    expect(normalizeRatingComment("  Hyvä sahti! ")).toEqual({ value: "  Hyvä sahti! " });
+    expect(normalizeRatingComment("a".repeat(MAX_RATING_COMMENT_LENGTH + 1))).toHaveProperty("error");
   });
 
   it("normalizes beer payload and validates ids", () => {

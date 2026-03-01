@@ -142,7 +142,7 @@ Jotta workflow voi deployata Cloudflareen, lisää GitHub-repoon `Settings -> Se
 - `POST /api/create-game`
 - `GET /api/games/:id`
 - `PUT /api/games/:id`
-- `POST /api/games/:id/ratings` (body: `clientId`, `ratings`, optional `nickname`)
+- `POST /api/games/:id/ratings` (body: `clientId`, `ratings`, optional `nickname`; ratingissä valinnainen `comment`, max 255 merkkiä)
 - `GET /api/games/:id/ratings?clientId=...` (tekninen tunniste omien arvosanojen hakuun)
 - `GET /api/games/:id/results`
 - `GET /api/image-search?q=<query>&count=<1-12>`

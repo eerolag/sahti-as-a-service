@@ -96,7 +96,7 @@ export function GameRoute({ gameId }: { gameId: number }) {
   const [nicknameModalOpen, setNicknameModalOpen] = useState(false);
   const activeClientId = playerIdentity?.clientId ?? fallbackClientId;
 
-  const { ratings, hydrate, setRating, hasDirty, getChangedRatings, markSaved } = useDraftRatings(
+  const { ratings, hydrate, setRating, setComment, hasDirty, getChangedRatings, markSaved } = useDraftRatings(
     gameId,
     activeClientId,
   );
@@ -135,12 +135,15 @@ export function GameRoute({ gameId }: { gameId: number }) {
         const data = await apiClient.getRatings(gameId, playerIdentity.clientId);
         if (cancelled) return;
 
-        const backendRatings: Record<number, number> = {};
+        const backendRatings: Record<number, { score: number; comment: string }> = {};
         for (const row of data.ratings) {
           const beerId = Number(row.beerId);
           const score = normalizeScore(row.score);
           if (!Number.isInteger(beerId) || score == null) continue;
-          backendRatings[beerId] = score;
+          backendRatings[beerId] = {
+            score,
+            comment: String(row.comment ?? ""),
+          };
         }
 
         hydrate(
@@ -419,8 +422,10 @@ export function GameRoute({ gameId }: { gameId: number }) {
             key={beer.id}
             beer={beer}
             mode="play"
-            score={ratings[beer.id] ?? 0}
+            score={ratings[beer.id]?.score ?? 0}
+            comment={ratings[beer.id]?.comment ?? ""}
             onScoreChange={(score) => setRating(beer.id, score)}
+            onCommentChange={(comment) => setComment(beer.id, comment)}
           />
         ))}
       </div>
