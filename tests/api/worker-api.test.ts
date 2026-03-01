@@ -464,7 +464,7 @@ describe("worker api", () => {
     expect(firstCall).toBeTruthy();
     const url = String(firstCall?.[0] ?? "");
     const init = (firstCall?.[1] ?? {}) as RequestInit;
-    expect(url).toBe("https://api.kilo.ai/api/gateway/openai/chat/completions");
+    expect(url).toBe("https://api.kilo.ai/api/gateway/chat/completions");
     const requestBody = JSON.parse(String(init.body)) as Record<string, any>;
     expect(requestBody.model).toBe("moonshotai/kimi-k2.5");
     expect(requestBody.messages?.[0]?.content?.[1]?.image_url?.url).toMatch(/^data:image\/jpeg;base64,/);

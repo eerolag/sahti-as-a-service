@@ -2,7 +2,7 @@ import { MAX_IMAGE_UPLOAD_BYTES } from "../../shared/image-upload";
 import { readUpstreamErrorMessage } from "../http";
 import type { Env } from "../env";
 
-const KILO_GATEWAY_ENDPOINT = "https://api.kilo.ai/api/gateway/openai/chat/completions";
+const KILO_GATEWAY_ENDPOINT = "https://api.kilo.ai/api/gateway/chat/completions";
 export const KILO_BEER_RECOGNITION_MODEL = "moonshotai/kimi-k2.5";
 
 function bytesToBase64(bytes: Uint8Array): string {
