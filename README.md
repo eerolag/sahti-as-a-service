@@ -114,6 +114,7 @@ http://127.0.0.1:8787
 npm run test
 npm run typecheck
 npm run build
+npm run deploy:worker
 ```
 
 ## Deploy
@@ -133,7 +134,7 @@ npm run build:web
 3. Julkaise Worker:
 
 ```bash
-npx wrangler deploy
+npm run deploy:worker
 ```
 
 ## Auto deploy GitHub pushista
@@ -144,8 +145,7 @@ Repoon on lisätty GitHub Actions workflow:
 Se ajaa `push`-eventillä (`main` / `master`):
 1. `npm ci`
 2. `npm test`
-3. `npm run build:web`
-4. `npx wrangler deploy`
+3. `npm run deploy:worker`
 
 Jotta workflow voi deployata Cloudflareen, lisää GitHub-repoon `Settings -> Secrets and variables -> Actions`:
 - `CLOUDFLARE_API_TOKEN`

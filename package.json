@@ -8,6 +8,7 @@
     "dev": "concurrently -k \"npm:dev:web\" \"npm:dev:worker\"",
     "build:web": "vite build --outDir dist/web",
     "build": "npm run build:web && npm run typecheck",
+    "deploy:worker": "npm run build:web && npx wrangler deploy --config wrangler.jsonc",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
