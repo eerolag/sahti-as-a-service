@@ -5,23 +5,39 @@ export async function getOrCreatePlayerId(
   env: Env,
   gameId: number,
   clientId: unknown,
+  nickname: string | null = null,
 ): Promise<number | null> {
   const cleanClientId = normalizeClientId(clientId);
   if (!cleanClientId) return null;
 
-  let player = await env.DB.prepare("SELECT id FROM players WHERE game_id = ? AND client_id = ?")
+  let player = await env.DB.prepare("SELECT id, nickname FROM players WHERE game_id = ? AND client_id = ?")
     .bind(gameId, cleanClientId)
-    .first<{ id: number }>();
+    .first<{ id: number; nickname: string | null }>();
 
-  if (player?.id) return player.id;
+  if (player?.id) {
+    const prevNickname = String(player.nickname ?? "");
+    const nextNickname = String(nickname ?? "");
+    if (nextNickname && prevNickname !== nextNickname) {
+      await env.DB.prepare("UPDATE players SET nickname = ? WHERE id = ?")
+        .bind(nextNickname, player.id)
+        .run();
+    }
+    return player.id;
+  }
 
-  await env.DB.prepare("INSERT OR IGNORE INTO players (game_id, client_id) VALUES (?, ?)")
-    .bind(gameId, cleanClientId)
+  await env.DB.prepare("INSERT OR IGNORE INTO players (game_id, client_id, nickname) VALUES (?, ?, ?)")
+    .bind(gameId, cleanClientId, nickname)
     .run();
 
-  player = await env.DB.prepare("SELECT id FROM players WHERE game_id = ? AND client_id = ?")
+  player = await env.DB.prepare("SELECT id, nickname FROM players WHERE game_id = ? AND client_id = ?")
     .bind(gameId, cleanClientId)
-    .first<{ id: number }>();
+    .first<{ id: number; nickname: string | null }>();
+
+  if (player?.id && nickname && String(player.nickname ?? "") !== nickname) {
+    await env.DB.prepare("UPDATE players SET nickname = ? WHERE id = ?")
+      .bind(nickname, player.id)
+      .run();
+  }
 
   return player?.id ?? null;
 }

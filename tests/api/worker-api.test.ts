@@ -36,11 +36,13 @@ async function json(response: Response): Promise<Record<string, any>> {
 describe("worker api", () => {
   let env: Env;
   let assetsFetch: ReturnType<typeof vi.fn>;
+  let db: MockD1Database;
 
   beforeEach(() => {
     const setup = createEnv();
     env = setup.env;
     assetsFetch = setup.assetsFetch;
+    db = setup.env.DB as MockD1Database;
   });
 
   it("creates a game and returns it", async () => {
@@ -176,6 +178,7 @@ describe("worker api", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         clientId: "client-1",
+        nickname: "Maistelija",
         ratings: [
           { beerId: game.beers[0].id, score: 8.5 },
           { beerId: game.beers[1].id, score: 7.25 },
@@ -189,6 +192,72 @@ describe("worker api", () => {
     const payload = await json(getRes);
     expect(payload.ok).toBe(true);
     expect(payload.ratings).toHaveLength(2);
+  });
+
+  it("rejects save ratings when nickname is too long", async () => {
+    await call(env, "/api/create-game", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Ratings nickname check",
+        beers: [{ name: "Beer A", image_url: null }],
+      }),
+    });
+
+    const game = await json(await call(env, "/api/games/1"));
+    const response = await call(env, "/api/games/1/ratings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: "client-long",
+        nickname: "x".repeat(41),
+        ratings: [{ beerId: game.beers[0].id, score: 7 }],
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    const payload = await json(response);
+    expect(payload.error).toContain("Nimimerkki on liian pitkä");
+  });
+
+  it("updates player nickname for an existing client id", async () => {
+    await call(env, "/api/create-game", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Nickname update",
+        beers: [{ name: "Beer A", image_url: null }],
+      }),
+    });
+
+    const game = await json(await call(env, "/api/games/1"));
+    const beerId = game.beers[0].id;
+
+    const firstSave = await call(env, "/api/games/1/ratings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: "same-client",
+        nickname: "Ensimmäinen",
+        ratings: [{ beerId, score: 7 }],
+      }),
+    });
+    expect(firstSave.status).toBe(200);
+
+    const secondSave = await call(env, "/api/games/1/ratings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: "same-client",
+        nickname: "Toinen",
+        ratings: [{ beerId, score: 8 }],
+      }),
+    });
+    expect(secondSave.status).toBe(200);
+
+    const player = db.getPlayer(1, "same-client");
+    expect(player).not.toBeNull();
+    expect(player?.nickname).toBe("Toinen");
   });
 
   it("orders results by average score then sort order", async () => {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { GetResultsResponse, ResultBeerDto, UpdateGameRequest } from "../../shared/api-contracts";
 import { normalizeScore } from "../../shared/scoring";
+import { normalizeNickname } from "../../shared/validation";
 import { apiClient } from "../api/client";
 import { BeerCard } from "../components/BeerCard";
 import { BeerEditor, type BeerEditorRow } from "../components/BeerEditor";
@@ -8,6 +9,13 @@ import { ResultList } from "../components/ResultList";
 import { SharePanel } from "../components/SharePanel";
 import { useDraftRatings } from "../hooks/useDraftRatings";
 import { useGameState } from "../hooks/useGameState";
+import {
+  type PlayerIdentity,
+  generateAnonymousNickname,
+  getOrCreateClientId,
+  loadPlayerIdentity,
+  savePlayerIdentity,
+} from "../utils/player-identity";
 
 async function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -18,32 +26,79 @@ async function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-function getClientId(): string {
-  const key = "saas_client_id";
-  try {
-    const existing = localStorage.getItem(key);
-    if (existing) return existing;
-
-    const next = `c_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
-    localStorage.setItem(key, next);
-    return next;
-  } catch {
-    return `fallback_${Date.now()}`;
-  }
-}
-
 function gameDisplayName(name: string | null | undefined, gameId: number): string {
   const clean = String(name ?? "").trim();
   if (clean) return clean;
   return `Peli #${gameId}`;
 }
 
+interface NicknameModalProps {
+  open: boolean;
+  canClose: boolean;
+  nicknameDraft: string;
+  onNicknameDraftChange: (value: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function NicknameModal({
+  open,
+  canClose,
+  nicknameDraft,
+  onNicknameDraftChange,
+  onConfirm,
+  onCancel,
+}: NicknameModalProps) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/80 p-4 md:items-center">
+      <div className="flex w-full max-w-lg flex-col gap-3 rounded-card border border-line bg-card p-4">
+        <div className="font-semibold">Liity peliin nimimerkillä</div>
+        <div className="muted">Jätä tyhjäksi, jos haluat automaattisen nimen (esim. Nimetön nimimerkki 112).</div>
+        <label className="text-sm text-muted" htmlFor="nickname">
+          Nimimerkki (valinnainen)
+        </label>
+        <input
+          id="nickname"
+          className="input"
+          value={nicknameDraft}
+          onChange={(event) => onNicknameDraftChange(event.target.value)}
+          placeholder="esim. Maistelija"
+          autoFocus
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              onConfirm();
+            }
+          }}
+        />
+        <div className="flex gap-2">
+          <button className="btn btn-primary grow" type="button" onClick={onConfirm}>
+            Jatka peliin
+          </button>
+          {canClose ? (
+            <button className="btn grow" type="button" onClick={onCancel}>
+              Peruuta
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function GameRoute({ gameId }: { gameId: number }) {
-  const clientId = useMemo(() => getClientId(), []);
+  const fallbackClientId = useMemo(() => getOrCreateClientId(), []);
   const { game, beers, loading, error, loadGame, setGameAndBeers } = useGameState(gameId);
+  const [playerIdentity, setPlayerIdentity] = useState<PlayerIdentity | null>(null);
+  const [nicknameDraft, setNicknameDraft] = useState("");
+  const [nicknameModalOpen, setNicknameModalOpen] = useState(false);
+  const activeClientId = playerIdentity?.clientId ?? fallbackClientId;
+
   const { ratings, hydrate, setRating, hasDirty, getChangedRatings, markSaved } = useDraftRatings(
     gameId,
-    clientId,
+    activeClientId,
   );
 
   const [view, setView] = useState<"play" | "edit" | "results">("play");
@@ -58,12 +113,26 @@ export function GameRoute({ gameId }: { gameId: number }) {
   } | null>(null);
 
   useEffect(() => {
-    if (!beers.length) return;
+    const existingIdentity = loadPlayerIdentity(gameId);
+    if (existingIdentity) {
+      setPlayerIdentity(existingIdentity);
+      setNicknameDraft(existingIdentity.nickname);
+      setNicknameModalOpen(false);
+      return;
+    }
+
+    setPlayerIdentity(null);
+    setNicknameDraft("");
+    setNicknameModalOpen(true);
+  }, [gameId]);
+
+  useEffect(() => {
+    if (!beers.length || !playerIdentity) return;
 
     let cancelled = false;
     void (async () => {
       try {
-        const data = await apiClient.getRatings(gameId, clientId);
+        const data = await apiClient.getRatings(gameId, playerIdentity.clientId);
         if (cancelled) return;
 
         const backendRatings: Record<number, number> = {};
@@ -91,7 +160,7 @@ export function GameRoute({ gameId }: { gameId: number }) {
     return () => {
       cancelled = true;
     };
-  }, [beers, clientId, gameId, hydrate]);
+  }, [beers, gameId, hydrate, playerIdentity]);
 
   const title = gameDisplayName(game?.name, gameId);
 
@@ -124,6 +193,11 @@ export function GameRoute({ gameId }: { gameId: number }) {
   }
 
   async function saveRatings() {
+    if (!playerIdentity) {
+      setNicknameModalOpen(true);
+      return;
+    }
+
     const changed = getChangedRatings();
     if (!changed.length) return;
 
@@ -132,7 +206,8 @@ export function GameRoute({ gameId }: { gameId: number }) {
 
     try {
       await apiClient.saveRatings(gameId, {
-        clientId,
+        clientId: playerIdentity.clientId,
+        nickname: playerIdentity.nickname,
         ratings: changed,
       });
       markSaved(changed);
@@ -144,6 +219,36 @@ export function GameRoute({ gameId }: { gameId: number }) {
     } finally {
       setSavingRatings(false);
     }
+  }
+
+  function openNicknameModal() {
+    setNicknameDraft(playerIdentity?.nickname ?? "");
+    setNicknameModalOpen(true);
+  }
+
+  function closeNicknameModal() {
+    if (!playerIdentity) return;
+    setNicknameDraft(playerIdentity.nickname);
+    setNicknameModalOpen(false);
+  }
+
+  function applyNickname() {
+    const normalized = normalizeNickname(nicknameDraft);
+    if ("error" in normalized) {
+      alert(normalized.error);
+      return;
+    }
+
+    const nickname = normalized.value ?? generateAnonymousNickname();
+    const nextIdentity: PlayerIdentity = {
+      clientId: playerIdentity?.clientId || fallbackClientId,
+      nickname,
+    };
+
+    savePlayerIdentity(gameId, nextIdentity);
+    setPlayerIdentity(nextIdentity);
+    setNicknameDraft(nickname);
+    setNicknameModalOpen(false);
   }
 
   async function saveGameEdits() {
@@ -288,7 +393,7 @@ export function GameRoute({ gameId }: { gameId: number }) {
             <div className="flex flex-col gap-1">
               <div className="font-semibold">{title}</div>
               <div className="muted">Peli-ID: {gameId} • {beers.length} olutta</div>
-              <div className="muted">Client ID: {clientId.slice(-8)} (selainkohtainen)</div>
+              <div className="muted">Nimimerkki: {playerIdentity?.nickname ?? "Ei asetettu"}</div>
             </div>
             <a className="btn no-underline" href="/">
               Etusivu
@@ -300,6 +405,9 @@ export function GameRoute({ gameId }: { gameId: number }) {
           <div className="flex gap-2">
             <button className="btn grow" type="button" onClick={openEdit}>
               Muokkaa
+            </button>
+            <button className="btn grow" type="button" onClick={openNicknameModal}>
+              Vaihda nimimerkki
             </button>
           </div>
         </div>
@@ -322,7 +430,7 @@ export function GameRoute({ gameId }: { gameId: number }) {
           <button
             className="btn btn-success"
             type="button"
-            disabled={!hasDirty || savingRatings}
+            disabled={!playerIdentity || !hasDirty || savingRatings}
             onClick={() => void saveRatings()}
           >
             {saveButtonText}
@@ -332,6 +440,15 @@ export function GameRoute({ gameId }: { gameId: number }) {
           </button>
         </div>
       </div>
+
+      <NicknameModal
+        open={nicknameModalOpen}
+        canClose={Boolean(playerIdentity)}
+        nicknameDraft={nicknameDraft}
+        onNicknameDraftChange={setNicknameDraft}
+        onConfirm={applyNickname}
+        onCancel={closeNicknameModal}
+      />
     </div>
   );
 }

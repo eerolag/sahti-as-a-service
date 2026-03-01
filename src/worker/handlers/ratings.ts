@@ -1,6 +1,6 @@
 import type { GetRatingsResponse, SaveRatingsRequest, SaveRatingsResponse } from "../../shared/api-contracts";
 import { normalizeScore } from "../../shared/scoring";
-import { normalizeClientId } from "../../shared/validation";
+import { normalizeClientId, normalizeNickname } from "../../shared/validation";
 import type { Env } from "../env";
 import { json, parseJson } from "../http";
 import { listBeerIdsByGameId } from "../repositories/beers-repo";
@@ -32,7 +32,12 @@ export async function handleSaveRatings(gameId: number, request: Request, env: E
   const exists = await gameExists(env, gameId);
   if (!exists) return json({ error: "Peliä ei löytynyt" }, 404);
 
-  const playerId = await getOrCreatePlayerId(env, gameId, body.clientId);
+  const normalizedNickname = normalizeNickname(body.nickname);
+  if ("error" in normalizedNickname) {
+    return json({ error: normalizedNickname.error }, 400);
+  }
+
+  const playerId = await getOrCreatePlayerId(env, gameId, body.clientId, normalizedNickname.value);
   if (!playerId) return json({ error: "clientId puuttuu" }, 400);
 
   const validBeerIds = new Set(await listBeerIdsByGameId(env, gameId));

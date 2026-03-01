@@ -1,4 +1,5 @@
 export const MAX_GAME_NAME_LENGTH = 120;
+export const MAX_NICKNAME_LENGTH = 40;
 
 export function normalizeGameName(raw: unknown): { value: string } | { error: string } {
   const name = String(raw ?? "").trim();
@@ -35,6 +36,15 @@ export function normalizeClientId(clientId: unknown): string | null {
   const cleanClientId = String(clientId ?? "").trim();
   if (!cleanClientId || cleanClientId.length > 200) return null;
   return cleanClientId;
+}
+
+export function normalizeNickname(raw: unknown): { value: string | null } | { error: string } {
+  const value = String(raw ?? "").trim();
+  if (!value) return { value: null };
+  if (value.length > MAX_NICKNAME_LENGTH) {
+    return { error: `Nimimerkki on liian pitkä (max ${MAX_NICKNAME_LENGTH} merkkiä)` };
+  }
+  return { value };
 }
 
 export function clampInteger(value: unknown, min: number, max: number, fallback: number): number {

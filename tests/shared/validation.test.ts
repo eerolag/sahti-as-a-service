@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { normalizeClientId, normalizeGameName, normalizeImageUrl } from "../../src/shared/validation";
+import {
+  MAX_NICKNAME_LENGTH,
+  normalizeClientId,
+  normalizeGameName,
+  normalizeImageUrl,
+  normalizeNickname,
+} from "../../src/shared/validation";
 import { normalizeBeersPayload } from "../../src/shared/game-domain";
 
 describe("shared/validation", () => {
@@ -19,6 +25,12 @@ describe("shared/validation", () => {
   it("validates client id", () => {
     expect(normalizeClientId("client-1")).toBe("client-1");
     expect(normalizeClientId("")).toBeNull();
+  });
+
+  it("validates nickname", () => {
+    expect(normalizeNickname("")).toEqual({ value: null });
+    expect(normalizeNickname("  Maistelija ")).toEqual({ value: "Maistelija" });
+    expect(normalizeNickname("a".repeat(MAX_NICKNAME_LENGTH + 1))).toHaveProperty("error");
   });
 
   it("normalizes beer payload and validates ids", () => {

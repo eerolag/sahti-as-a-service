@@ -59,6 +59,7 @@ export interface RatingDto {
 
 export interface SaveRatingsRequest {
   clientId: string;
+  nickname?: string;
   ratings: RatingDto[];
 }
 

@@ -25,6 +25,7 @@ type PlayerRow = {
   id: number;
   game_id: number;
   client_id: string;
+  nickname: string | null;
   created_at: string;
 };
 
@@ -84,6 +85,12 @@ export class MockD1Database implements D1Database {
 
   prepare(query: string): D1PreparedStatement {
     return new MockPreparedStatement(this, query);
+  }
+
+  getPlayer(gameId: number, clientId: string): { id: number; nickname: string | null } | null {
+    const player = this.players.find((row) => row.game_id === gameId && row.client_id === clientId);
+    if (!player) return null;
+    return { id: player.id, nickname: player.nickname };
   }
 
   async batch(statements: D1PreparedStatement[]): Promise<unknown[]> {
@@ -165,12 +172,47 @@ export class MockD1Database implements D1Database {
       return { success: true, meta: {} };
     }
 
+    if (sql.startsWith("insert or ignore into players (game_id, client_id, nickname) values (?, ?, ?)")) {
+      const gameId = Number(values[0]);
+      const clientId = String(values[1] ?? "");
+      const nicknameRaw = String(values[2] ?? "").trim();
+      const nickname = nicknameRaw || null;
+      const exists = this.players.some((p) => p.game_id === gameId && p.client_id === clientId);
+      if (!exists) {
+        this.players.push({
+          id: this.playerIdCounter++,
+          game_id: gameId,
+          client_id: clientId,
+          nickname,
+          created_at: now(),
+        });
+      }
+      return { success: true, meta: {} };
+    }
+
     if (sql.startsWith("insert or ignore into players (game_id, client_id) values (?, ?)")) {
       const gameId = Number(values[0]);
       const clientId = String(values[1] ?? "");
       const exists = this.players.some((p) => p.game_id === gameId && p.client_id === clientId);
       if (!exists) {
-        this.players.push({ id: this.playerIdCounter++, game_id: gameId, client_id: clientId, created_at: now() });
+        this.players.push({
+          id: this.playerIdCounter++,
+          game_id: gameId,
+          client_id: clientId,
+          nickname: null,
+          created_at: now(),
+        });
+      }
+      return { success: true, meta: {} };
+    }
+
+    if (sql.startsWith("update players set nickname = ? where id = ?")) {
+      const nicknameRaw = String(values[0] ?? "").trim();
+      const nickname = nicknameRaw || null;
+      const playerId = Number(values[1]);
+      const player = this.players.find((row) => row.id === playerId);
+      if (player) {
+        player.nickname = nickname;
       }
       return { success: true, meta: {} };
     }
@@ -215,6 +257,13 @@ export class MockD1Database implements D1Database {
       const clientId = String(values[1] ?? "");
       const player = this.players.find((row) => row.game_id === gameId && row.client_id === clientId);
       return player ? { id: player.id } : null;
+    }
+
+    if (sql.startsWith("select id, nickname from players where game_id = ? and client_id = ?")) {
+      const gameId = Number(values[0]);
+      const clientId = String(values[1] ?? "");
+      const player = this.players.find((row) => row.game_id === gameId && row.client_id === clientId);
+      return player ? { id: player.id, nickname: player.nickname } : null;
     }
 
     if (sql.startsWith("select count(*) as c from players where game_id = ?")) {
