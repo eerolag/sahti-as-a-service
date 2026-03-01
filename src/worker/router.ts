@@ -6,6 +6,7 @@ import { handleGetResults } from "./handlers/results";
 import { handleImageSearch } from "./handlers/image-search";
 import { handleGetQr } from "./handlers/qr";
 import { handleGetImage, handleUploadImage } from "./handlers/images";
+import { handleIdentifyBeerNameFromImage } from "./handlers/image-identify";
 
 export async function routeApi(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
@@ -57,6 +58,13 @@ export async function routeApi(request: Request, env: Env): Promise<Response | n
   if (pathname === "/api/images/upload") {
     if (request.method === "POST") {
       return handleUploadImage(request, env);
+    }
+    return json({ error: "Not found" }, 404);
+  }
+
+  if (pathname === "/api/images/identify-beer-name") {
+    if (request.method === "POST") {
+      return handleIdentifyBeerNameFromImage(request, env);
     }
     return json({ error: "Not found" }, 404);
   }

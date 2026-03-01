@@ -4,6 +4,7 @@ import type {
   GetGameResponse,
   GetRatingsResponse,
   GetResultsResponse,
+  IdentifyBeerNameResponse,
   ImageSearchResponse,
   SaveRatingsRequest,
   SaveRatingsResponse,
@@ -90,6 +91,15 @@ export const apiClient = {
     const formData = new FormData();
     formData.set("file", file);
     return request<UploadImageResponse>("/api/images/upload", {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  identifyBeerName(file: File) {
+    const formData = new FormData();
+    formData.set("file", file);
+    return request<IdentifyBeerNameResponse>("/api/images/identify-beer-name", {
       method: "POST",
       body: formData,
     });

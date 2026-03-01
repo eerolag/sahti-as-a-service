@@ -44,6 +44,9 @@ describe("worker api", () => {
   let images: MockR2Bucket;
 
   beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+
     const setup = createEnv();
     env = setup.env;
     assetsFetch = setup.assetsFetch;
@@ -392,6 +395,136 @@ describe("worker api", () => {
     });
 
     expect(response.status).toBe(400);
+  });
+
+  it("returns 503 from image identify when KILO_API_KEY is missing", async () => {
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([1, 2, 3])], { type: "image/jpeg" }), "beer.jpg");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(503);
+    const payload = await json(response);
+    expect(payload.error).toContain("KILO_API_KEY");
+  });
+
+  it("rejects image identify when file is missing or invalid", async () => {
+    env.KILO_API_KEY = "kilo-test-key";
+    const form = new FormData();
+    form.set("file", new Blob(["hello"], { type: "text/plain" }), "note.txt");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("identifies beer name from uploaded image via Kilo gateway", async () => {
+    env.KILO_API_KEY = "kilo-test-key";
+    const upstreamFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "Karhu III",
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    });
+    vi.stubGlobal("fetch", upstreamFetch);
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([1, 2, 3, 4])], { type: "image/jpeg" }), "beer.jpg");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await json(response);
+    expect(payload.ok).toBe(true);
+    expect(payload.beerName).toBe("Karhu III");
+    expect(payload.model).toBe("moonshotai/kimi-k2.5");
+
+    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+    const firstCall = upstreamFetch.mock.calls[0];
+    expect(firstCall).toBeTruthy();
+    const url = String(firstCall?.[0] ?? "");
+    const init = (firstCall?.[1] ?? {}) as RequestInit;
+    expect(url).toBe("https://api.kilo.ai/api/gateway/openai/chat/completions");
+    const requestBody = JSON.parse(String(init.body)) as Record<string, any>;
+    expect(requestBody.model).toBe("moonshotai/kimi-k2.5");
+    expect(requestBody.messages?.[0]?.content?.[1]?.image_url?.url).toMatch(/^data:image\/jpeg;base64,/);
+  });
+
+  it("returns 422 when Kilo cannot identify a reliable beer name", async () => {
+    env.KILO_API_KEY = "kilo-test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "UNKNOWN",
+                },
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        );
+      }),
+    );
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([9, 9])], { type: "image/png" }), "beer.png");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(422);
+  });
+
+  it("maps Kilo 429 to API 429", async () => {
+    env.KILO_API_KEY = "kilo-test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(JSON.stringify({ error: { message: "rate limit" } }), {
+          status: 429,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([7, 7])], { type: "image/webp" }), "beer.webp");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(429);
   });
 
   it("serves uploaded image from /api/images/:key", async () => {

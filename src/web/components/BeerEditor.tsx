@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createUntappdSearchUrl } from "../../shared/untappd";
+import { apiClient } from "../api/client";
 import { useBeerReorder } from "../hooks/useBeerReorder";
 import { ImageSearchModal } from "./ImageSearchModal";
 
@@ -25,6 +26,13 @@ interface BeerEditorProps {
   cancelLabel?: string;
 }
 
+type IdentifyState = "idle" | "loading" | "success" | "error";
+
+interface IdentifyStatus {
+  state: IdentifyState;
+  message: string;
+}
+
 export function BeerEditor({
   title,
   gameName,
@@ -39,6 +47,7 @@ export function BeerEditor({
   cancelLabel = "Peruuta",
 }: BeerEditorProps) {
   const [searchIndex, setSearchIndex] = useState<number | null>(null);
+  const [identifyStatusByRow, setIdentifyStatusByRow] = useState<Record<string, IdentifyStatus>>({});
   const { dragIndex, overIndex, handlers } = useBeerReorder(beers, onBeersChange);
 
   const searchInitialQuery = useMemo(() => {
@@ -64,6 +73,14 @@ export function BeerEditor({
     onBeersChange([...beers, { name: "", imageUrl: "", file: null }]);
   }
 
+  function rowKey(beer: BeerEditorRow, idx: number): string {
+    return `${beer.id ?? "new"}-${idx}`;
+  }
+
+  function setRowIdentifyStatus(key: string, status: IdentifyStatus) {
+    setIdentifyStatusByRow((prev) => ({ ...prev, [key]: status }));
+  }
+
   return (
     <>
       <div className="card">
@@ -84,9 +101,11 @@ export function BeerEditor({
       <div className="beer-list">
         {beers.map((beer, idx) => {
           const untappdUrl = beer.untappdUrl || createUntappdSearchUrl(beer.name);
+          const key = rowKey(beer, idx);
+          const identifyStatus = identifyStatusByRow[key] ?? { state: "idle", message: "" };
           return (
             <div
-              key={`${beer.id ?? "new"}-${idx}`}
+              key={key}
               className={[
                 "card drag-row",
                 dragIndex === idx ? "dragging" : "",
@@ -157,11 +176,50 @@ export function BeerEditor({
                   className="input"
                   type="file"
                   accept="image/*"
-                  onChange={(event) => setBeerField(idx, { file: event.target.files?.[0] ?? null })}
+                  onChange={(event) => {
+                    setBeerField(idx, { file: event.target.files?.[0] ?? null });
+                    setRowIdentifyStatus(key, { state: "idle", message: "" });
+                  }}
                 />
                 <div className="text-xs text-muted">
                   Tiedosto ladataan palvelimelle (max 10 MB, suositus enintään 6000x6000 px).
                 </div>
+
+                {beer.file ? (
+                  <div className="flex flex-col gap-2">
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={identifyStatus.state === "loading" || submitting}
+                      onClick={async () => {
+                        if (!beer.file) return;
+
+                        setRowIdentifyStatus(key, { state: "loading", message: "Tunnistetaan nimea kuvasta..." });
+
+                        try {
+                          const identified = await apiClient.identifyBeerName(beer.file);
+                          setBeerField(idx, { name: identified.beerName });
+                          setRowIdentifyStatus(key, {
+                            state: "success",
+                            message: `Tunnistettu nimi: ${identified.beerName}`,
+                          });
+                        } catch (error) {
+                          setRowIdentifyStatus(key, {
+                            state: "error",
+                            message: String((error as Error)?.message ?? "Nimen tunnistus epaonnistui."),
+                          });
+                        }
+                      }}
+                    >
+                      {identifyStatus.state === "loading" ? "Tunnistetaan..." : "Tunnista nimi kuvasta"}
+                    </button>
+                    {identifyStatus.message ? (
+                      <div className={identifyStatus.state === "error" ? "text-sm text-red-300" : "text-sm text-muted"}>
+                        {identifyStatus.message}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <div className="text-sm text-muted">
                   Untappd:{" "}

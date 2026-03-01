@@ -108,3 +108,9 @@ export interface UploadImageResponse {
   contentType: string;
   bytes: number;
 }
+
+export interface IdentifyBeerNameResponse {
+  ok: true;
+  beerName: string;
+  model: string;
+}

@@ -54,6 +54,7 @@ Uusi arkkitehtuuri:
 ## API-avaimet (valinnainen)
 
 Sovellus toimii ilman ulkoisia avaimia:
+- ilman Kilo-avainta kuvatunnistus palauttaa `503`
 - ilman Brave-avainta internet-kuvahaku palauttaa `503`
 - ilman Untappd-avaimia oluille tallennetaan automaattinen Untappd-hakulinkki
 
@@ -63,6 +64,7 @@ Aseta halutessa:
 npx wrangler secret put BRAVE_SEARCH_API_KEY
 npx wrangler secret put UNTAPPD_CLIENT_ID
 npx wrangler secret put UNTAPPD_CLIENT_SECRET
+npx wrangler secret put KILO_API_KEY
 ```
 
 ## R2-kuvabucket (pakollinen kuvatiedostoille)
@@ -161,6 +163,7 @@ Jotta workflow voi deployata Cloudflareen, lisää GitHub-repoon `Settings -> Se
 - `GET /api/games/:id/results`
 - `GET /api/image-search?q=<query>&count=<1-12>`
 - `POST /api/images/upload` (`multipart/form-data`, kenttä `file`, max 10 MB; UI validoi lisäksi max 6000x6000 px)
+- `POST /api/images/identify-beer-name` (`multipart/form-data`, kenttä `file`; palauttaa tunnistetun oluen nimen tai virheen)
 - `GET /api/images/:key`
 - `GET /api/qr?url=<http/https-url-encoded>`
 
