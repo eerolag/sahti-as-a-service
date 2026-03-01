@@ -6,6 +6,7 @@ import type {
   UpdateGameResponse,
 } from "../../shared/api-contracts";
 import { normalizeBeersPayload } from "../../shared/game-domain";
+import { extractImageKeyFromUrl } from "../../shared/image-upload";
 import { normalizeGameName } from "../../shared/validation";
 import type { Env } from "../env";
 import { json, parseJson } from "../http";
@@ -87,6 +88,12 @@ export async function handleUpdateGame(gameId: number, request: Request, env: En
   if (!exists) return json({ error: "Peliä ei löytynyt" }, 404);
 
   const existingIds = new Set(await listBeerIdsByGameId(env, gameId));
+  const previousBeers = await getBeersByGameId(env, gameId);
+  const previousImageKeys = new Set<string>();
+  for (const beer of previousBeers) {
+    const key = extractImageKeyFromUrl(beer.image_url);
+    if (key) previousImageKeys.add(key);
+  }
 
   const seenIds = new Set<number>();
   for (const beer of beers) {
@@ -113,6 +120,17 @@ export async function handleUpdateGame(gameId: number, request: Request, env: En
 
   const updated = await getGameWithBeers(env, gameId);
   if (!updated) return json({ error: "Peliä ei löytynyt" }, 404);
+
+  const nextImageKeys = new Set<string>();
+  for (const beer of updated.beers) {
+    const key = extractImageKeyFromUrl(beer.image_url);
+    if (key) nextImageKeys.add(key);
+  }
+
+  const keysToDelete = [...previousImageKeys].filter((key) => !nextImageKeys.has(key));
+  if (keysToDelete.length) {
+    await Promise.allSettled(keysToDelete.map((key) => env.IMAGES_BUCKET.delete(key)));
+  }
 
   const response: UpdateGameResponse = { ok: true, ...updated };
   return json(response);

@@ -100,3 +100,11 @@ export interface ImageSearchResponse {
   provider: "brave";
   results: ImageSearchResultDto[];
 }
+
+export interface UploadImageResponse {
+  ok: true;
+  imageUrl: string;
+  key: string;
+  contentType: string;
+  bytes: number;
+}

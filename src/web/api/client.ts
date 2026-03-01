@@ -7,6 +7,7 @@ import type {
   ImageSearchResponse,
   SaveRatingsRequest,
   SaveRatingsResponse,
+  UploadImageResponse,
   UpdateGameRequest,
   UpdateGameResponse,
 } from "../../shared/api-contracts";
@@ -83,6 +84,15 @@ export const apiClient = {
   imageSearch(query: string, count = 10) {
     const q = encodeURIComponent(query);
     return request<ImageSearchResponse>(`/api/image-search?q=${q}&count=${count}`);
+  },
+
+  uploadImage(file: File) {
+    const formData = new FormData();
+    formData.set("file", file);
+    return request<UploadImageResponse>("/api/images/upload", {
+      method: "POST",
+      body: formData,
+    });
   },
 
   async qrSvgDataUrl(url: string): Promise<string> {

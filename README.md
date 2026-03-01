@@ -1,6 +1,6 @@
 # Sahti as a Service
 
-Cloudflare Worker + D1 -sovellus oluiden pisteyttämiseen pelimuodossa.
+Cloudflare Worker + D1 + R2 -sovellus oluiden pisteyttämiseen pelimuodossa.
 
 Uusi arkkitehtuuri:
 - `src/worker`: API-reitit, handlerit, palvelut ja repositoryt
@@ -37,6 +37,7 @@ Uusi arkkitehtuuri:
 
 - Cloudflare Workers
 - Cloudflare D1 (SQLite)
+- Cloudflare R2
 - TypeScript
 - React
 - Tailwind CSS
@@ -63,6 +64,19 @@ npx wrangler secret put BRAVE_SEARCH_API_KEY
 npx wrangler secret put UNTAPPD_CLIENT_ID
 npx wrangler secret put UNTAPPD_CLIENT_SECRET
 ```
+
+## R2-kuvabucket (pakollinen kuvatiedostoille)
+
+Kuvatiedostot ladataan R2:een ja tarjoillaan Workerin kautta endpointista `/api/images/:key`.
+
+Luo bucket (vähintään kerran per ympäristö):
+
+```bash
+npx wrangler r2 bucket create sahti-as-a-service-images
+```
+
+`wrangler.jsonc` käyttää bindingia:
+- `IMAGES_BUCKET` -> `sahti-as-a-service-images`
 
 ## Kehitys
 
@@ -146,6 +160,8 @@ Jotta workflow voi deployata Cloudflareen, lisää GitHub-repoon `Settings -> Se
 - `GET /api/games/:id/ratings?clientId=...` (tekninen tunniste omien arvosanojen hakuun)
 - `GET /api/games/:id/results`
 - `GET /api/image-search?q=<query>&count=<1-12>`
+- `POST /api/images/upload` (`multipart/form-data`, kenttä `file`, max 10 MB; UI validoi lisäksi max 6000x6000 px)
+- `GET /api/images/:key`
 - `GET /api/qr?url=<http/https-url-encoded>`
 
 Vastauskentät ovat taaksepäin yhteensopivat aiemman version kanssa.

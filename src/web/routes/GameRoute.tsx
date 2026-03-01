@@ -9,6 +9,7 @@ import { ResultList } from "../components/ResultList";
 import { SharePanel } from "../components/SharePanel";
 import { useDraftRatings } from "../hooks/useDraftRatings";
 import { useGameState } from "../hooks/useGameState";
+import { validateImageFileBeforeUpload } from "../utils/image-upload";
 import {
   type PlayerIdentity,
   generateAnonymousNickname,
@@ -16,15 +17,6 @@ import {
   loadPlayerIdentity,
   savePlayerIdentity,
 } from "../utils/player-identity";
-
-async function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 function gameDisplayName(name: string | null | undefined, gameId: number): string {
   const clean = String(name ?? "").trim();
@@ -275,10 +267,9 @@ export function GameRoute({ gameId }: { gameId: number }) {
 
         let image_url = row.imageUrl.trim() || null;
         if (row.file) {
-          image_url = await fileToDataUrl(row.file);
-          if (image_url.length > 700000) {
-            throw new Error("Kuvatiedosto liian iso MVP-versioon. Käytä pienempää kuvaa tai URL:ia.");
-          }
+          await validateImageFileBeforeUpload(row.file);
+          const upload = await apiClient.uploadImage(row.file);
+          image_url = upload.imageUrl;
         }
 
         payloadBeers.push({

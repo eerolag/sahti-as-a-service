@@ -2,15 +2,7 @@ import { useState } from "react";
 import type { CreateGameRequest } from "../../shared/api-contracts";
 import { apiClient } from "../api/client";
 import { BeerEditor, type BeerEditorRow } from "../components/BeerEditor";
-
-async function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
+import { validateImageFileBeforeUpload } from "../utils/image-upload";
 
 export function HomeRoute() {
   const [showCreate, setShowCreate] = useState(false);
@@ -36,10 +28,9 @@ export function HomeRoute() {
 
         let image_url = row.imageUrl.trim() || null;
         if (!image_url && row.file) {
-          image_url = await fileToDataUrl(row.file);
-          if (image_url.length > 700000) {
-            throw new Error("Kuvatiedosto liian iso MVP-versioon. Käytä pienempää kuvaa tai URL:ia.");
-          }
+          await validateImageFileBeforeUpload(row.file);
+          const upload = await apiClient.uploadImage(row.file);
+          image_url = upload.imageUrl;
         }
 
         payloadBeers.push({

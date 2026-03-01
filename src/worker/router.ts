@@ -5,6 +5,7 @@ import { handleGetRatings, handleSaveRatings } from "./handlers/ratings";
 import { handleGetResults } from "./handlers/results";
 import { handleImageSearch } from "./handlers/image-search";
 import { handleGetQr } from "./handlers/qr";
+import { handleGetImage, handleUploadImage } from "./handlers/images";
 
 export async function routeApi(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
@@ -49,6 +50,27 @@ export async function routeApi(request: Request, env: Env): Promise<Response | n
   if (pathname === "/api/image-search") {
     if (request.method === "GET") {
       return handleImageSearch(url, env);
+    }
+    return json({ error: "Not found" }, 404);
+  }
+
+  if (pathname === "/api/images/upload") {
+    if (request.method === "POST") {
+      return handleUploadImage(request, env);
+    }
+    return json({ error: "Not found" }, 404);
+  }
+
+  const imageMatch = pathname.match(/^\/api\/images\/([^/]+)$/);
+  if (imageMatch) {
+    if (request.method === "GET") {
+      let key: string;
+      try {
+        key = decodeURIComponent(imageMatch[1]);
+      } catch {
+        return json({ error: "Kuvaa ei löytynyt" }, 404);
+      }
+      return handleGetImage(key, env);
     }
     return json({ error: "Not found" }, 404);
   }

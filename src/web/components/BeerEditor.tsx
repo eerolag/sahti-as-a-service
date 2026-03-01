@@ -160,7 +160,7 @@ export function BeerEditor({
                   onChange={(event) => setBeerField(idx, { file: event.target.files?.[0] ?? null })}
                 />
                 <div className="text-xs text-muted">
-                  MVP: tiedosto tallennetaan data-URL:na D1:een, joten pidä kuvat pieninä.
+                  Tiedosto ladataan palvelimelle (max 10 MB, suositus enintään 6000x6000 px).
                 </div>
 
                 <div className="text-sm text-muted">
