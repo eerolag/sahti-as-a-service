@@ -195,7 +195,8 @@ export async function identifyBeerNameFromImage(env: Env, file: File): Promise<I
             text: [
               "Identify the beer name in the image.",
               "Return exactly one line containing only the beer name.",
-              "If you are not confident, reply exactly: UNKNOWN",
+              "If exact product is unclear, return your single best guess.",
+              "Reply UNKNOWN only if there are absolutely no usable clues in the image.",
               "Do not include any explanation.",
             ].join(" "),
           },
@@ -211,7 +212,7 @@ export async function identifyBeerNameFromImage(env: Env, file: File): Promise<I
   };
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20_000);
+  const timeout = setTimeout(() => controller.abort(), 45_000);
 
   let payload: Record<string, any> | null = null;
 
@@ -242,6 +243,14 @@ export async function identifyBeerNameFromImage(env: Env, file: File): Promise<I
   } catch (error) {
     if ((error as any)?.statusCode) {
       throw error;
+    }
+
+    if (String((error as any)?.name ?? "") === "AbortError") {
+      const err = new Error(
+        "Nimen tunnistus aikakatkaistiin. Kokeile JPG/PNG/WebP-kuvaa tai rajaa kuvaa lahemmas etikettia.",
+      );
+      (err as any).statusCode = 502;
+      throw err;
     }
 
     const details = String((error as Error)?.message ?? "").trim();

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { createUntappdSearchUrl } from "../../shared/untappd";
 import { apiClient } from "../api/client";
 import { useBeerReorder } from "../hooks/useBeerReorder";
+import { prepareImageForBeerNameRecognition } from "../utils/beer-name-image";
 import { ImageSearchModal } from "./ImageSearchModal";
 
 export interface BeerEditorRow {
@@ -197,7 +198,8 @@ export function BeerEditor({
                         setRowIdentifyStatus(key, { state: "loading", message: "Tunnistetaan nimea kuvasta..." });
 
                         try {
-                          const identified = await apiClient.identifyBeerName(beer.file);
+                          const preparedFile = await prepareImageForBeerNameRecognition(beer.file);
+                          const identified = await apiClient.identifyBeerName(preparedFile);
                           setBeerField(idx, { name: identified.beerName });
                           setRowIdentifyStatus(key, {
                             state: "success",

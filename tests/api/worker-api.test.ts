@@ -565,6 +565,28 @@ describe("worker api", () => {
     expect(response.status).toBe(429);
   });
 
+  it("returns helpful timeout message when Kilo request is aborted", async () => {
+    env.KILO_API_KEY = "kilo-test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw Object.assign(new Error("The operation was aborted."), { name: "AbortError" });
+      }),
+    );
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([3, 1, 4])], { type: "image/jpeg" }), "beer.jpg");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(502);
+    const payload = await json(response);
+    expect(String(payload.error)).toContain("aikakatkaistiin");
+  });
+
   it("serves uploaded image from /api/images/:key", async () => {
     const uploadForm = new FormData();
     uploadForm.set("file", new Blob([new Uint8Array([7, 8, 9])], { type: "image/webp" }), "beer.webp");
