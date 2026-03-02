@@ -503,7 +503,7 @@ describe("worker api", () => {
 
     expect(response.status).toBe(422);
     const payload = await json(response);
-    expect(String(payload.error)).toContain("malli vastasi");
+    expect(String(payload.error)).toContain("vastasi");
   });
 
   it("extracts beer name from best-guess style model response", async () => {

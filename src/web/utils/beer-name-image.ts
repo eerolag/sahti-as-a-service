@@ -100,9 +100,13 @@ export async function prepareImageForBeerNameRecognition(file: File): Promise<Fi
   try {
     return await renderAsJpegFile(file);
   } catch (error) {
+    // Some browsers cannot decode HEIC/HEIF/AVIF locally. Send original image as a fallback.
+    if (type.startsWith("image/")) {
+      return file;
+    }
+
     throw new Error(
       `Kuvatiedostoa ei voitu kasitella tunnistusta varten (${String((error as Error)?.message ?? "tuntematon virhe")}). Kokeile JPG/PNG/WebP-kuvaa.`,
     );
   }
 }
-

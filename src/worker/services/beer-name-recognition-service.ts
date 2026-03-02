@@ -4,6 +4,8 @@ import type { Env } from "../env";
 
 const KILO_GATEWAY_ENDPOINT = "https://api.kilo.ai/api/gateway/chat/completions";
 export const KILO_BEER_RECOGNITION_MODEL = "moonshotai/kimi-k2.5";
+const KILO_BEER_RECOGNITION_FALLBACK_MODEL = "kilo/auto";
+const KILO_REQUEST_TIMEOUT_MS = 45_000;
 
 function bytesToBase64(bytes: Uint8Array): string {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -78,6 +80,15 @@ function isClearlyUncertainSentence(value: string): boolean {
   );
 }
 
+function isLikelyVisionUnsupportedResponse(value: string): boolean {
+  const normalized = sanitizeCandidate(value).toLowerCase();
+  if (!normalized) return false;
+
+  return /\b(cannot see image|can't see image|can't view image|cannot view image|no visual access|text-only model|cannot analyze images?)\b/i.test(
+    normalized,
+  );
+}
+
 function extractBestGuessFromLine(value: string): string | null {
   const line = sanitizeCandidate(value);
   if (!line) return null;
@@ -149,43 +160,72 @@ function ensureValidImage(file: File): void {
 }
 
 function parseModelContent(payload: Record<string, any>): string {
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
+  const messageContent = payload?.choices?.[0]?.message?.content;
+  if (typeof messageContent === "string") return messageContent;
 
-  return content
-    .map((part) => {
-      if (typeof part === "string") return part;
-      if (typeof part?.text === "string") return part.text;
-      return "";
-    })
-    .join("\n")
-    .trim();
-}
-
-export interface IdentifyBeerNameResult {
-  ok: true;
-  beerName: string;
-  model: string;
-}
-
-export async function identifyBeerNameFromImage(env: Env, file: File): Promise<IdentifyBeerNameResult> {
-  ensureValidImage(file);
-
-  const apiKey = String(env.KILO_API_KEY ?? "").trim();
-  if (!apiKey) {
-    const err = new Error("Nimen tunnistus ei ole kaytossa (KILO_API_KEY puuttuu)");
-    (err as any).statusCode = 503;
-    throw err;
+  if (Array.isArray(messageContent)) {
+    const joined = messageContent
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (typeof part?.text === "string") return part.text;
+        if (typeof part?.text?.value === "string") return part.text.value;
+        if (typeof part?.content === "string") return part.content;
+        return "";
+      })
+      .join("\n")
+      .trim();
+    if (joined) return joined;
   }
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const imageDataUrl = toDataUrl(file, bytes);
+  const choiceText = payload?.choices?.[0]?.text;
+  if (typeof choiceText === "string" && choiceText.trim()) {
+    return choiceText.trim();
+  }
 
+  const outputText = payload?.output_text;
+  if (typeof outputText === "string" && outputText.trim()) {
+    return outputText.trim();
+  }
+
+  return "";
+}
+
+function shouldRetryWithFallbackForError(error: unknown): boolean {
+  const statusCode = Number((error as any)?.statusCode) || 0;
+  if (statusCode === 429) return false;
+
+  const upstreamStatus = Number((error as any)?.upstreamStatus) || 0;
+  if (upstreamStatus === 400 || upstreamStatus === 404 || upstreamStatus === 422) {
+    return true;
+  }
+
+  const message = String((error as Error)?.message ?? "").toLowerCase();
+  if (/(image|vision|multimodal|text-only|cannot view)/.test(message)) {
+    return true;
+  }
+
+  return true;
+}
+
+function createUncertainResultError(rawContent: string, model: string): Error {
+  const preview = sanitizeCandidate(rawContent).slice(0, 200);
+  const detail = preview ? ` (malli ${model} vastasi: ${preview})` : ` (malli: ${model})`;
+  const err = new Error(`Nimea ei saatu tunnistettua kuvasta luotettavasti${detail}`);
+  (err as any).statusCode = 422;
+  return err;
+}
+
+interface ModelAttempt {
+  model: string;
+  rawContent: string;
+  beerName: string | null;
+}
+
+async function runModelAttempt(apiKey: string, model: string, imageDataUrl: string): Promise<ModelAttempt> {
   const body = {
-    model: KILO_BEER_RECOGNITION_MODEL,
+    model,
     temperature: 0,
-    max_tokens: 32,
+    max_tokens: 64,
     messages: [
       {
         role: "user",
@@ -212,7 +252,7 @@ export async function identifyBeerNameFromImage(env: Env, file: File): Promise<I
   };
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45_000);
+  const timeout = setTimeout(() => controller.abort(), KILO_REQUEST_TIMEOUT_MS);
 
   let payload: Record<string, any> | null = null;
 
@@ -230,12 +270,13 @@ export async function identifyBeerNameFromImage(env: Env, file: File): Promise<I
 
     if (!response.ok) {
       const upstreamMessage = await readUpstreamErrorMessage(response);
-      const status = response.status === 429 ? 429 : 502;
+      const statusCode = response.status === 429 ? 429 : 502;
       const message = upstreamMessage
         ? `Nimen tunnistus epaonnistui (Kilo ${response.status}): ${upstreamMessage}`
         : `Nimen tunnistus epaonnistui (Kilo ${response.status})`;
       const err = new Error(message);
-      (err as any).statusCode = status;
+      (err as any).statusCode = statusCode;
+      (err as any).upstreamStatus = response.status;
       throw err;
     }
 
@@ -254,7 +295,9 @@ export async function identifyBeerNameFromImage(env: Env, file: File): Promise<I
     }
 
     const details = String((error as Error)?.message ?? "").trim();
-    const err = new Error(details ? `Nimen tunnistus epaonnistui juuri nyt: ${details}` : "Nimen tunnistus epaonnistui juuri nyt");
+    const err = new Error(
+      details ? `Nimen tunnistus epaonnistui juuri nyt: ${details}` : "Nimen tunnistus epaonnistui juuri nyt",
+    );
     (err as any).statusCode = 502;
     throw err;
   } finally {
@@ -265,16 +308,80 @@ export async function identifyBeerNameFromImage(env: Env, file: File): Promise<I
   const beerName = extractCandidateBeerName(rawContent);
 
   if (!beerName || beerName.length < 2 || beerName.length > 120 || isUncertainName(beerName)) {
-    const preview = sanitizeCandidate(rawContent).slice(0, 160);
-    const detail = preview ? ` (malli vastasi: ${preview})` : "";
-    const err = new Error(`Nimea ei saatu tunnistettua kuvasta luotettavasti${detail}`);
-    (err as any).statusCode = 422;
+    return { model, rawContent, beerName: null };
+  }
+
+  return { model, rawContent, beerName };
+}
+
+export interface IdentifyBeerNameResult {
+  ok: true;
+  beerName: string;
+  model: string;
+}
+
+export async function identifyBeerNameFromImage(env: Env, file: File): Promise<IdentifyBeerNameResult> {
+  ensureValidImage(file);
+
+  const apiKey = String(env.KILO_API_KEY ?? "").trim();
+  if (!apiKey) {
+    const err = new Error("Nimen tunnistus ei ole kaytossa (KILO_API_KEY puuttuu)");
+    (err as any).statusCode = 503;
     throw err;
   }
 
-  return {
-    ok: true,
-    beerName,
-    model: KILO_BEER_RECOGNITION_MODEL,
-  };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const imageDataUrl = toDataUrl(file, bytes);
+
+  const primaryModel: string = KILO_BEER_RECOGNITION_MODEL;
+  const fallbackModel: string = KILO_BEER_RECOGNITION_FALLBACK_MODEL;
+  const canFallback = Boolean(fallbackModel && fallbackModel !== primaryModel);
+
+  let primaryAttempt: ModelAttempt | null = null;
+
+  try {
+    primaryAttempt = await runModelAttempt(apiKey, primaryModel, imageDataUrl);
+  } catch (error) {
+    if (!canFallback || !shouldRetryWithFallbackForError(error)) {
+      throw error;
+    }
+
+    const fallbackAttempt = await runModelAttempt(apiKey, fallbackModel, imageDataUrl);
+    if (fallbackAttempt.beerName) {
+      return {
+        ok: true,
+        beerName: fallbackAttempt.beerName,
+        model: fallbackAttempt.model,
+      };
+    }
+
+    throw createUncertainResultError(fallbackAttempt.rawContent, fallbackAttempt.model);
+  }
+
+  if (primaryAttempt?.beerName) {
+    return {
+      ok: true,
+      beerName: primaryAttempt.beerName,
+      model: primaryAttempt.model,
+    };
+  }
+
+  if (canFallback) {
+    const fallbackAttempt = await runModelAttempt(apiKey, fallbackModel, imageDataUrl);
+    if (fallbackAttempt.beerName) {
+      return {
+        ok: true,
+        beerName: fallbackAttempt.beerName,
+        model: fallbackAttempt.model,
+      };
+    }
+
+    if (isLikelyVisionUnsupportedResponse(primaryAttempt?.rawContent ?? "")) {
+      throw createUncertainResultError(fallbackAttempt.rawContent, fallbackAttempt.model);
+    }
+
+    throw createUncertainResultError(fallbackAttempt.rawContent, fallbackAttempt.model);
+  }
+
+  throw createUncertainResultError(primaryAttempt?.rawContent ?? "", primaryModel);
 }
