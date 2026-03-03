@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BeerDto, ResultBeerDto } from "../../shared/api-contracts";
 import { normalizeScore } from "../../shared/scoring";
 import { MAX_RATING_COMMENT_LENGTH } from "../../shared/validation";
@@ -9,6 +9,7 @@ const SCORE_MAX = 10;
 const DESKTOP_SLIDER_STEP = 0.05;
 const MOBILE_SLIDER_STEP = 0.25;
 const MOBILE_LIKE_QUERY = "(pointer: coarse), (hover: none), (max-width: 768px)";
+const HAPTIC_SCORE_STEP = 0.25;
 
 interface BeerCardProps {
   beer: BeerDto | ResultBeerDto;
@@ -51,6 +52,7 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
   const normalizedComment = String(comment ?? "");
   const [scoreInput, setScoreInput] = useState(() => formatScore(normalizedScore));
   const [isEditingInput, setIsEditingInput] = useState(false);
+  const lastSliderScoreRef = useRef<number>(normalizedScore);
   const [isCoarsePointer, setIsCoarsePointer] = useState(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
     return window.matchMedia(MOBILE_LIKE_QUERY).matches;
@@ -61,6 +63,10 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
     if (isEditingInput) return;
     setScoreInput(formatScore(normalizedScore));
   }, [isEditingInput, normalizedScore]);
+
+  useEffect(() => {
+    lastSliderScoreRef.current = normalizedScore;
+  }, [normalizedScore]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
@@ -76,6 +82,25 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
     mediaQuery.addListener(updatePointer);
     return () => mediaQuery.removeListener(updatePointer);
   }, []);
+
+  function scoreStepIndex(value: number): number {
+    return Math.round(value / HAPTIC_SCORE_STEP);
+  }
+
+  function handleSliderChange(rawValue: string) {
+    const next = normalizeScore(rawValue);
+    if (next == null) return;
+
+    const previous = lastSliderScoreRef.current;
+    if (next === previous) return;
+
+    onScoreChange?.(next);
+    lastSliderScoreRef.current = next;
+
+    if (scoreStepIndex(next) !== scoreStepIndex(previous)) {
+      haptics.selection();
+    }
+  }
 
   return (
     <div className="card">
@@ -119,12 +144,8 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
                 max={SCORE_MAX}
                 step={sliderStep}
                 value={normalizedScore}
-                onChange={(event) => {
-                  const next = normalizeScore(event.target.value);
-                  if (next == null) return;
-                  onScoreChange?.(next);
-                  haptics.trigger("heavy");
-                }}
+                onInput={(event) => handleSliderChange((event.target as HTMLInputElement).value)}
+                onChange={(event) => handleSliderChange(event.target.value)}
                 aria-label={`Arvosana oluelle ${beer.name}`}
               />
               <input
