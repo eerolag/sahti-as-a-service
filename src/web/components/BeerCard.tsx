@@ -84,7 +84,7 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
   }, []);
 
   function scoreStepIndex(value: number): number {
-    return Math.round(value / HAPTIC_SCORE_STEP);
+    return Math.floor((value + Number.EPSILON) / HAPTIC_SCORE_STEP);
   }
 
   function handleSliderChange(rawValue: string) {
@@ -98,7 +98,7 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
     lastSliderScoreRef.current = next;
 
     if (scoreStepIndex(next) !== scoreStepIndex(previous)) {
-      haptics.selection();
+      haptics.light();
     }
   }
 
