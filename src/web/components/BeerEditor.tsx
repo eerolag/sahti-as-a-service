@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { createUntappdSearchUrl } from "../../shared/untappd";
 import { apiClient } from "../api/client";
 import { useBeerReorder } from "../hooks/useBeerReorder";
+import { useHaptics } from "../hooks/useHaptics";
 import { prepareImageForBeerNameRecognition } from "../utils/beer-name-image";
 import { ImageSearchModal } from "./ImageSearchModal";
 
@@ -47,6 +48,7 @@ export function BeerEditor({
   onCancel,
   cancelLabel = "Peruuta",
 }: BeerEditorProps) {
+  const haptics = useHaptics();
   const [searchIndex, setSearchIndex] = useState<number | null>(null);
   const [identifyStatusByRow, setIdentifyStatusByRow] = useState<Record<string, IdentifyStatus>>({});
   const { dragIndex, overIndex, handlers } = useBeerReorder(beers, onBeersChange);
@@ -67,10 +69,12 @@ export function BeerEditor({
 
   function removeBeer(index: number) {
     if (beers.length <= 1) return;
+    haptics.selection();
     onBeersChange(beers.filter((_, idx) => idx !== index));
   }
 
   function addBeer() {
+    haptics.light();
     onBeersChange([...beers, { name: "", imageUrl: "", file: null }]);
   }
 
@@ -167,7 +171,14 @@ export function BeerEditor({
                 />
 
                 <div className="flex flex-wrap gap-2">
-                  <button className="btn" type="button" onClick={() => setSearchIndex(idx)}>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => {
+                      haptics.selection();
+                      setSearchIndex(idx);
+                    }}
+                  >
                     Hae internetistä
                   </button>
                 </div>
@@ -195,6 +206,7 @@ export function BeerEditor({
                       onClick={async () => {
                         if (!beer.file) return;
 
+                        haptics.light();
                         setRowIdentifyStatus(key, { state: "loading", message: "Tunnistetaan nimea kuvasta..." });
 
                         try {
@@ -205,11 +217,13 @@ export function BeerEditor({
                             state: "success",
                             message: `Tunnistettu nimi: ${identified.beerName}`,
                           });
+                          haptics.success();
                         } catch (error) {
                           setRowIdentifyStatus(key, {
                             state: "error",
                             message: String((error as Error)?.message ?? "Nimen tunnistus epaonnistui."),
                           });
+                          haptics.error();
                         }
                       }}
                     >
@@ -244,7 +258,15 @@ export function BeerEditor({
             {submitting ? "Tallennetaan..." : submitLabel}
           </button>
           {onCancel ? (
-            <button className="btn" type="button" disabled={submitting} onClick={onCancel}>
+            <button
+              className="btn"
+              type="button"
+              disabled={submitting}
+              onClick={() => {
+                haptics.selection();
+                onCancel();
+              }}
+            >
               {cancelLabel}
             </button>
           ) : null}

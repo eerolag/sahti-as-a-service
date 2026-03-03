@@ -16,7 +16,8 @@
   "dependencies": {
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "web-haptics": "^0.0.6"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260226.0",

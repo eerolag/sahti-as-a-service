@@ -9,6 +9,7 @@ import { ResultList } from "../components/ResultList";
 import { SharePanel } from "../components/SharePanel";
 import { useDraftRatings } from "../hooks/useDraftRatings";
 import { useGameState } from "../hooks/useGameState";
+import { useHaptics } from "../hooks/useHaptics";
 import { validateImageFileBeforeUpload } from "../utils/image-upload";
 import {
   type PlayerIdentity,
@@ -81,6 +82,7 @@ function NicknameModal({
 }
 
 export function GameRoute({ gameId }: { gameId: number }) {
+  const haptics = useHaptics();
   const fallbackClientId = useMemo(() => getOrCreateClientId(), []);
   const { game, beers, loading, error, loadGame, setGameAndBeers } = useGameState(gameId);
   const [playerIdentity, setPlayerIdentity] = useState<PlayerIdentity | null>(null);
@@ -160,12 +162,15 @@ export function GameRoute({ gameId }: { gameId: number }) {
   const title = gameDisplayName(game?.name, gameId);
 
   async function openResults() {
+    haptics.light();
     setResultsLoading(true);
     try {
       const payload = await apiClient.getResults(gameId);
       setResults(payload);
       setView("results");
+      haptics.selection();
     } catch (error) {
+      haptics.error();
       alert(String((error as Error)?.message ?? error));
     } finally {
       setResultsLoading(false);
@@ -173,6 +178,7 @@ export function GameRoute({ gameId }: { gameId: number }) {
   }
 
   function openEdit() {
+    haptics.selection();
     setEditDraft({
       gameName: game?.name ?? "",
       beers: beers.map((beer) => ({
@@ -189,6 +195,7 @@ export function GameRoute({ gameId }: { gameId: number }) {
 
   async function saveRatings() {
     if (!playerIdentity) {
+      haptics.light();
       setNicknameModalOpen(true);
       return;
     }
@@ -196,6 +203,7 @@ export function GameRoute({ gameId }: { gameId: number }) {
     const changed = getChangedRatings();
     if (!changed.length) return;
 
+    haptics.light();
     setSavingRatings(true);
     setSaveButtonText("Tallennetaan...");
 
@@ -206,9 +214,11 @@ export function GameRoute({ gameId }: { gameId: number }) {
         ratings: changed,
       });
       markSaved(changed);
+      haptics.success();
       setSaveButtonText("Tallennettu");
       window.setTimeout(() => setSaveButtonText("Tallenna"), 800);
     } catch (error) {
+      haptics.error();
       alert(String((error as Error)?.message ?? error));
       setSaveButtonText("Tallenna");
     } finally {
@@ -217,12 +227,14 @@ export function GameRoute({ gameId }: { gameId: number }) {
   }
 
   function openNicknameModal() {
+    haptics.selection();
     setNicknameDraft(playerIdentity?.nickname ?? "");
     setNicknameModalOpen(true);
   }
 
   function closeNicknameModal() {
     if (!playerIdentity) return;
+    haptics.selection();
     setNicknameDraft(playerIdentity.nickname);
     setNicknameModalOpen(false);
   }
@@ -230,6 +242,7 @@ export function GameRoute({ gameId }: { gameId: number }) {
   function applyNickname() {
     const normalized = normalizeNickname(nicknameDraft);
     if ("error" in normalized) {
+      haptics.error();
       alert(normalized.error);
       return;
     }
@@ -244,12 +257,14 @@ export function GameRoute({ gameId }: { gameId: number }) {
     setPlayerIdentity(nextIdentity);
     setNicknameDraft(nickname);
     setNicknameModalOpen(false);
+    haptics.success();
   }
 
   async function saveGameEdits() {
     if (!editDraft) return;
 
     try {
+      haptics.light();
       setEditDraft((prev) => (prev ? { ...prev, submitting: true } : prev));
 
       const trimmedName = editDraft.gameName.trim();
@@ -292,8 +307,10 @@ export function GameRoute({ gameId }: { gameId: number }) {
       setResults(null);
       setView("play");
       setEditDraft(null);
+      haptics.success();
       await loadGame();
     } catch (error) {
+      haptics.error();
       alert(String((error as Error)?.message ?? error));
       setEditDraft((prev) => (prev ? { ...prev, submitting: false } : prev));
     }
@@ -340,6 +357,7 @@ export function GameRoute({ gameId }: { gameId: number }) {
           submitLabel="Tallenna muutokset"
           addLabel="+ Lisää olut"
           onCancel={() => {
+            haptics.selection();
             setView("play");
             setEditDraft(null);
           }}
@@ -361,7 +379,16 @@ export function GameRoute({ gameId }: { gameId: number }) {
               <div className="badge">Pelaajia: {Number(results?.summary?.players ?? 0)}</div>
               <div className="muted">Järjestetty keskiarvon mukaan</div>
             </div>
-            <button className="btn" type="button" onClick={() => setView("play")}>Paluu peliin</button>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => {
+                haptics.selection();
+                setView("play");
+              }}
+            >
+              Paluu peliin
+            </button>
           </div>
         </div>
 

@@ -2,9 +2,11 @@ import { useState } from "react";
 import type { CreateGameRequest } from "../../shared/api-contracts";
 import { apiClient } from "../api/client";
 import { BeerEditor, type BeerEditorRow } from "../components/BeerEditor";
+import { useHaptics } from "../hooks/useHaptics";
 import { validateImageFileBeforeUpload } from "../utils/image-upload";
 
 export function HomeRoute() {
+  const haptics = useHaptics();
   const [showCreate, setShowCreate] = useState(false);
   const [joinId, setJoinId] = useState("");
   const [gameName, setGameName] = useState("");
@@ -13,6 +15,7 @@ export function HomeRoute() {
 
   async function submitCreateGame() {
     try {
+      haptics.light();
       setSubmitting(true);
 
       const trimmedName = gameName.trim();
@@ -48,8 +51,10 @@ export function HomeRoute() {
         beers: payloadBeers,
       });
 
+      haptics.success();
       window.location.href = `/${result.gameId}`;
     } catch (error) {
+      haptics.error();
       alert(String((error as Error)?.message ?? error));
       setSubmitting(false);
     }
@@ -62,7 +67,14 @@ export function HomeRoute() {
 
       <div className="card">
         <div className="flex flex-col gap-3">
-          <button className="btn btn-primary" type="button" onClick={() => setShowCreate((prev) => !prev)}>
+          <button
+            className="btn btn-primary"
+            type="button"
+            onClick={() => {
+              haptics.selection();
+              setShowCreate((prev) => !prev);
+            }}
+          >
             Luo peli
           </button>
 
@@ -85,9 +97,11 @@ export function HomeRoute() {
               type="button"
               onClick={() => {
                 if (!/^\d+$/.test(joinId.trim())) {
+                  haptics.error();
                   alert("Syötä numeromuotoinen peli-ID");
                   return;
                 }
+                haptics.light();
                 window.location.href = `/${joinId.trim()}`;
               }}
             >

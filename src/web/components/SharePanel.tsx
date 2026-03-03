@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
+import { useHaptics } from "../hooks/useHaptics";
 
 interface SharePanelProps {
   gameId: number;
@@ -26,6 +27,7 @@ async function copyToClipboard(text: string): Promise<void> {
 }
 
 export function SharePanel({ gameId }: SharePanelProps) {
+  const haptics = useHaptics();
   const [open, setOpen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [qrStatus, setQrStatus] = useState("");
@@ -35,6 +37,7 @@ export function SharePanel({ gameId }: SharePanelProps) {
 
   async function toggle() {
     const next = !open;
+    haptics.selection();
     setOpen(next);
     if (!next || qrDataUrl) return;
 
@@ -44,6 +47,7 @@ export function SharePanel({ gameId }: SharePanelProps) {
       setQrDataUrl(dataUrl);
       setQrStatus("Skannaa QR avataksesi pelin");
     } catch (error) {
+      haptics.error();
       setQrStatus(String((error as Error)?.message ?? "QR-koodin luonti epäonnistui"));
     }
   }
@@ -51,9 +55,11 @@ export function SharePanel({ gameId }: SharePanelProps) {
   async function copyUrl() {
     try {
       await copyToClipboard(targetUrl);
+      haptics.success();
       setCopyState("Kopioitu!");
       window.setTimeout(() => setCopyState("Kopioi pelin URL"), 900);
     } catch (error) {
+      haptics.error();
       alert(String((error as Error)?.message ?? "URL:n kopiointi epäonnistui"));
     }
   }

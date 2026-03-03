@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ImageSearchResultDto } from "../../shared/api-contracts";
 import { apiClient } from "../api/client";
+import { useHaptics } from "../hooks/useHaptics";
 
 interface ImageSearchModalProps {
   open: boolean;
@@ -10,6 +11,7 @@ interface ImageSearchModalProps {
 }
 
 export function ImageSearchModal({ open, initialQuery, onClose, onSelect }: ImageSearchModalProps) {
+  const haptics = useHaptics();
   const [query, setQuery] = useState(initialQuery);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,7 +21,7 @@ export function ImageSearchModal({ open, initialQuery, onClose, onSelect }: Imag
     if (!open) return;
     setQuery(initialQuery);
     if (initialQuery.trim().length >= 2) {
-      void runSearch(initialQuery);
+      void runSearch(initialQuery, { withFeedback: false });
     } else {
       setStatus("Kirjoita oluen nimi ja hae kuvaehdotuksia.");
       setResults([]);
@@ -28,9 +30,11 @@ export function ImageSearchModal({ open, initialQuery, onClose, onSelect }: Imag
 
   const canSearch = useMemo(() => query.trim().length >= 2, [query]);
 
-  async function runSearch(nextQuery: string) {
+  async function runSearch(nextQuery: string, options: { withFeedback?: boolean } = {}) {
+    const withFeedback = options.withFeedback ?? true;
     const q = nextQuery.trim();
     if (q.length < 2) {
+      if (withFeedback) haptics.error();
       setStatus("Anna hakusanaksi vähintään 2 merkkiä");
       return;
     }
@@ -42,13 +46,16 @@ export function ImageSearchModal({ open, initialQuery, onClose, onSelect }: Imag
     try {
       const data = await apiClient.imageSearch(q, 10);
       if (!data.results.length) {
+        if (withFeedback) haptics.light();
         setStatus("Ei kuvaehdotuksia tällä haulla.");
         return;
       }
 
       setResults(data.results);
       setStatus("Valitse sopiva kuvaehdotus.");
+      if (withFeedback) haptics.selection();
     } catch (error) {
+      if (withFeedback) haptics.error();
       setStatus(String((error as Error)?.message ?? "Kuvahaku epäonnistui."));
     } finally {
       setLoading(false);
@@ -58,14 +65,27 @@ export function ImageSearchModal({ open, initialQuery, onClose, onSelect }: Imag
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/80 p-4 md:items-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/80 p-4 md:items-center"
+      onClick={() => {
+        haptics.selection();
+        onClose();
+      }}
+    >
       <div
         className="flex max-h-[92vh] w-full max-w-3xl flex-col gap-3 overflow-hidden rounded-card border border-line bg-card p-4"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2">
           <div className="font-semibold">Hae internetistä</div>
-          <button className="btn min-h-9 px-3 py-1.5 text-sm" type="button" onClick={onClose}>
+          <button
+            className="btn min-h-9 px-3 py-1.5 text-sm"
+            type="button"
+            onClick={() => {
+              haptics.selection();
+              onClose();
+            }}
+          >
             Sulje
           </button>
         </div>
@@ -91,7 +111,10 @@ export function ImageSearchModal({ open, initialQuery, onClose, onSelect }: Imag
             className="btn btn-primary"
             type="button"
             disabled={!canSearch || loading}
-            onClick={() => void runSearch(query)}
+            onClick={() => {
+              haptics.light();
+              void runSearch(query);
+            }}
           >
             Hae
           </button>
@@ -110,6 +133,7 @@ export function ImageSearchModal({ open, initialQuery, onClose, onSelect }: Imag
                   className="btn mt-auto min-h-9 px-2 py-1.5 text-sm"
                   type="button"
                   onClick={() => {
+                    haptics.success();
                     onSelect(item);
                     onClose();
                   }}

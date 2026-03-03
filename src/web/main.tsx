@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { HapticsProvider } from "./hooks/useHaptics";
 import "./styles/tokens.css";
 import "./styles/app.css";
 
@@ -11,6 +12,8 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <React.StrictMode>
-    <App />
+    <HapticsProvider>
+      <App />
+    </HapticsProvider>
   </React.StrictMode>,
 );
