@@ -123,7 +123,7 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
                   const next = normalizeScore(event.target.value);
                   if (next == null) return;
                   onScoreChange?.(next);
-                  haptics.selection();
+                  haptics.light();
                 }}
                 aria-label={`Arvosana oluelle ${beer.name}`}
               />
