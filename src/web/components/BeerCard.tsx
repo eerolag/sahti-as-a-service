@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import type { BeerDto, ResultBeerDto } from "../../shared/api-contracts";
 import { normalizeScore } from "../../shared/scoring";
 import { MAX_RATING_COMMENT_LENGTH } from "../../shared/validation";
+import { useHaptics } from "../hooks/useHaptics";
 
 const SCORE_MIN = 0;
 const SCORE_MAX = 10;
-const DESKTOP_SLIDER_STEP = 0.01;
-const MOBILE_SLIDER_STEP = 0.5;
+const DESKTOP_SLIDER_STEP = 0.05;
+const MOBILE_SLIDER_STEP = 0.25;
 const MOBILE_LIKE_QUERY = "(pointer: coarse), (hover: none), (max-width: 768px)";
 
 interface BeerCardProps {
@@ -40,6 +41,7 @@ function beerUntappdUrl(beer: BeerDto | ResultBeerDto): string {
 }
 
 export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentChange }: BeerCardProps) {
+  const haptics = useHaptics();
   const imageStyle = beer.image_url
     ? { backgroundImage: `url("${beer.image_url.replace(/"/g, "&quot;")}")` }
     : undefined;
@@ -121,6 +123,7 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
                   const next = normalizeScore(event.target.value);
                   if (next == null) return;
                   onScoreChange?.(next);
+                  haptics.selection();
                 }}
                 aria-label={`Arvosana oluelle ${beer.name}`}
               />
