@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ChevronDown, Settings, Share2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { GetResultsResponse, ResultBeerDto, UpdateGameRequest } from "../../shared/api-contracts";
 import { normalizeScore } from "../../shared/scoring";
 import { normalizeNickname } from "../../shared/validation";
@@ -11,6 +12,7 @@ import { useDraftRatings } from "../hooks/useDraftRatings";
 import { useGameState } from "../hooks/useGameState";
 import { useHaptics } from "../hooks/useHaptics";
 import { validateImageFileBeforeUpload } from "../utils/image-upload";
+import { isWebShareSupported, shareUrl } from "../utils/web-share";
 import {
   type PlayerIdentity,
   generateAnonymousNickname,
@@ -18,6 +20,8 @@ import {
   loadPlayerIdentity,
   savePlayerIdentity,
 } from "../utils/player-identity";
+
+export type GameSection = "rate" | "results";
 
 function gameDisplayName(name: string | null | undefined, gameId: number): string {
   const clean = String(name ?? "").trim();
@@ -81,13 +85,21 @@ function NicknameModal({
   );
 }
 
-export function GameRoute({ gameId }: { gameId: number }) {
+interface GameRouteProps {
+  gameId: number;
+  section: GameSection;
+  onSectionChange: (section: GameSection) => void;
+}
+
+export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) {
   const haptics = useHaptics();
   const fallbackClientId = useMemo(() => getOrCreateClientId(), []);
   const { game, beers, loading, error, loadGame, setGameAndBeers } = useGameState(gameId);
   const [playerIdentity, setPlayerIdentity] = useState<PlayerIdentity | null>(null);
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [nicknameModalOpen, setNicknameModalOpen] = useState(false);
+  const [playersAccordionOpen, setPlayersAccordionOpen] = useState(false);
+  const [hasAttemptedResultsLoad, setHasAttemptedResultsLoad] = useState(false);
   const activeClientId = playerIdentity?.clientId ?? fallbackClientId;
 
   const { ratings, hydrate, setRating, setComment, hasDirty, getChangedRatings, markSaved } = useDraftRatings(
@@ -95,7 +107,6 @@ export function GameRoute({ gameId }: { gameId: number }) {
     activeClientId,
   );
 
-  const [view, setView] = useState<"play" | "edit" | "results">("play");
   const [results, setResults] = useState<GetResultsResponse | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [saveButtonText, setSaveButtonText] = useState("Tallenna");
@@ -105,6 +116,29 @@ export function GameRoute({ gameId }: { gameId: number }) {
     beers: BeerEditorRow[];
     submitting: boolean;
   } | null>(null);
+
+  const supportsWebShare = useMemo(() => isWebShareSupported(), []);
+  const resultsUrl = useMemo(() => `${window.location.origin}/${gameId}/results`, [gameId]);
+  const title = gameDisplayName(game?.name, gameId);
+
+  const openResults = useCallback(
+    async (useHaptics = true) => {
+      if (useHaptics) haptics.light();
+      setResultsLoading(true);
+
+      try {
+        const payload = await apiClient.getResults(gameId);
+        setResults(payload);
+        if (useHaptics) haptics.selection();
+      } catch (error) {
+        if (useHaptics) haptics.error();
+        alert(String((error as Error)?.message ?? error));
+      } finally {
+        setResultsLoading(false);
+      }
+    },
+    [gameId, haptics],
+  );
 
   useEffect(() => {
     const existingIdentity = loadPlayerIdentity(gameId);
@@ -118,6 +152,11 @@ export function GameRoute({ gameId }: { gameId: number }) {
     setPlayerIdentity(null);
     setNicknameDraft("");
     setNicknameModalOpen(true);
+  }, [gameId]);
+
+  useEffect(() => {
+    setResults(null);
+    setHasAttemptedResultsLoad(false);
   }, [gameId]);
 
   useEffect(() => {
@@ -159,23 +198,21 @@ export function GameRoute({ gameId }: { gameId: number }) {
     };
   }, [beers, gameId, hydrate, playerIdentity]);
 
-  const title = gameDisplayName(game?.name, gameId);
-
-  async function openResults() {
-    haptics.light();
-    setResultsLoading(true);
-    try {
-      const payload = await apiClient.getResults(gameId);
-      setResults(payload);
-      setView("results");
-      haptics.selection();
-    } catch (error) {
-      haptics.error();
-      alert(String((error as Error)?.message ?? error));
-    } finally {
-      setResultsLoading(false);
+  useEffect(() => {
+    if (section !== "results") {
+      setPlayersAccordionOpen(false);
+      return;
     }
-  }
+
+    setHasAttemptedResultsLoad(false);
+  }, [section]);
+
+  useEffect(() => {
+    if (section !== "results") return;
+    if (results || resultsLoading || hasAttemptedResultsLoad) return;
+    setHasAttemptedResultsLoad(true);
+    void openResults(false);
+  }, [hasAttemptedResultsLoad, openResults, results, resultsLoading, section]);
 
   function openEdit() {
     haptics.selection();
@@ -190,7 +227,17 @@ export function GameRoute({ gameId }: { gameId: number }) {
       })),
       submitting: false,
     });
-    setView("edit");
+  }
+
+  function closeEdit() {
+    haptics.selection();
+    setEditDraft(null);
+  }
+
+  function changeSection(next: GameSection) {
+    if (next === section) return;
+    haptics.selection();
+    onSectionChange(next);
   }
 
   async function saveRatings() {
@@ -260,6 +307,24 @@ export function GameRoute({ gameId }: { gameId: number }) {
     haptics.success();
   }
 
+  async function shareResults() {
+    if (!supportsWebShare) return;
+
+    try {
+      haptics.light();
+      await shareUrl({
+        title: `${title} – tulokset`,
+        text: `Katso pelin ${title} tulokset`,
+        url: resultsUrl,
+      });
+      haptics.success();
+    } catch (error) {
+      if ((error as Error)?.name === "AbortError") return;
+      haptics.error();
+      alert(String((error as Error)?.message ?? "Jakaminen epäonnistui"));
+    }
+  }
+
   async function saveGameEdits() {
     if (!editDraft) return;
 
@@ -305,8 +370,9 @@ export function GameRoute({ gameId }: { gameId: number }) {
 
       setGameAndBeers(updated.game, updated.beers);
       setResults(null);
-      setView("play");
+      setHasAttemptedResultsLoad(false);
       setEditDraft(null);
+      onSectionChange("rate");
       haptics.success();
       await loadGame();
     } catch (error) {
@@ -319,7 +385,7 @@ export function GameRoute({ gameId }: { gameId: number }) {
   if (loading && !game) {
     return (
       <div className="app-wrap">
-        <div className="mb-1 text-2xl font-extrabold">Sahti as a Service</div>
+        <div className="text-center text-xl font-bold">Sahti as a Service</div>
         <div className="card">Ladataan...</div>
       </div>
     );
@@ -328,7 +394,7 @@ export function GameRoute({ gameId }: { gameId: number }) {
   if (error) {
     return (
       <div className="app-wrap">
-        <div className="mb-1 text-2xl font-extrabold">Sahti as a Service</div>
+        <div className="text-center text-xl font-bold">Sahti as a Service</div>
         <div className="card">
           <div className="mb-1 font-semibold">Virhe</div>
           <div className="muted mb-3">{error}</div>
@@ -340,11 +406,22 @@ export function GameRoute({ gameId }: { gameId: number }) {
     );
   }
 
-  if (view === "edit" && editDraft) {
+  if (editDraft) {
     return (
-      <div className="app-wrap">
-        <div className="mb-1 text-2xl font-extrabold">Sahti as a Service</div>
-        <div className="mb-4 text-sm text-muted">{title} • Muokkaa peliä</div>
+      <div className="app-wrap pb-20">
+        <div className="app-header">
+          <button className="icon-btn" type="button" onClick={closeEdit} aria-label="Takaisin peliin">
+            <ArrowLeft size={18} />
+          </button>
+          <a className="header-brand" href="/">
+            Sahti as a Service
+          </a>
+          <span className="icon-btn-placeholder" aria-hidden="true" />
+        </div>
+
+        <div className="mb-3 text-center text-sm text-muted">{title} • Muokkaa peliä</div>
+
+        <SharePanel gameId={gameId} />
 
         <BeerEditor
           title="Muokkaa peliä"
@@ -356,113 +433,149 @@ export function GameRoute({ gameId }: { gameId: number }) {
           submitting={editDraft.submitting}
           submitLabel="Tallenna muutokset"
           addLabel="+ Lisää olut"
-          onCancel={() => {
-            haptics.selection();
-            setView("play");
-            setEditDraft(null);
-          }}
+          onCancel={closeEdit}
         />
       </div>
     );
   }
 
-  if (view === "results") {
-    const resultBeers: ResultBeerDto[] = results?.beers ?? [];
-    return (
-      <div className="app-wrap">
-        <div className="mb-1 text-2xl font-extrabold">Sahti as a Service</div>
-        <div className="mb-4 text-sm text-muted">{title} • Tulokset</div>
+  const resultBeers: ResultBeerDto[] = results?.beers ?? [];
+  const resultPlayers = results?.players ?? [];
+  const resultPlayerCount = Number(results?.summary?.players ?? resultPlayers.length);
 
-        <div className="card">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <div className="badge">Pelaajia: {Number(results?.summary?.players ?? 0)}</div>
-              <div className="muted">Järjestetty keskiarvon mukaan</div>
-            </div>
+  return (
+    <div className="app-wrap pb-28">
+      <div className="app-header">
+        {section === "results" ? (
+          <button
+            className="icon-btn"
+            type="button"
+            onClick={() => changeSection("rate")}
+            aria-label="Takaisin arvosteluun"
+          >
+            <ArrowLeft size={18} />
+          </button>
+        ) : (
+          <span className="icon-btn-placeholder" aria-hidden="true" />
+        )}
+
+        <a className="header-brand" href="/">
+          Sahti as a Service
+        </a>
+
+        {section === "rate" ? (
+          <button className="icon-btn" type="button" onClick={openEdit} aria-label="Asetukset ja pelin muokkaus">
+            <Settings size={18} />
+          </button>
+        ) : (
+          <span className="icon-btn-placeholder" aria-hidden="true" />
+        )}
+      </div>
+
+      <div className="card text-center">
+        <div className="text-2xl font-bold leading-tight">{title}</div>
+        <div className="mt-2 text-sm text-muted">Peli-ID: {gameId} • {beers.length} olutta</div>
+        <div className="text-sm text-muted">
+          Nimimerkki: {playerIdentity?.nickname ?? "Ei asetettu"}{" "}
+          <button className="inline-link" type="button" onClick={openNicknameModal}>
+            (Vaihda)
+          </button>
+        </div>
+      </div>
+
+      <div className="segmented-control">
+        <button
+          className={`segmented-control__item ${section === "rate" ? "is-active" : ""}`}
+          type="button"
+          onClick={() => changeSection("rate")}
+        >
+          Arvostele
+        </button>
+        <button
+          className={`segmented-control__item ${section === "results" ? "is-active" : ""}`}
+          type="button"
+          onClick={() => changeSection("results")}
+        >
+          Tulokset
+        </button>
+      </div>
+
+      {section === "rate" ? (
+        <>
+          <div className="beer-list">
+            {beers.map((beer) => (
+              <BeerCard
+                key={beer.id}
+                beer={beer}
+                mode="play"
+                score={ratings[beer.id]?.score ?? 0}
+                comment={ratings[beer.id]?.comment ?? ""}
+                onScoreChange={(score) => setRating(beer.id, score)}
+                onCommentChange={(comment) => setComment(beer.id, comment)}
+              />
+            ))}
+          </div>
+
+          <div className="card sticky bottom-0 z-20 bg-card/95 backdrop-blur">
             <button
-              className="btn"
+              className="btn btn-success w-full"
+              type="button"
+              disabled={!playerIdentity || !hasDirty || savingRatings}
+              onClick={() => void saveRatings()}
+            >
+              {saveButtonText}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="mb-2 px-1 text-xs text-muted">Järjestetty keskiarvon mukaan</div>
+          <ResultList beers={resultBeers} />
+
+          <div className="card">
+            <button
+              className="accordion-toggle"
               type="button"
               onClick={() => {
                 haptics.selection();
-                setView("play");
+                setPlayersAccordionOpen((prev) => !prev);
               }}
             >
-              Paluu peliin
+              <span className="font-semibold">Pelaajia: {resultPlayerCount}</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${playersAccordionOpen ? "rotate-180" : ""}`} />
             </button>
-          </div>
-        </div>
 
-        <ResultList beers={resultBeers} />
-
-        <div className="card sticky bottom-0">
-          <button className="btn" type="button" disabled={resultsLoading} onClick={() => void openResults()}>
-            {resultsLoading ? "Päivitetään..." : "Päivitä tulokset"}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="app-wrap">
-      <div className="mb-1 text-2xl font-extrabold">Sahti as a Service</div>
-      <div className="mb-4 text-sm text-muted">{title} • Arvostele oluet</div>
-
-      <div className="card">
-        <div className="flex flex-col gap-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <div className="font-semibold">{title}</div>
-              <div className="muted">Peli-ID: {gameId} • {beers.length} olutta</div>
-              <div className="muted">Nimimerkki: {playerIdentity?.nickname ?? "Ei asetettu"}</div>
+            <div className={`accordion-content ${playersAccordionOpen ? "is-open" : ""}`}>
+              {resultPlayers.length ? (
+                <ul className="player-list">
+                  {resultPlayers.map((player, index) => {
+                    const nickname = String(player?.nickname ?? "").trim() || "Nimetön pelaaja";
+                    return <li key={`${nickname}-${index}`}>{nickname}</li>;
+                  })}
+                </ul>
+              ) : (
+                <div className="muted">Ei pelaajia vielä</div>
+              )}
             </div>
-            <a className="btn no-underline" href="/">
-              Etusivu
-            </a>
           </div>
 
-          <SharePanel gameId={gameId} />
-
-          <div className="flex gap-2">
-            <button className="btn grow" type="button" onClick={openEdit}>
-              Muokkaa
-            </button>
-            <button className="btn grow" type="button" onClick={openNicknameModal}>
-              Vaihda nimimerkki
-            </button>
+          <div className="card sticky bottom-0 z-20 bg-card/95 backdrop-blur">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button className="btn grow" type="button" disabled={resultsLoading} onClick={() => void openResults()}>
+                {resultsLoading ? "Päivitetään..." : "Päivitä tulokset"}
+              </button>
+              {supportsWebShare ? (
+                <button className="btn grow" type="button" onClick={() => void shareResults()}>
+                  <span className="inline-flex items-center gap-2">
+                    <Share2 size={16} />
+                    Jaa tulokset
+                  </span>
+                </button>
+              ) : null}
+            </div>
           </div>
-        </div>
-      </div>
-
-      <div className="beer-list">
-        {beers.map((beer) => (
-          <BeerCard
-            key={beer.id}
-            beer={beer}
-            mode="play"
-            score={ratings[beer.id]?.score ?? 0}
-            comment={ratings[beer.id]?.comment ?? ""}
-            onScoreChange={(score) => setRating(beer.id, score)}
-            onCommentChange={(comment) => setComment(beer.id, comment)}
-          />
-        ))}
-      </div>
-
-      <div className="card sticky bottom-0">
-        <div className="flex flex-col gap-2">
-          <button
-            className="btn btn-success"
-            type="button"
-            disabled={!playerIdentity || !hasDirty || savingRatings}
-            onClick={() => void saveRatings()}
-          >
-            {saveButtonText}
-          </button>
-          <button className="btn" type="button" disabled={resultsLoading} onClick={() => void openResults()}>
-            {resultsLoading ? "Ladataan tuloksia..." : "Näytä tulokset"}
-          </button>
-        </div>
-      </div>
+        </>
+      )}
 
       <NicknameModal
         open={nicknameModalOpen}

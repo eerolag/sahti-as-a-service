@@ -23,6 +23,22 @@
     @apply mx-auto w-full max-w-3xl px-4 py-4;
   }
 
+  .app-header {
+    @apply sticky top-0 z-30 mb-3 grid grid-cols-[36px_1fr_36px] items-center gap-2 rounded-xl border border-line bg-slate-900/90 px-2 py-1.5 backdrop-blur;
+  }
+
+  .header-brand {
+    @apply text-center text-sm font-semibold no-underline;
+  }
+
+  .icon-btn {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-slate-800 text-text transition hover:brightness-105;
+  }
+
+  .icon-btn-placeholder {
+    @apply inline-block h-9 w-9;
+  }
+
   .card {
     @apply mb-3 rounded-card border border-line bg-card p-3.5 shadow-card;
   }
@@ -33,6 +49,10 @@
 
   .btn-primary {
     @apply border-amber-700 bg-accent text-amber-950;
+  }
+
+  .btn-pill {
+    @apply inline-flex min-h-10 items-center gap-2 rounded-full px-4 py-2 text-sm;
   }
 
   .btn-success {
@@ -54,6 +74,26 @@
   .muted {
     @apply text-sm text-muted;
   }
+
+  .inline-link {
+    @apply inline rounded-md border-none bg-transparent p-0 text-sm text-amber-300 underline;
+  }
+
+  .segmented-control {
+    @apply mb-3 grid grid-cols-2 rounded-full border border-amber-500/40 bg-slate-900 p-1;
+  }
+
+  .segmented-control__item {
+    @apply min-h-9 rounded-full px-3 py-1.5 text-sm font-semibold text-amber-300 transition;
+  }
+
+  .segmented-control__item.is-active {
+    @apply bg-accent text-amber-950;
+  }
+
+  .accordion-toggle {
+    @apply flex w-full items-center justify-between rounded-lg border border-line bg-slate-950 px-3 py-2 text-left;
+  }
 }
 
 .range {
@@ -71,4 +111,23 @@
 
 .drag-row.dragging {
   opacity: 0.65;
+}
+
+.accordion-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease, padding-top 0.2s ease;
+  padding-top: 0;
+}
+
+.accordion-content.is-open {
+  max-height: 16rem;
+  padding-top: 0.75rem;
+}
+
+.player-list {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.25rem;
 }

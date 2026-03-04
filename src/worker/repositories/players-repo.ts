@@ -48,3 +48,16 @@ export async function countPlayersByGameId(env: Env, gameId: number): Promise<nu
     .first<{ c: number }>();
   return Number(res?.c ?? 0);
 }
+
+export async function getPlayersByGameId(
+  env: Env,
+  gameId: number,
+): Promise<Array<{ nickname: string | null }>> {
+  const rows = await env.DB.prepare("SELECT nickname FROM players WHERE game_id = ? ORDER BY created_at ASC, id ASC")
+    .bind(gameId)
+    .all<{ nickname: string | null }>();
+
+  return (rows.results ?? []).map((row) => ({
+    nickname: row.nickname == null ? null : String(row.nickname),
+  }));
+}

@@ -1,6 +1,8 @@
+import { Copy, QrCode, Share2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useHaptics } from "../hooks/useHaptics";
+import { isWebShareSupported, shareUrl } from "../utils/web-share";
 
 interface SharePanelProps {
   gameId: number;
@@ -32,6 +34,7 @@ export function SharePanel({ gameId }: SharePanelProps) {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [qrStatus, setQrStatus] = useState("");
   const [copyState, setCopyState] = useState("Kopioi pelin URL");
+  const supportsWebShare = useMemo(() => isWebShareSupported(), []);
 
   const targetUrl = useMemo(() => `${window.location.origin}/${gameId}`, [gameId]);
 
@@ -64,23 +67,49 @@ export function SharePanel({ gameId }: SharePanelProps) {
     }
   }
 
+  async function shareGame() {
+    if (!supportsWebShare) return;
+
+    try {
+      haptics.light();
+      await shareUrl({
+        title: "Sahti as a Service",
+        text: "Liity peliin",
+        url: targetUrl,
+      });
+      haptics.success();
+    } catch (error) {
+      if ((error as Error)?.name === "AbortError") return;
+      haptics.error();
+      alert(String((error as Error)?.message ?? "Jakaminen epäonnistui"));
+    }
+  }
+
   return (
     <div className="card">
       <div className="flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <div className="font-semibold">Jaa peli</div>
-            <div className="muted">Peli-ID: {gameId}</div>
-          </div>
-          <button className="btn min-h-8 rounded-full px-3 py-1 text-xs" type="button" onClick={() => void toggle()}>
-            {open ? "Piilota QR" : "QR"}
-          </button>
+        <div className="flex flex-col gap-1">
+          <div className="font-semibold">Kutsu pelaajia</div>
+          <div className="muted">Peli-ID: {gameId}</div>
         </div>
 
-        <div className="flex gap-2">
-          <button className="btn grow" type="button" onClick={() => void copyUrl()}>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn btn-pill" type="button" onClick={() => void copyUrl()}>
+            <Copy size={15} />
             {copyState}
           </button>
+
+          <button className="btn btn-pill" type="button" onClick={() => void toggle()}>
+            <QrCode size={15} />
+            {open ? "Piilota QR" : "QR"}
+          </button>
+
+          {supportsWebShare ? (
+            <button className="btn btn-pill" type="button" onClick={() => void shareGame()}>
+              <Share2 size={15} />
+              Jaa peli
+            </button>
+          ) : null}
         </div>
 
         {open ? (

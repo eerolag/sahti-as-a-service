@@ -84,6 +84,9 @@ export interface GetResultsResponse {
   summary: {
     players: number;
   };
+  players: Array<{
+    nickname: string | null;
+  }>;
   beers: ResultBeerDto[];
 }
 

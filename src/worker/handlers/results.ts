@@ -3,7 +3,7 @@ import type { Env } from "../env";
 import { json } from "../http";
 import { getResultsForGame } from "../repositories/beers-repo";
 import { getGameById } from "../repositories/games-repo";
-import { countPlayersByGameId } from "../repositories/players-repo";
+import { countPlayersByGameId, getPlayersByGameId } from "../repositories/players-repo";
 import { ensureUntappdLinksForGame } from "../services/untappd-service";
 
 export async function handleGetResults(gameId: number, env: Env): Promise<Response> {
@@ -13,12 +13,14 @@ export async function handleGetResults(gameId: number, env: Env): Promise<Respon
 
   const beers = await getResultsForGame(env, gameId);
   const players = await countPlayersByGameId(env, gameId);
+  const playerRows = await getPlayersByGameId(env, gameId);
 
   const response: GetResultsResponse = {
     game,
     summary: {
       players,
     },
+    players: playerRows,
     beers,
   };
 

@@ -379,6 +379,18 @@ export class MockD1Database implements D1Database {
       return { results: beers };
     }
 
+    if (sql.startsWith("select nickname from players where game_id = ? order by created_at asc, id asc")) {
+      const gameId = Number(values[0]);
+      return {
+        results: this.players
+          .filter((row) => row.game_id === gameId)
+          .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id)
+          .map((row) => ({
+            nickname: row.nickname,
+          })),
+      };
+    }
+
     throw new Error(`Unsupported all SQL: ${sqlRaw}`);
   }
 }

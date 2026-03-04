@@ -1,28 +1,61 @@
+import { useEffect, useState } from "react";
 import { HomeRoute } from "./routes/HomeRoute";
-import { GameRoute } from "./routes/GameRoute";
+import { GameRoute, type GameSection } from "./routes/GameRoute";
 
-function parsePath(pathname: string): { type: "home" } | { type: "game"; gameId: number } | { type: "not-found" } {
+export type AppRoute =
+  | { type: "home" }
+  | { type: "game"; gameId: number; section: GameSection }
+  | { type: "not-found" };
+
+export function parsePath(pathname: string): AppRoute {
   if (pathname === "/" || pathname === "") {
     return { type: "home" };
   }
 
-  const match = pathname.match(/^\/(\d+)\/?$/);
-  if (match) {
-    return { type: "game", gameId: Number(match[1]) };
+  const resultsMatch = pathname.match(/^\/(\d+)\/results\/?$/);
+  if (resultsMatch) {
+    return { type: "game", gameId: Number(resultsMatch[1]), section: "results" };
+  }
+
+  const rateMatch = pathname.match(/^\/(\d+)\/?$/);
+  if (rateMatch) {
+    return { type: "game", gameId: Number(rateMatch[1]), section: "rate" };
   }
 
   return { type: "not-found" };
 }
 
 export function App() {
-  const route = parsePath(window.location.pathname);
+  const [pathname, setPathname] = useState(() => window.location.pathname);
+
+  useEffect(() => {
+    function handlePopState() {
+      setPathname(window.location.pathname);
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const route = parsePath(pathname);
 
   if (route.type === "home") {
     return <HomeRoute />;
   }
 
   if (route.type === "game") {
-    return <GameRoute gameId={route.gameId} />;
+    return (
+      <GameRoute
+        gameId={route.gameId}
+        section={route.section}
+        onSectionChange={(section) => {
+          const targetPath = section === "results" ? `/${route.gameId}/results` : `/${route.gameId}`;
+          if (window.location.pathname === targetPath) return;
+          window.history.pushState({}, "", targetPath);
+          setPathname(targetPath);
+        }}
+      />
+    );
   }
 
   return (

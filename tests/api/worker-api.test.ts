@@ -296,7 +296,7 @@ describe("worker api", () => {
     expect(player?.nickname).toBe("Toinen");
   });
 
-  it("orders results by average score then sort order", async () => {
+  it("orders results by average score then sort order and includes players", async () => {
     await call(env, "/api/create-game", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -318,6 +318,7 @@ describe("worker api", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         clientId: "p1",
+        nickname: "Aatu",
         ratings: [
           { beerId: beerA, score: 6 },
           { beerId: beerB, score: 9 },
@@ -330,6 +331,7 @@ describe("worker api", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         clientId: "p2",
+        nickname: "Bea",
         ratings: [
           { beerId: beerA, score: 6 },
           { beerId: beerB, score: 8 },
@@ -342,6 +344,48 @@ describe("worker api", () => {
     const results = await json(resultsRes);
     expect(results.beers[0].id).toBe(beerB);
     expect(results.beers[1].id).toBe(beerA);
+    expect(results.summary.players).toBe(2);
+    expect(results.players).toEqual([{ nickname: "Aatu" }, { nickname: "Bea" }]);
+  });
+
+  it("returns latest nickname value in results player list", async () => {
+    await call(env, "/api/create-game", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Results nickname update",
+        beers: [{ name: "Beer A", image_url: null }],
+      }),
+    });
+
+    const game = await json(await call(env, "/api/games/1"));
+    const beerA = game.beers[0].id;
+
+    await call(env, "/api/games/1/ratings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: "shared-client",
+        nickname: "Vanhanimi",
+        ratings: [{ beerId: beerA, score: 7.2 }],
+      }),
+    });
+
+    await call(env, "/api/games/1/ratings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: "shared-client",
+        nickname: "Uusin nimi",
+        ratings: [{ beerId: beerA, score: 8.4 }],
+      }),
+    });
+
+    const resultsRes = await call(env, "/api/games/1/results");
+    expect(resultsRes.status).toBe(200);
+    const results = await json(resultsRes);
+    expect(results.summary.players).toBe(1);
+    expect(results.players).toEqual([{ nickname: "Uusin nimi" }]);
   });
 
   it("returns 503 from image search when API key missing", async () => {
