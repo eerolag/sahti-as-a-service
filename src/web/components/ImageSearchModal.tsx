@@ -10,6 +10,12 @@ interface ImageSearchModalProps {
   onSelect: (result: ImageSearchResultDto) => void;
 }
 
+const HTML_TAG_PATTERN = /<[^>]*>/g;
+
+function sanitizeText(value: string): string {
+  return value.replace(HTML_TAG_PATTERN, " ").replace(/\s+/g, " ").trim();
+}
+
 export function ImageSearchModal({ open, initialQuery, onClose, onSelect }: ImageSearchModalProps) {
   const haptics = useHaptics();
   const [query, setQuery] = useState(initialQuery);
@@ -123,26 +129,32 @@ export function ImageSearchModal({ open, initialQuery, onClose, onSelect }: Imag
         <div className="muted min-h-5">{status}</div>
 
         <div className="grid grid-cols-1 gap-2 overflow-auto pr-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {results.map((item) => (
-            <div key={item.imageUrl} className="flex min-h-[210px] flex-col overflow-hidden rounded-xl border border-line bg-[#14161b]">
-              <img src={item.thumbnailUrl || item.imageUrl} alt={item.title || "Kuvaehdotus"} className="h-[120px] w-full object-cover" />
-              <div className="flex flex-1 flex-col gap-2 p-2">
-                <div className="line-clamp-2 text-xs">{item.title || "Kuvaehdotus"}</div>
-                <div className="text-xs text-muted">{item.sourceDomain}</div>
-                <button
-                  className="btn mt-auto min-h-9 px-2 py-1.5 text-sm"
-                  type="button"
-                  onClick={() => {
-                    haptics.success();
-                    onSelect(item);
-                    onClose();
-                  }}
-                >
-                  Valitse kuva
-                </button>
+          {results.map((item) => {
+            const cleanTitle = sanitizeText(item.title) || "Kuvaehdotus";
+            const cleanSourceDomain = sanitizeText(item.sourceDomain);
+            return (
+              <div key={item.imageUrl} className="flex h-[210px] flex-col overflow-hidden rounded-xl border border-line bg-[#14161b]">
+                <img src={item.thumbnailUrl || item.imageUrl} alt={cleanTitle} className="h-[120px] w-full object-cover" />
+                <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
+                  <div className="min-h-0 overflow-hidden">
+                    <div className="truncate text-xs">{cleanTitle}</div>
+                    <div className="truncate text-xs text-muted">{cleanSourceDomain}</div>
+                  </div>
+                  <button
+                    className="btn mt-auto min-h-9 shrink-0 px-2 py-1.5 text-sm"
+                    type="button"
+                    onClick={() => {
+                      haptics.success();
+                      onSelect(item);
+                      onClose();
+                    }}
+                  >
+                    Valitse kuva
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
