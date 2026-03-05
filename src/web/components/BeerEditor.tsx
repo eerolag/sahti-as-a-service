@@ -161,26 +161,30 @@ export function BeerEditor({
                   <div className="grow">
                     <div className="font-semibold">{beer.name.trim() || "Nimeä olut"}</div>
                     <div className="text-xs text-muted hidden md:block">Rivi {idx + 1}</div>
-                    <label className="mt-1 block text-xs text-muted md:hidden">
-                      Rivi
-                      <select
-                        className="input mt-1 min-h-9 w-full py-1 text-xs"
-                        value={idx}
-                        disabled={beers.length < 2}
-                        onChange={(event) => {
-                          const nextIndex = Number(event.target.value);
-                          if (Number.isNaN(nextIndex)) return;
-                          moveBeer(idx, nextIndex);
-                        }}
-                        aria-label={`Vaihda rivin ${idx + 1} järjestystä`}
-                      >
-                        {beers.map((_, rowIdx) => (
-                          <option key={rowIdx} value={rowIdx}>
-                            Rivi {rowIdx + 1}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <div className="mt-1 inline-flex md:hidden">
+                      <div className="relative inline-block">
+                        <select
+                          className="min-h-9 w-auto cursor-pointer appearance-none rounded-lg border border-amber-500/70 bg-[#1b1d22] py-1 pl-2 pr-7 text-xs font-semibold text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/60 disabled:cursor-not-allowed disabled:opacity-50"
+                          value={idx}
+                          disabled={beers.length < 2}
+                          onChange={(event) => {
+                            const nextIndex = Number(event.target.value);
+                            if (Number.isNaN(nextIndex)) return;
+                            moveBeer(idx, nextIndex);
+                          }}
+                          aria-label={`Vaihda rivin ${idx + 1} järjestystä`}
+                        >
+                          {beers.map((_, rowIdx) => (
+                            <option key={rowIdx} value={rowIdx}>
+                              Rivi {rowIdx + 1}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-amber-300">
+                          ▾
+                        </span>
+                      </div>
+                    </div>
                   </div>
                   <button
                     type="button"
