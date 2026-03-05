@@ -50,9 +50,9 @@
   }
 
   .bottom-action-strip {
-    @apply fixed bottom-0 left-0 right-0 z-20 px-4 py-2 backdrop-blur-md;
+    @apply fixed bottom-0 left-0 right-0 z-20 px-6 pb-2 pt-4 backdrop-blur-md;
     width: 100vw;
-    background-color: rgba(17, 19, 24, 0.74);
+    background-color: rgba(17, 19, 24, 0.5);
   }
 
   @media (min-width: 768px) {
@@ -86,7 +86,7 @@
   }
 
   .btn-success {
-    @apply border-emerald-700 bg-accent2 text-emerald-950;
+    @apply border-emerald-300 bg-accent2 text-emerald-950;
   }
 
   .btn-danger {
