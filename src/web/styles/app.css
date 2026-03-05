@@ -9,8 +9,6 @@
 
   body {
     @apply m-0 min-h-screen bg-bg text-text antialiased;
-    background-image: radial-gradient(circle at 20% 0%, rgba(245, 158, 11, 0.1), transparent 45%),
-      radial-gradient(circle at 100% 100%, rgba(34, 197, 94, 0.08), transparent 35%);
   }
 
   a {
@@ -24,7 +22,7 @@
   }
 
   .app-header {
-    @apply sticky top-0 z-30 mb-3 grid grid-cols-[36px_1fr_36px] items-center gap-2 rounded-xl border border-line bg-slate-900/90 px-2 py-1.5 backdrop-blur;
+    @apply sticky top-0 z-30 mb-3 grid grid-cols-[36px_1fr_36px] items-center gap-2 rounded-2xl bg-[rgba(27,29,34,0.72)] px-2 py-1.5 backdrop-blur-md;
   }
 
   .header-brand {
@@ -32,11 +30,19 @@
   }
 
   .icon-btn {
-    @apply inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-slate-800 text-text transition hover:brightness-105;
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/20 text-text transition hover:brightness-110;
   }
 
   .icon-btn-placeholder {
     @apply inline-block h-9 w-9;
+  }
+
+  .surface-strip {
+    @apply mb-3 rounded-2xl bg-[rgba(27,29,34,0.66)] p-3 backdrop-blur-md;
+  }
+
+  .bottom-action-strip {
+    @apply sticky bottom-0 z-20 mt-3 rounded-2xl bg-[rgba(27,29,34,0.72)] p-2 backdrop-blur-md;
   }
 
   .card {
@@ -44,7 +50,7 @@
   }
 
   .btn {
-    @apply min-h-11 rounded-xl border border-line bg-slate-800 px-4 py-2.5 font-semibold text-text transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply min-h-11 rounded-xl border border-line bg-[#2a2d34] px-4 py-2.5 font-semibold text-text transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-primary {
@@ -64,11 +70,11 @@
   }
 
   .input {
-    @apply min-h-10 w-full rounded-lg border border-line bg-slate-950 px-3 py-2 text-text;
+    @apply min-h-10 w-full rounded-lg border border-line bg-[#14161b] px-3 py-2 text-text;
   }
 
   .badge {
-    @apply inline-flex rounded-full border border-line bg-slate-950 px-2.5 py-1 text-xs text-muted;
+    @apply inline-flex rounded-full border border-line bg-[#14161b] px-2.5 py-1 text-xs text-muted;
   }
 
   .muted {
@@ -80,7 +86,7 @@
   }
 
   .segmented-control {
-    @apply mb-3 grid grid-cols-2 rounded-full border border-amber-500/40 bg-slate-900 p-1;
+    @apply mb-3 grid grid-cols-2 rounded-full bg-[rgba(27,29,34,0.66)] p-1 backdrop-blur-md;
   }
 
   .segmented-control__item {
@@ -92,7 +98,11 @@
   }
 
   .accordion-toggle {
-    @apply flex w-full items-center justify-between rounded-lg border border-line bg-slate-950 px-3 py-2 text-left;
+    @apply flex w-full items-center justify-between rounded-2xl bg-[rgba(27,29,34,0.66)] px-3 py-2 text-left backdrop-blur-md;
+  }
+
+  .accordion-shell {
+    @apply mb-3 rounded-2xl bg-[rgba(27,29,34,0.58)] p-2 backdrop-blur-md;
   }
 }
 

@@ -86,7 +86,7 @@ export function SharePanel({ gameId }: SharePanelProps) {
   }
 
   return (
-    <div className="card">
+    <div className="surface-strip">
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <div className="font-semibold">Kutsu pelaajia</div>
@@ -113,7 +113,7 @@ export function SharePanel({ gameId }: SharePanelProps) {
         </div>
 
         {open ? (
-          <div className="rounded-xl border border-line bg-slate-950 p-3">
+          <div className="rounded-xl border border-line bg-[#14161b] p-3">
             <div className="flex flex-wrap items-center gap-3">
               {qrDataUrl ? (
                 <img

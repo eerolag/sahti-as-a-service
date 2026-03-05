@@ -107,7 +107,7 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
       <div className="flex flex-col gap-3">
         <div className="grid grid-cols-[72px_1fr] gap-3">
           <div
-            className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-xl border border-line bg-slate-950 bg-cover bg-center text-xs text-muted"
+            className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-xl border border-line bg-[#14161b] bg-cover bg-center text-xs text-muted"
             style={imageStyle}
           >
             {!beer.image_url ? "Ei kuvaa" : null}
@@ -128,7 +128,7 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
 
         {mode === "results" ? (
           <div className="flex items-center gap-2">
-            <div className="rounded-lg border border-line bg-slate-950 px-2 py-1 font-bold">
+            <div className="rounded-lg border border-line bg-[#14161b] px-2 py-1 font-bold">
               {formatScore((beer as ResultBeerDto).avg_score)}
             </div>
             <div className="muted">keskiarvo</div>
@@ -149,7 +149,7 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
                 aria-label={`Arvosana oluelle ${beer.name}`}
               />
               <input
-                className="w-20 rounded-lg border border-line bg-slate-950 px-2 py-1 text-right tabular-nums text-text"
+                className="w-20 rounded-lg border border-line bg-[#14161b] px-2 py-1 text-right tabular-nums text-text"
                 type="text"
                 inputMode="decimal"
                 value={scoreInput}

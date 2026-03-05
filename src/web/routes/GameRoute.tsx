@@ -49,7 +49,7 @@ function NicknameModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/80 p-4 md:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-4 md:items-center">
       <div className="flex w-full max-w-lg flex-col gap-3 rounded-card border border-line bg-card p-4">
         <div className="font-semibold">Liity peliin nimimerkillä</div>
         <div className="muted">Jätä tyhjäksi, jos haluat automaattisen nimen (esim. Nimetön nimimerkki 112).</div>
@@ -434,6 +434,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
           submitLabel="Tallenna muutokset"
           addLabel="+ Lisää olut"
           onCancel={closeEdit}
+          surface="strip"
         />
       </div>
     );
@@ -446,33 +447,18 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
   return (
     <div className="app-wrap pb-28">
       <div className="app-header">
-        {section === "results" ? (
-          <button
-            className="icon-btn"
-            type="button"
-            onClick={() => changeSection("rate")}
-            aria-label="Takaisin arvosteluun"
-          >
-            <ArrowLeft size={18} />
-          </button>
-        ) : (
-          <span className="icon-btn-placeholder" aria-hidden="true" />
-        )}
+        <span className="icon-btn-placeholder" aria-hidden="true" />
 
         <a className="header-brand" href="/">
           Sahti as a Service
         </a>
 
-        {section === "rate" ? (
-          <button className="icon-btn" type="button" onClick={openEdit} aria-label="Asetukset ja pelin muokkaus">
-            <Settings size={18} />
-          </button>
-        ) : (
-          <span className="icon-btn-placeholder" aria-hidden="true" />
-        )}
+        <button className="icon-btn" type="button" onClick={openEdit} aria-label="Asetukset ja pelin muokkaus">
+          <Settings size={18} />
+        </button>
       </div>
 
-      <div className="card text-center">
+      <div className="mb-4 px-1 text-center">
         <div className="text-2xl font-bold leading-tight">{title}</div>
         <div className="mt-2 text-sm text-muted">Peli-ID: {gameId} • {beers.length} olutta</div>
         <div className="text-sm text-muted">
@@ -516,7 +502,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
             ))}
           </div>
 
-          <div className="card sticky bottom-0 z-20 bg-card/95 backdrop-blur">
+          <div className="bottom-action-strip">
             <button
               className="btn btn-success w-full"
               type="button"
@@ -532,7 +518,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
           <div className="mb-2 px-1 text-xs text-muted">Järjestetty keskiarvon mukaan</div>
           <ResultList beers={resultBeers} />
 
-          <div className="card">
+          <div className="accordion-shell">
             <button
               className="accordion-toggle"
               type="button"
@@ -559,7 +545,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
             </div>
           </div>
 
-          <div className="card sticky bottom-0 z-20 bg-card/95 backdrop-blur">
+          <div className="bottom-action-strip">
             <div className="flex flex-col gap-2 sm:flex-row">
               <button className="btn grow" type="button" disabled={resultsLoading} onClick={() => void openResults()}>
                 {resultsLoading ? "Päivitetään..." : "Päivitä tulokset"}

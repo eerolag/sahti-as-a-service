@@ -26,6 +26,7 @@ interface BeerEditorProps {
   addLabel: string;
   onCancel?: () => void;
   cancelLabel?: string;
+  surface?: "card" | "strip";
 }
 
 type IdentifyState = "idle" | "loading" | "success" | "error";
@@ -47,6 +48,7 @@ export function BeerEditor({
   addLabel,
   onCancel,
   cancelLabel = "Peruuta",
+  surface = "card",
 }: BeerEditorProps) {
   const haptics = useHaptics();
   const [searchIndex, setSearchIndex] = useState<number | null>(null);
@@ -86,9 +88,11 @@ export function BeerEditor({
     setIdentifyStatusByRow((prev) => ({ ...prev, [key]: status }));
   }
 
+  const surfaceClass = surface === "strip" ? "surface-strip" : "card";
+
   return (
     <>
-      <div className="card">
+      <div className={surfaceClass}>
         <div className="flex flex-col gap-2">
           <div className="font-semibold">{title}</div>
           <div className="muted">Pelin nimi ja oluen nimi ovat pakollisia.</div>
@@ -249,7 +253,7 @@ export function BeerEditor({
         })}
       </div>
 
-      <div className="card">
+      <div className={surfaceClass}>
         <div className="flex flex-col gap-2">
           <button className="btn" type="button" onClick={addBeer}>
             {addLabel}

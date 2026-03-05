@@ -66,7 +66,7 @@ export function ImageSearchModal({ open, initialQuery, onClose, onSelect }: Imag
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/80 p-4 md:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-4 md:items-center"
       onClick={() => {
         haptics.selection();
         onClose();
@@ -124,7 +124,7 @@ export function ImageSearchModal({ open, initialQuery, onClose, onSelect }: Imag
 
         <div className="grid grid-cols-1 gap-2 overflow-auto pr-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {results.map((item) => (
-            <div key={item.imageUrl} className="flex min-h-[210px] flex-col overflow-hidden rounded-xl border border-line bg-slate-950">
+            <div key={item.imageUrl} className="flex min-h-[210px] flex-col overflow-hidden rounded-xl border border-line bg-[#14161b]">
               <img src={item.thumbnailUrl || item.imageUrl} alt={item.title || "Kuvaehdotus"} className="h-[120px] w-full object-cover" />
               <div className="flex flex-1 flex-col gap-2 p-2">
                 <div className="line-clamp-2 text-xs">{item.title || "Kuvaehdotus"}</div>
