@@ -408,7 +408,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
 
   if (editDraft) {
     return (
-      <div className="app-wrap pb-20">
+      <div className="app-wrap app-wrap-with-header pb-20">
         <div className="app-header">
           <button className="icon-btn" type="button" onClick={closeEdit} aria-label="Takaisin peliin">
             <ArrowLeft size={18} />
@@ -445,7 +445,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
   const resultPlayerCount = Number(results?.summary?.players ?? resultPlayers.length);
 
   return (
-    <div className="app-wrap pb-28">
+    <div className="app-wrap app-wrap-with-header pb-28">
       <div className="app-header">
         <span className="icon-btn-placeholder" aria-hidden="true" />
 
@@ -503,14 +503,16 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
           </div>
 
           <div className="bottom-action-strip">
-            <button
-              className="btn btn-success w-full"
-              type="button"
-              disabled={!playerIdentity || !hasDirty || savingRatings}
-              onClick={() => void saveRatings()}
-            >
-              {saveButtonText}
-            </button>
+            <div className="bottom-action-inner">
+              <button
+                className="btn btn-success w-full"
+                type="button"
+                disabled={!playerIdentity || !hasDirty || savingRatings}
+                onClick={() => void saveRatings()}
+              >
+                {saveButtonText}
+              </button>
+            </div>
           </div>
         </>
       ) : (
@@ -546,18 +548,20 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
           </div>
 
           <div className="bottom-action-strip">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button className="btn grow" type="button" disabled={resultsLoading} onClick={() => void openResults()}>
-                {resultsLoading ? "Päivitetään..." : "Päivitä tulokset"}
-              </button>
-              {supportsWebShare ? (
-                <button className="btn grow" type="button" onClick={() => void shareResults()}>
-                  <span className="inline-flex items-center gap-2">
-                    <Share2 size={16} />
-                    Jaa tulokset
-                  </span>
+            <div className="bottom-action-inner">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button className="btn grow" type="button" disabled={resultsLoading} onClick={() => void openResults()}>
+                  {resultsLoading ? "Päivitetään..." : "Päivitä tulokset"}
                 </button>
-              ) : null}
+                {supportsWebShare ? (
+                  <button className="btn grow" type="button" onClick={() => void shareResults()}>
+                    <span className="inline-flex items-center gap-2">
+                      <Share2 size={16} />
+                      Jaa tulokset
+                    </span>
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
         </>

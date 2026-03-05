@@ -21,8 +21,16 @@
     @apply mx-auto w-full max-w-3xl px-4 py-4;
   }
 
+  .app-wrap-with-header {
+    @apply pt-0;
+  }
+
   .app-header {
-    @apply sticky top-0 z-30 mb-3 grid grid-cols-[36px_1fr_36px] items-center gap-2 rounded-2xl bg-[rgba(27,29,34,0.72)] px-2 py-1.5 backdrop-blur-md;
+    @apply sticky top-0 z-30 mb-3 grid grid-cols-[36px_1fr_36px] items-center gap-2 px-4 py-2 backdrop-blur-md;
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    background-color: rgba(17, 19, 24, 0.72);
   }
 
   .header-brand {
@@ -42,7 +50,23 @@
   }
 
   .bottom-action-strip {
-    @apply sticky bottom-0 z-20 mt-3 rounded-2xl bg-[rgba(27,29,34,0.72)] p-2 backdrop-blur-md;
+    @apply fixed bottom-0 left-0 right-0 z-20 px-4 py-2 backdrop-blur-md;
+    width: 100vw;
+    background-color: rgba(17, 19, 24, 0.74);
+  }
+
+  @media (min-width: 768px) {
+    .bottom-action-strip {
+      @apply sticky mt-3;
+      left: auto;
+      right: auto;
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
+    }
+  }
+
+  .bottom-action-inner {
+    @apply mx-auto w-full max-w-[736px];
   }
 
   .card {
@@ -98,7 +122,7 @@
   }
 
   .accordion-toggle {
-    @apply flex w-full items-center justify-between rounded-2xl bg-[rgba(27,29,34,0.66)] px-3 py-2 text-left backdrop-blur-md;
+    @apply flex w-full items-center justify-between rounded-2xl bg-transparent px-3 py-2 text-left;
   }
 
   .accordion-shell {
