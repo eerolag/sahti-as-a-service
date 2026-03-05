@@ -164,7 +164,7 @@ export function BeerEditor({
                     <div className="mt-1 inline-flex md:hidden">
                       <div className="relative inline-block">
                         <select
-                          className="min-h-9 w-auto cursor-pointer appearance-none rounded-lg border border-amber-500/70 bg-[#1b1d22] py-1 pl-2 pr-7 text-xs font-semibold text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/60 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="min-h-8 w-auto cursor-pointer appearance-none rounded-lg border border-amber-500/70 bg-[#1b1d22] py-1 pl-2 pr-7 text-xs font-semibold text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/60 disabled:cursor-not-allowed disabled:opacity-50"
                           value={idx}
                           disabled={beers.length < 2}
                           onChange={(event) => {
@@ -180,7 +180,7 @@ export function BeerEditor({
                             </option>
                           ))}
                         </select>
-                        <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-amber-300">
+                        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-[58%] text-xl leading-none text-amber-300">
                           ▾
                         </span>
                       </div>
