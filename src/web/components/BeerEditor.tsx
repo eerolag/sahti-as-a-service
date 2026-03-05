@@ -80,6 +80,19 @@ export function BeerEditor({
     onBeersChange([...beers, { name: "", imageUrl: "", file: null }]);
   }
 
+  function moveBeer(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+    if (fromIndex < 0 || fromIndex >= beers.length) return;
+    if (toIndex < 0 || toIndex >= beers.length) return;
+
+    const next = [...beers];
+    const [moved] = next.splice(fromIndex, 1);
+    if (!moved) return;
+    next.splice(toIndex, 0, moved);
+    haptics.selection();
+    onBeersChange(next);
+  }
+
   function rowKey(beer: BeerEditorRow, idx: number): string {
     return `${beer.id ?? "new"}-${idx}`;
   }
@@ -96,7 +109,8 @@ export function BeerEditor({
         <div className="flex flex-col gap-2">
           <div className="font-semibold">{title}</div>
           <div className="muted">Pelin nimi ja oluen nimi ovat pakollisia.</div>
-          <div className="muted">Raahaa oluita kahvasta (⋮⋮) vaihtaaksesi järjestystä.</div>
+          <div className="muted hidden md:block">Raahaa oluita kahvasta (⋮⋮) vaihtaaksesi järjestystä.</div>
+          <div className="muted md:hidden">Vaihda oluen järjestys Rivi-valikosta.</div>
           <label className="text-sm text-muted">Pelin nimi</label>
           <input
             className="input"
@@ -138,7 +152,7 @@ export function BeerEditor({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="btn flex min-h-9 w-9 items-center justify-center p-0 text-base"
+                    className="btn hidden min-h-9 w-9 items-center justify-center p-0 text-base md:flex"
                     disabled={beers.length < 2}
                     title="Raahaa tästä järjestyksen vaihtamiseksi"
                   >
@@ -146,7 +160,27 @@ export function BeerEditor({
                   </button>
                   <div className="grow">
                     <div className="font-semibold">{beer.name.trim() || "Nimeä olut"}</div>
-                    <div className="text-xs text-muted">Rivi {idx + 1}</div>
+                    <div className="text-xs text-muted hidden md:block">Rivi {idx + 1}</div>
+                    <label className="mt-1 block text-xs text-muted md:hidden">
+                      Rivi
+                      <select
+                        className="input mt-1 min-h-9 w-full py-1 text-xs"
+                        value={idx}
+                        disabled={beers.length < 2}
+                        onChange={(event) => {
+                          const nextIndex = Number(event.target.value);
+                          if (Number.isNaN(nextIndex)) return;
+                          moveBeer(idx, nextIndex);
+                        }}
+                        aria-label={`Vaihda rivin ${idx + 1} järjestystä`}
+                      >
+                        {beers.map((_, rowIdx) => (
+                          <option key={rowIdx} value={rowIdx}>
+                            Rivi {rowIdx + 1}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
                   <button
                     type="button"
