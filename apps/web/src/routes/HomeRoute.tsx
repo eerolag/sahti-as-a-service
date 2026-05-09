@@ -3,6 +3,7 @@ import type { CreateGameRequest } from "@breview/shared/api-contracts";
 import { apiClient } from "../api/client";
 import { BeerEditor, type BeerEditorRow } from "../components/BeerEditor";
 import { useHaptics } from "../hooks/useHaptics";
+import { prepareImageForManagedUpload } from "../utils/beer-name-image";
 import { validateImageFileBeforeUpload } from "../utils/image-upload";
 
 export function HomeRoute() {
@@ -31,8 +32,9 @@ export function HomeRoute() {
 
         let image_url = row.imageUrl.trim() || null;
         if (!image_url && row.file) {
-          await validateImageFileBeforeUpload(row.file);
-          const upload = await apiClient.uploadImage(row.file);
+          const uploadFile = await prepareImageForManagedUpload(row.file);
+          await validateImageFileBeforeUpload(uploadFile);
+          const upload = await apiClient.uploadImage(uploadFile);
           image_url = upload.imageUrl;
         }
 

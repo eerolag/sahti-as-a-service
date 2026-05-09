@@ -8,6 +8,7 @@
 - Keep current Cloudflare resource names stable while the product brand changes.
 - Keep paid web image search out of the production API surface; beer-name recognition uses Workers AI and Untappd remains outbound search-link only.
 - Keep Workers AI beer-name recognition observable and robust: JSON-only name extraction, high-detail image input, Kimi reasoning handling, and clear distinction between uncertain images and upstream empty responses.
+- Keep browser uploads stable on mobile by converting selected images to managed JPEG blobs before R2 upload and by reusing the prepared recognition image for game creation.
 - Keep the mobile app on Expo SDK 54 during the current Expo Go transition so local testing does not fight the other active SDK 54 project.
 - Keep the Expo create, join, recent-games, rating, comments, save, and results flows connected to the shared API client and production Cloudflare API by default.
 - Keep the mobile dark Breview visual direction aligned with the web UI while using AniUI/NativeWind components.

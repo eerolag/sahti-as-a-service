@@ -234,7 +234,7 @@ export function BeerEditor({
                         try {
                           const preparedFile = await prepareImageForBeerNameRecognition(beer.file);
                           const identified = await apiClient.identifyBeerName(preparedFile);
-                          setBeerField(idx, { name: identified.beerName });
+                          setBeerField(idx, { name: identified.beerName, file: preparedFile });
                           setRowIdentifyStatus(key, {
                             state: "success",
                             message: `Tunnistettu nimi: ${identified.beerName}`,

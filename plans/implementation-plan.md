@@ -43,6 +43,7 @@ Acceptance criteria:
 - Cloudflare D1/R2/Worker resource names are left unchanged.
 - Kilo Gateway is replaced by Cloudflare Workers AI for beer-name recognition.
 - Workers AI beer-name recognition requests use high-detail image input, JSON-only extraction, and Kimi reasoning handling so empty model responses are treated as service failures instead of user image failures.
+- Web image upload normalizes selected files into managed JPEG blobs before R2 upload, and reuses the prepared file after AI recognition to avoid mobile browser file-picker fetch failures.
 - Paid Brave image search is removed from the web UI, Worker route, shared API contracts, README, and runtime env.
 - Untappd API resolution is removed; stored beer metadata is kept to outbound search links only.
 - Tests, typecheck, and build pass.

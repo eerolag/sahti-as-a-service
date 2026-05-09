@@ -12,6 +12,7 @@ import { useDraftRatings } from "../hooks/useDraftRatings";
 import { useGameState } from "../hooks/useGameState";
 import { useHaptics } from "../hooks/useHaptics";
 import { validateImageFileBeforeUpload } from "../utils/image-upload";
+import { prepareImageForManagedUpload } from "../utils/beer-name-image";
 import { isWebShareSupported, shareUrl } from "../utils/web-share";
 import {
   type PlayerIdentity,
@@ -347,8 +348,9 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
 
         let image_url = row.imageUrl.trim() || null;
         if (row.file) {
-          await validateImageFileBeforeUpload(row.file);
-          const upload = await apiClient.uploadImage(row.file);
+          const uploadFile = await prepareImageForManagedUpload(row.file);
+          await validateImageFileBeforeUpload(uploadFile);
+          const upload = await apiClient.uploadImage(uploadFile);
           image_url = upload.imageUrl;
         }
 

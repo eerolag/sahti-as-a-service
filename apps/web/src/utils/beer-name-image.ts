@@ -19,13 +19,17 @@ function replaceExtension(fileName: string, extension: string): string {
 
 async function decodeImage(file: File): Promise<DecodedImage> {
   if (typeof createImageBitmap === "function") {
-    const bitmap = await createImageBitmap(file);
-    return {
-      source: bitmap,
-      width: bitmap.width,
-      height: bitmap.height,
-      cleanup: () => bitmap.close(),
-    };
+    try {
+      const bitmap = await createImageBitmap(file);
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        cleanup: () => bitmap.close(),
+      };
+    } catch {
+      // Some mobile browsers expose createImageBitmap but fail on content-uri backed files.
+    }
   }
 
   return new Promise((resolve, reject) => {
@@ -92,16 +96,14 @@ async function renderAsJpegFile(file: File): Promise<File> {
   }
 }
 
-export async function prepareImageForBeerNameRecognition(file: File): Promise<File> {
+export async function prepareImageForManagedUpload(file: File): Promise<File> {
   const type = String(file.type ?? "").trim().toLowerCase();
-  const alreadyGood = AI_SUPPORTED_IMAGE_TYPES.has(type) && file.size <= AI_TARGET_MAX_BYTES;
-  if (alreadyGood) return file;
 
   try {
     return await renderAsJpegFile(file);
   } catch (error) {
-    // Some browsers cannot decode HEIC/HEIF/AVIF locally. Send original image as a fallback.
-    if (type.startsWith("image/")) {
+    const canSendOriginal = AI_SUPPORTED_IMAGE_TYPES.has(type) && file.size <= AI_TARGET_MAX_BYTES;
+    if (canSendOriginal) {
       return file;
     }
 
@@ -109,4 +111,8 @@ export async function prepareImageForBeerNameRecognition(file: File): Promise<Fi
       `Kuvatiedostoa ei voitu kasitella tunnistusta varten (${String((error as Error)?.message ?? "tuntematon virhe")}). Kokeile JPG/PNG/WebP-kuvaa.`,
     );
   }
+}
+
+export async function prepareImageForBeerNameRecognition(file: File): Promise<File> {
+  return prepareImageForManagedUpload(file);
 }
