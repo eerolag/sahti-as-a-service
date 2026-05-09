@@ -441,7 +441,7 @@ describe("worker api", () => {
     expect(response.status).toBe(400);
   });
 
-  it("returns 503 from image identify when KILO_API_KEY is missing", async () => {
+  it("returns 503 from image identify when Workers AI binding is missing", async () => {
     const form = new FormData();
     form.set("file", new Blob([new Uint8Array([1, 2, 3])], { type: "image/jpeg" }), "beer.jpg");
 
@@ -452,11 +452,10 @@ describe("worker api", () => {
 
     expect(response.status).toBe(503);
     const payload = await json(response);
-    expect(payload.error).toContain("KILO_API_KEY");
+    expect(payload.error).toContain("AI");
   });
 
   it("rejects image identify when file is missing or invalid", async () => {
-    env.KILO_API_KEY = "kilo-test-key";
     const form = new FormData();
     form.set("file", new Blob(["hello"], { type: "text/plain" }), "note.txt");
 
@@ -468,26 +467,19 @@ describe("worker api", () => {
     expect(response.status).toBe(400);
   });
 
-  it("identifies beer name from uploaded image via Kilo gateway", async () => {
-    env.KILO_API_KEY = "kilo-test-key";
-    const upstreamFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
-      return new Response(
-        JSON.stringify({
-          choices: [
-            {
-              message: {
-                content: "Karhu III",
-              },
+  it("identifies beer name from uploaded image via Workers AI", async () => {
+    const aiRun = vi.fn(async (_model: string, _input: Record<string, unknown>) => {
+      return {
+        choices: [
+          {
+            message: {
+              content: "Karhu III",
             },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        },
-      );
+          },
+        ],
+      };
     });
-    vi.stubGlobal("fetch", upstreamFetch);
+    env.AI = { run: aiRun };
 
     const form = new FormData();
     form.set("file", new Blob([new Uint8Array([1, 2, 3, 4])], { type: "image/jpeg" }), "beer.jpg");
@@ -501,41 +493,30 @@ describe("worker api", () => {
     const payload = await json(response);
     expect(payload.ok).toBe(true);
     expect(payload.beerName).toBe("Karhu III");
-    expect(payload.model).toBe("moonshotai/kimi-k2.5");
+    expect(payload.model).toBe("@cf/google/gemma-4-26b-a4b-it");
 
-    expect(upstreamFetch).toHaveBeenCalledTimes(1);
-    const firstCall = upstreamFetch.mock.calls[0];
+    expect(aiRun).toHaveBeenCalledTimes(1);
+    const firstCall = aiRun.mock.calls[0];
     expect(firstCall).toBeTruthy();
-    const url = String(firstCall?.[0] ?? "");
-    const init = (firstCall?.[1] ?? {}) as RequestInit;
-    expect(url).toBe("https://api.kilo.ai/api/gateway/chat/completions");
-    const requestBody = JSON.parse(String(init.body)) as Record<string, any>;
-    expect(requestBody.model).toBe("moonshotai/kimi-k2.5");
+    expect(firstCall?.[0]).toBe("@cf/google/gemma-4-26b-a4b-it");
+    const requestBody = (firstCall?.[1] ?? {}) as Record<string, any>;
     expect(requestBody.messages?.[0]?.content?.[1]?.image_url?.url).toMatch(/^data:image\/jpeg;base64,/);
   });
 
-  it("returns 422 when Kilo cannot identify a reliable beer name", async () => {
-    env.KILO_API_KEY = "kilo-test-key";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        return new Response(
-          JSON.stringify({
-            choices: [
-              {
-                message: {
-                  content: "UNKNOWN",
-                },
+  it("returns 422 when Workers AI cannot identify a reliable beer name", async () => {
+    env.AI = {
+      run: vi.fn(async () => {
+        return {
+          choices: [
+            {
+              message: {
+                content: "UNKNOWN",
               },
-            ],
-          }),
-          {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          },
-        );
+            },
+          ],
+        };
       }),
-    );
+    };
 
     const form = new FormData();
     form.set("file", new Blob([new Uint8Array([9, 9])], { type: "image/png" }), "beer.png");
@@ -551,27 +532,19 @@ describe("worker api", () => {
   });
 
   it("extracts beer name from best-guess style model response", async () => {
-    env.KILO_API_KEY = "kilo-test-key";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        return new Response(
-          JSON.stringify({
-            choices: [
-              {
-                message: {
-                  content: "I cannot determine this with full certainty. Best guess: Karhu III",
-                },
+    env.AI = {
+      run: vi.fn(async () => {
+        return {
+          choices: [
+            {
+              message: {
+                content: "I cannot determine this with full certainty. Best guess: Karhu III",
               },
-            ],
-          }),
-          {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          },
-        );
+            },
+          ],
+        };
       }),
-    );
+    };
 
     const form = new FormData();
     form.set("file", new Blob([new Uint8Array([5, 5])], { type: "image/jpeg" }), "beer.jpg");
@@ -586,17 +559,12 @@ describe("worker api", () => {
     expect(payload.beerName).toBe("Karhu III");
   });
 
-  it("maps Kilo 429 to API 429", async () => {
-    env.KILO_API_KEY = "kilo-test-key";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        return new Response(JSON.stringify({ error: { message: "rate limit" } }), {
-          status: 429,
-          headers: { "content-type": "application/json" },
-        });
+  it("maps Workers AI 429 to API 429", async () => {
+    env.AI = {
+      run: vi.fn(async () => {
+        throw Object.assign(new Error("rate limit"), { status: 429 });
       }),
-    );
+    };
 
     const form = new FormData();
     form.set("file", new Blob([new Uint8Array([7, 7])], { type: "image/webp" }), "beer.webp");
@@ -609,14 +577,12 @@ describe("worker api", () => {
     expect(response.status).toBe(429);
   });
 
-  it("returns helpful timeout message when Kilo request is aborted", async () => {
-    env.KILO_API_KEY = "kilo-test-key";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
+  it("returns helpful timeout message when Workers AI request is aborted", async () => {
+    env.AI = {
+      run: vi.fn(async () => {
         throw Object.assign(new Error("The operation was aborted."), { name: "AbortError" });
       }),
-    );
+    };
 
     const form = new FormData();
     form.set("file", new Blob([new Uint8Array([3, 1, 4])], { type: "image/jpeg" }), "beer.jpg");

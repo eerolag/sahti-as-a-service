@@ -1,11 +1,9 @@
 import { MAX_IMAGE_UPLOAD_BYTES } from "../../shared/image-upload";
-import { readUpstreamErrorMessage } from "../http";
 import type { Env } from "../env";
 
-const KILO_GATEWAY_ENDPOINT = "https://api.kilo.ai/api/gateway/chat/completions";
-export const KILO_BEER_RECOGNITION_MODEL = "moonshotai/kimi-k2.5";
-const KILO_BEER_RECOGNITION_FALLBACK_MODEL = "kilo/auto";
-const KILO_REQUEST_TIMEOUT_MS = 45_000;
+export const WORKERS_AI_BEER_RECOGNITION_MODEL = "@cf/google/gemma-4-26b-a4b-it";
+const WORKERS_AI_BEER_RECOGNITION_FALLBACK_MODEL = "@cf/moonshotai/kimi-k2.6";
+const WORKERS_AI_REQUEST_TIMEOUT_MS = 45_000;
 
 function bytesToBase64(bytes: Uint8Array): string {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -160,6 +158,16 @@ function ensureValidImage(file: File): void {
 }
 
 function parseModelContent(payload: Record<string, any>): string {
+  const directResponse = payload?.response;
+  if (typeof directResponse === "string" && directResponse.trim()) {
+    return directResponse.trim();
+  }
+
+  const resultResponse = payload?.result?.response;
+  if (typeof resultResponse === "string" && resultResponse.trim()) {
+    return resultResponse.trim();
+  }
+
   const messageContent = payload?.choices?.[0]?.message?.content;
   if (typeof messageContent === "string") return messageContent;
 
@@ -221,11 +229,55 @@ interface ModelAttempt {
   beerName: string | null;
 }
 
-async function runModelAttempt(apiKey: string, model: string, imageDataUrl: string): Promise<ModelAttempt> {
+function timeoutError(): Error {
+  const err = new Error(
+    "Nimen tunnistus aikakatkaistiin. Kokeile JPG/PNG/WebP-kuvaa tai rajaa kuvaa lahemmas etikettia.",
+  );
+  (err as any).statusCode = 502;
+  return err;
+}
+
+async function runWithTimeout<T>(work: Promise<T>): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_resolve, reject) => {
+    timeout = setTimeout(() => reject(timeoutError()), WORKERS_AI_REQUEST_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([work, timeoutPromise]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+function normalizeWorkersAiError(error: unknown): Error {
+  if ((error as any)?.statusCode) {
+    return error as Error;
+  }
+
+  const errorName = String((error as any)?.name ?? "");
+  const rawMessage = String((error as Error)?.message ?? "").trim();
+  if (errorName === "AbortError" || /\b(abort|aborted|timeout|timed out)\b/i.test(rawMessage)) {
+    return timeoutError();
+  }
+
+  const status = Number((error as any)?.status ?? (error as any)?.code) || 0;
+  const details = rawMessage;
+  const statusCode = status === 429 ? 429 : 502;
+  const message = details
+    ? `Nimen tunnistus epaonnistui (Workers AI): ${details}`
+    : "Nimen tunnistus epaonnistui (Workers AI)";
+  const err = new Error(message);
+  (err as any).statusCode = statusCode;
+  (err as any).upstreamStatus = status;
+  return err;
+}
+
+async function runModelAttempt(env: Env, model: string, imageDataUrl: string): Promise<ModelAttempt> {
   const body = {
-    model,
     temperature: 0,
     max_tokens: 64,
+    max_completion_tokens: 64,
     messages: [
       {
         role: "user",
@@ -251,57 +303,13 @@ async function runModelAttempt(apiKey: string, model: string, imageDataUrl: stri
     ],
   };
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), KILO_REQUEST_TIMEOUT_MS);
-
   let payload: Record<string, any> | null = null;
 
   try {
-    const response = await fetch(KILO_GATEWAY_ENDPOINT, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        accept: "application/json",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const upstreamMessage = await readUpstreamErrorMessage(response);
-      const statusCode = response.status === 429 ? 429 : 502;
-      const message = upstreamMessage
-        ? `Nimen tunnistus epaonnistui (Kilo ${response.status}): ${upstreamMessage}`
-        : `Nimen tunnistus epaonnistui (Kilo ${response.status})`;
-      const err = new Error(message);
-      (err as any).statusCode = statusCode;
-      (err as any).upstreamStatus = response.status;
-      throw err;
-    }
-
-    payload = (await response.json()) as Record<string, any>;
+    const result = await runWithTimeout(env.AI!.run(model, body));
+    payload = result && typeof result === "object" ? (result as Record<string, any>) : { response: String(result ?? "") };
   } catch (error) {
-    if ((error as any)?.statusCode) {
-      throw error;
-    }
-
-    if (String((error as any)?.name ?? "") === "AbortError") {
-      const err = new Error(
-        "Nimen tunnistus aikakatkaistiin. Kokeile JPG/PNG/WebP-kuvaa tai rajaa kuvaa lahemmas etikettia.",
-      );
-      (err as any).statusCode = 502;
-      throw err;
-    }
-
-    const details = String((error as Error)?.message ?? "").trim();
-    const err = new Error(
-      details ? `Nimen tunnistus epaonnistui juuri nyt: ${details}` : "Nimen tunnistus epaonnistui juuri nyt",
-    );
-    (err as any).statusCode = 502;
-    throw err;
-  } finally {
-    clearTimeout(timeout);
+    throw normalizeWorkersAiError(error);
   }
 
   const rawContent = parseModelContent(payload ?? {});
@@ -323,9 +331,8 @@ export interface IdentifyBeerNameResult {
 export async function identifyBeerNameFromImage(env: Env, file: File): Promise<IdentifyBeerNameResult> {
   ensureValidImage(file);
 
-  const apiKey = String(env.KILO_API_KEY ?? "").trim();
-  if (!apiKey) {
-    const err = new Error("Nimen tunnistus ei ole kaytossa (KILO_API_KEY puuttuu)");
+  if (!env.AI?.run) {
+    const err = new Error("Nimen tunnistus ei ole kaytossa (Cloudflare Workers AI binding AI puuttuu)");
     (err as any).statusCode = 503;
     throw err;
   }
@@ -333,20 +340,20 @@ export async function identifyBeerNameFromImage(env: Env, file: File): Promise<I
   const bytes = new Uint8Array(await file.arrayBuffer());
   const imageDataUrl = toDataUrl(file, bytes);
 
-  const primaryModel: string = KILO_BEER_RECOGNITION_MODEL;
-  const fallbackModel: string = KILO_BEER_RECOGNITION_FALLBACK_MODEL;
+  const primaryModel: string = WORKERS_AI_BEER_RECOGNITION_MODEL;
+  const fallbackModel: string = WORKERS_AI_BEER_RECOGNITION_FALLBACK_MODEL;
   const canFallback = Boolean(fallbackModel && fallbackModel !== primaryModel);
 
   let primaryAttempt: ModelAttempt | null = null;
 
   try {
-    primaryAttempt = await runModelAttempt(apiKey, primaryModel, imageDataUrl);
+    primaryAttempt = await runModelAttempt(env, primaryModel, imageDataUrl);
   } catch (error) {
     if (!canFallback || !shouldRetryWithFallbackForError(error)) {
       throw error;
     }
 
-    const fallbackAttempt = await runModelAttempt(apiKey, fallbackModel, imageDataUrl);
+    const fallbackAttempt = await runModelAttempt(env, fallbackModel, imageDataUrl);
     if (fallbackAttempt.beerName) {
       return {
         ok: true,
@@ -367,7 +374,7 @@ export async function identifyBeerNameFromImage(env: Env, file: File): Promise<I
   }
 
   if (canFallback) {
-    const fallbackAttempt = await runModelAttempt(apiKey, fallbackModel, imageDataUrl);
+    const fallbackAttempt = await runModelAttempt(env, fallbackModel, imageDataUrl);
     if (fallbackAttempt.beerName) {
       return {
         ok: true,

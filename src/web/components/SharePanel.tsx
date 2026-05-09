@@ -73,7 +73,7 @@ export function SharePanel({ gameId }: SharePanelProps) {
     try {
       haptics.light();
       await shareUrl({
-        title: "Sahti as a Service",
+        title: "Breview",
         text: "Liity peliin",
         url: targetUrl,
       });

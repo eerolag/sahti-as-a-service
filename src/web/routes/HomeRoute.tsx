@@ -62,7 +62,7 @@ export function HomeRoute() {
 
   return (
     <div className="app-wrap">
-      <div className="mb-1 text-2xl font-extrabold">Sahti as a Service</div>
+      <div className="mb-1 text-2xl font-extrabold">Breview</div>
       <div className="mb-4 text-sm text-muted">Arvosanat oluille, mobiili edellä</div>
 
       <div className="card">

@@ -1,10 +1,9 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { createUntappdSearchUrl } from "../../shared/untappd";
 import { apiClient } from "../api/client";
 import { useBeerReorder } from "../hooks/useBeerReorder";
 import { useHaptics } from "../hooks/useHaptics";
 import { prepareImageForBeerNameRecognition } from "../utils/beer-name-image";
-import { ImageSearchModal } from "./ImageSearchModal";
 
 export interface BeerEditorRow {
   id?: number;
@@ -51,14 +50,8 @@ export function BeerEditor({
   surface = "card",
 }: BeerEditorProps) {
   const haptics = useHaptics();
-  const [searchIndex, setSearchIndex] = useState<number | null>(null);
   const [identifyStatusByRow, setIdentifyStatusByRow] = useState<Record<string, IdentifyStatus>>({});
   const { dragIndex, overIndex, handlers } = useBeerReorder(beers, onBeersChange);
-
-  const searchInitialQuery = useMemo(() => {
-    if (searchIndex == null) return "";
-    return beers[searchIndex]?.name ?? "";
-  }, [beers, searchIndex]);
 
   function setBeerField(index: number, patch: Partial<BeerEditorRow>) {
     onBeersChange(
@@ -212,19 +205,6 @@ export function BeerEditor({
                   placeholder="https://..."
                 />
 
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={() => {
-                      haptics.selection();
-                      setSearchIndex(idx);
-                    }}
-                  >
-                    Hae internetistä
-                  </button>
-                </div>
-
                 <label className="text-sm text-muted">Tai kuva tiedostona (optional)</label>
                 <input
                   className="input"
@@ -314,19 +294,6 @@ export function BeerEditor({
           ) : null}
         </div>
       </div>
-
-      <ImageSearchModal
-        open={searchIndex != null}
-        initialQuery={searchInitialQuery}
-        onClose={() => setSearchIndex(null)}
-        onSelect={(selected) => {
-          if (searchIndex == null) return;
-          setBeerField(searchIndex, {
-            imageUrl: String(selected.imageUrl ?? "").trim(),
-            file: null,
-          });
-        }}
-      />
     </>
   );
 }

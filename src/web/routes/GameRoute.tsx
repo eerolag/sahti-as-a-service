@@ -385,7 +385,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
   if (loading && !game) {
     return (
       <div className="app-wrap">
-        <div className="text-center text-xl font-bold">Sahti as a Service</div>
+        <div className="text-center text-xl font-bold">Breview</div>
         <div className="card">Ladataan...</div>
       </div>
     );
@@ -394,7 +394,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
   if (error) {
     return (
       <div className="app-wrap">
-        <div className="text-center text-xl font-bold">Sahti as a Service</div>
+        <div className="text-center text-xl font-bold">Breview</div>
         <div className="card">
           <div className="mb-1 font-semibold">Virhe</div>
           <div className="muted mb-3">{error}</div>
@@ -414,7 +414,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
             <ArrowLeft size={18} />
           </button>
           <a className="header-brand" href="/">
-            Sahti as a Service
+            Breview
           </a>
           <span className="icon-btn-placeholder" aria-hidden="true" />
         </div>
@@ -450,7 +450,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
         <span className="icon-btn-placeholder" aria-hidden="true" />
 
         <a className="header-brand" href="/">
-          Sahti as a Service
+          Breview
         </a>
 
         <button className="icon-btn" type="button" onClick={openEdit} aria-label="Asetukset ja pelin muokkaus">

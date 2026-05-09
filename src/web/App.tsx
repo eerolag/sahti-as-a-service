@@ -60,7 +60,7 @@ export function App() {
 
   return (
     <div className="app-wrap">
-      <div className="mb-1 text-2xl font-extrabold">Sahti as a Service</div>
+      <div className="mb-1 text-2xl font-extrabold">Breview</div>
       <div className="card">
         <div className="mb-2 font-semibold">Tuntematon osoite</div>
         <a className="btn inline-flex no-underline" href="/">

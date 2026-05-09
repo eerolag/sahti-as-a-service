@@ -1,11 +1,27 @@
-# Sahti as a Service
+# Breview
 
-Cloudflare Worker + D1 + R2 -sovellus oluiden pisteyttämiseen pelimuodossa.
+Breview on tuotantoon rakennettava web-, iOS- ja Android-sovellus oluiden arviointipeleihin.
+
+Tuotantodomain: `https://breview.ing`
 
 Uusi arkkitehtuuri:
 - `src/worker`: API-reitit, handlerit, palvelut ja repositoryt
 - `src/shared`: framework-agnostinen domain-logiikka ja API-tyypit
 - `src/web`: React + Tailwind -käyttöliittymä
+
+## Agent workflow
+
+Ennen toteutustyötä jokaisen agentin pitää lukea:
+- `plans/implementation-plan.md`
+- `plans/roadmap.md`
+
+Agentin pitää päivittää plans-dokumentit samassa muutoksessa, jos työn aikana muuttuu jokin seuraavista:
+- tuotteen tavoite tai rajaus
+- arkkitehtuuri tai käytettävät palvelut
+- release-, store- tai deploy-polku
+- toteutuksen vaiheistus, status tai hyväksymiskriteerit
+
+Älä jätä plans-dokumentteja vanhentuneiksi suhteessa koodiin tai READMEhen.
 
 ## Projektirakenne
 
@@ -25,6 +41,7 @@ Uusi arkkitehtuuri:
 ├── tests
 │   ├── api/
 │   └── shared/
+├── plans/
 ├── migrations/
 ├── wrangler.jsonc
 ├── vite.config.ts
@@ -38,9 +55,13 @@ Uusi arkkitehtuuri:
 - Cloudflare Workers
 - Cloudflare D1 (SQLite)
 - Cloudflare R2
+- Cloudflare Workers AI
+- Cloudflare Email Service
 - TypeScript
 - React
 - Tailwind CSS
+- shadcn/ui (webin tuotantosuunta)
+- Expo + AniUI (mobiilin tuotantosuunta)
 - Vite
 - Vitest
 - qrcode
@@ -51,11 +72,11 @@ Uusi arkkitehtuuri:
 - npm
 - Cloudflare-tili + Wrangler-login
 
-## API-avaimet (valinnainen)
+## API-avaimet ja bindingit
 
-Sovellus toimii ilman ulkoisia avaimia:
-- ilman Kilo-avainta kuvatunnistus palauttaa `503`
-- ilman Brave-avainta internet-kuvahaku palauttaa `503`
+Nykyinen Worker toimii ilman ulkoisia avaimia:
+- ilman Cloudflare Workers AI -bindingia kuvatunnistus palauttaa `503`
+- ilman Brave-avainta legacy-kuvahaku palauttaa `503`
 - ilman Untappd-avaimia oluille tallennetaan automaattinen Untappd-hakulinkki
 
 Aseta halutessa:
@@ -64,8 +85,9 @@ Aseta halutessa:
 npx wrangler secret put BRAVE_SEARCH_API_KEY
 npx wrangler secret put UNTAPPD_CLIENT_ID
 npx wrangler secret put UNTAPPD_CLIENT_SECRET
-npx wrangler secret put KILO_API_KEY
 ```
+
+Kuvatunnistus käyttää Cloudflare Workers AI -bindingia `AI` ja aloittaa mallilla `@cf/google/gemma-4-26b-a4b-it`. Tuotantosuunnassa kirjautumissähköpostit siirretään Cloudflare Email Service -bindingiin. Katso tarkempi vaiheistus plans-dokumenteista.
 
 ## R2-kuvabucket (pakollinen kuvatiedostoille)
 
@@ -161,7 +183,7 @@ Jotta workflow voi deployata Cloudflareen, lisää GitHub-repoon `Settings -> Se
 - `POST /api/games/:id/ratings` (body: `clientId`, `ratings`, optional `nickname`; ratingissä valinnainen `comment`, max 255 merkkiä)
 - `GET /api/games/:id/ratings?clientId=...` (tekninen tunniste omien arvosanojen hakuun)
 - `GET /api/games/:id/results`
-- `GET /api/image-search?q=<query>&count=<1-12>`
+- `GET /api/image-search?q=<query>&count=<1-12>` (legacy Brave-kuvahaku; ei tuotannon pääkäyttöpolussa)
 - `POST /api/images/upload` (`multipart/form-data`, kenttä `file`, max 10 MB; UI validoi lisäksi max 6000x6000 px)
 - `POST /api/images/identify-beer-name` (`multipart/form-data`, kenttä `file`; palauttaa tunnistetun oluen nimen tai virheen)
 - `GET /api/images/:key`
