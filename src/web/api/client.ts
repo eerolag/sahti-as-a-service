@@ -5,7 +5,6 @@ import type {
   GetRatingsResponse,
   GetResultsResponse,
   IdentifyBeerNameResponse,
-  ImageSearchResponse,
   SaveRatingsRequest,
   SaveRatingsResponse,
   UploadImageResponse,
@@ -80,11 +79,6 @@ export const apiClient = {
 
   getResults(gameId: number) {
     return request<GetResultsResponse>(`/api/games/${gameId}/results`);
-  },
-
-  imageSearch(query: string, count = 10) {
-    const q = encodeURIComponent(query);
-    return request<ImageSearchResponse>(`/api/image-search?q=${q}&count=${count}`);
   },
 
   uploadImage(file: File) {

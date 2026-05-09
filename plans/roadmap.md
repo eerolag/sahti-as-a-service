@@ -6,6 +6,7 @@
 - Keep `README.md` aligned with the agent workflow and current architecture.
 - Complete the Breview naming and canonical-domain baseline across user-visible web copy and documentation.
 - Keep current Cloudflare resource names stable while the product brand changes.
+- Keep paid web image search out of the production API surface; beer-name recognition uses Workers AI and Untappd remains outbound search-link only.
 
 ## Next
 
@@ -13,7 +14,6 @@
 - Add session handling, account history, logout, and account deletion endpoints.
 - Add `/privacy`, `/support`, and `/delete-account` web pages suitable for App Store and Google Play review.
 - Keep beer-name recognition on Cloudflare Workers AI, starting with Gemma 4 and escalating to Kimi K2.6 only if quality requires it.
-- Deprecate the Brave-backed image search endpoint and remove paid web image search from the product path.
 - Decide whether Untappd outbound search links remain after legal/product review; do not use scraping, private endpoints, or Untappd branding.
 
 ## Then

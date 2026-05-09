@@ -20,9 +20,6 @@ function createEnv() {
     ASSETS: {
       fetch: assetsFetch,
     },
-    BRAVE_SEARCH_API_KEY: "",
-    UNTAPPD_CLIENT_ID: "",
-    UNTAPPD_CLIENT_SECRET: "",
   };
 
   return { env, assetsFetch, images };
@@ -77,6 +74,9 @@ describe("worker api", () => {
     const gamePayload = await json(gameRes);
     expect(gamePayload.game.name).toBe("Sahti Night");
     expect(gamePayload.beers).toHaveLength(2);
+    expect(gamePayload.beers[0].untappd_url).toBe("https://untappd.com/search?q=Beer%20A");
+    expect(gamePayload.beers[0].untappd_source).toBe("search-link");
+    expect(gamePayload.beers[0].untappd_confidence).toBeNull();
   });
 
   it("rejects create when a beer name is empty", async () => {
@@ -388,11 +388,11 @@ describe("worker api", () => {
     expect(results.players).toEqual([{ nickname: "Uusin nimi" }]);
   });
 
-  it("returns 503 from image search when API key missing", async () => {
+  it("does not expose the paid image search endpoint", async () => {
     const response = await call(env, "/api/image-search?q=sahti");
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(404);
     const payload = await json(response);
-    expect(payload.error).toContain("BRAVE_SEARCH_API_KEY");
+    expect(payload.error).toBe("Not found");
   });
 
   it("uploads an image to R2 and returns proxy url", async () => {

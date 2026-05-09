@@ -90,20 +90,6 @@ export interface GetResultsResponse {
   beers: ResultBeerDto[];
 }
 
-export interface ImageSearchResultDto {
-  imageUrl: string;
-  thumbnailUrl: string;
-  title: string;
-  sourceUrl: string | null;
-  sourceDomain: string;
-}
-
-export interface ImageSearchResponse {
-  ok: true;
-  provider: "brave";
-  results: ImageSearchResultDto[];
-}
-
 export interface UploadImageResponse {
   ok: true;
   imageUrl: string;

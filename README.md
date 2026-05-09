@@ -76,18 +76,9 @@ Agentin pitää päivittää plans-dokumentit samassa muutoksessa, jos työn aik
 
 Nykyinen Worker toimii ilman ulkoisia avaimia:
 - ilman Cloudflare Workers AI -bindingia kuvatunnistus palauttaa `503`
-- ilman Brave-avainta legacy-kuvahaku palauttaa `503`
-- ilman Untappd-avaimia oluille tallennetaan automaattinen Untappd-hakulinkki
+- Untappd toimii pelkkänä ulkoisena hakulinkkinä eikä tarvitse avaimia
 
-Aseta halutessa:
-
-```bash
-npx wrangler secret put BRAVE_SEARCH_API_KEY
-npx wrangler secret put UNTAPPD_CLIENT_ID
-npx wrangler secret put UNTAPPD_CLIENT_SECRET
-```
-
-Kuvatunnistus käyttää Cloudflare Workers AI -bindingia `AI` ja aloittaa mallilla `@cf/google/gemma-4-26b-a4b-it`. Tuotantosuunnassa kirjautumissähköpostit siirretään Cloudflare Email Service -bindingiin. Katso tarkempi vaiheistus plans-dokumenteista.
+Kuvatunnistus käyttää Cloudflare Workers AI -bindingia `AI` ja aloittaa mallilla `@cf/google/gemma-4-26b-a4b-it`. Tuotantosuunnassa kirjautumissähköpostit siirretään Cloudflare Email Service -bindingiin. Untappd-integraatio on pelkkä käyttäjälle näkyvä ulkoinen hakulinkki, ei API-kutsu. Katso tarkempi vaiheistus plans-dokumenteista.
 
 ## R2-kuvabucket (pakollinen kuvatiedostoille)
 
@@ -183,13 +174,12 @@ Jotta workflow voi deployata Cloudflareen, lisää GitHub-repoon `Settings -> Se
 - `POST /api/games/:id/ratings` (body: `clientId`, `ratings`, optional `nickname`; ratingissä valinnainen `comment`, max 255 merkkiä)
 - `GET /api/games/:id/ratings?clientId=...` (tekninen tunniste omien arvosanojen hakuun)
 - `GET /api/games/:id/results`
-- `GET /api/image-search?q=<query>&count=<1-12>` (legacy Brave-kuvahaku; ei tuotannon pääkäyttöpolussa)
 - `POST /api/images/upload` (`multipart/form-data`, kenttä `file`, max 10 MB; UI validoi lisäksi max 6000x6000 px)
 - `POST /api/images/identify-beer-name` (`multipart/form-data`, kenttä `file`; palauttaa tunnistetun oluen nimen tai virheen)
 - `GET /api/images/:key`
 - `GET /api/qr?url=<http/https-url-encoded>`
 
-Vastauskentät ovat taaksepäin yhteensopivat aiemman version kanssa.
+Pääpelin vastauskentät ovat taaksepäin yhteensopivat aiemman version kanssa.
 
 ## Lisenssi
 

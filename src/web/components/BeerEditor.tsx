@@ -109,7 +109,7 @@ export function BeerEditor({
             className="input"
             value={gameName}
             onChange={(event) => onGameNameChange(event.target.value)}
-            placeholder="esim. Sahtitesti 2026"
+            placeholder="esim. Breview-ilta 2026"
           />
         </div>
       </div>
@@ -194,7 +194,7 @@ export function BeerEditor({
                   className="input"
                   value={beer.name}
                   onChange={(event) => setBeerField(idx, { name: event.target.value })}
-                  placeholder="esim. Sahti Special 2026"
+                  placeholder="esim. Mallaski IPA"
                 />
 
                 <label className="text-sm text-muted">Kuva URL (optional)</label>

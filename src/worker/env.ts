@@ -68,7 +68,4 @@ export interface Env {
   ASSETS: AssetBinding;
   IMAGES_BUCKET: R2Bucket;
   AI?: WorkersAiBinding;
-  BRAVE_SEARCH_API_KEY?: string;
-  UNTAPPD_CLIENT_ID?: string;
-  UNTAPPD_CLIENT_SECRET?: string;
 }

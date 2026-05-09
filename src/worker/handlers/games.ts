@@ -44,7 +44,7 @@ export async function handleCreateGame(request: Request, env: Env): Promise<Resp
     return json({ error: normalizedBeers.error }, 400);
   }
 
-  const beers = await enrichBeersWithUntappd(env, normalizedBeers.beers);
+  const beers = enrichBeersWithUntappd(normalizedBeers.beers);
 
   const gameId = await createGame(env, gameName.value);
   if (!gameId) {
@@ -82,7 +82,7 @@ export async function handleUpdateGame(gameId: number, request: Request, env: En
   if ("error" in normalizedBeers) {
     return json({ error: normalizedBeers.error }, 400);
   }
-  const beers = await enrichBeersWithUntappd(env, normalizedBeers.beers);
+  const beers = enrichBeersWithUntappd(normalizedBeers.beers);
 
   const exists = await gameExists(env, gameId);
   if (!exists) return json({ error: "Peliä ei löytynyt" }, 404);

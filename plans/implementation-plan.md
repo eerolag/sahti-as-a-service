@@ -19,8 +19,8 @@ Breview is a production web, iOS, and Android app for creating beer tasting game
 - Authentication: add optional email-code login using Cloudflare Email Service, D1-backed users, hashed login challenges, sessions, and account-linked game history.
 - Privacy and account deletion: add in-app and web deletion paths, privacy policy, support contact, store data declarations, and reviewer-ready demo access.
 - Mobile app: build a native Expo app with create/join/rate/results/edit/share/account flows, deep links, app links, image upload, and history sync.
-- AI and image handling: use Workers AI via the `AI` binding for beer-name recognition, keep R2 for uploads, remove paid web image search from the production UX, and keep provider failures graceful.
-- Untappd: do not use scraping or private APIs. Keep only user-visible outbound search links unless legal/product review decides to remove them; avoid implying any affiliation or endorsement.
+- AI and image handling: use Workers AI via the `AI` binding for beer-name recognition, keep R2 for uploads, remove paid web image search from the production app and API surface, and keep provider failures graceful.
+- Untappd: do not use scraping, private APIs, or the Untappd API. Keep only user-visible outbound search links unless legal/product review decides to remove them; avoid implying any affiliation or endorsement.
 - Store release: configure EAS builds, TestFlight, Google Play testing tracks, store metadata, screenshots, review notes, versioning, and production rollout.
 - Observability: add structured API errors, deployment checks, email/auth event logging, and lightweight release verification.
 
@@ -36,5 +36,6 @@ Acceptance criteria:
 - `breview.ing` is documented as the production domain.
 - Cloudflare D1/R2/Worker resource names are left unchanged.
 - Kilo Gateway is replaced by Cloudflare Workers AI for beer-name recognition.
-- Paid Brave image search is removed from the main product flow.
+- Paid Brave image search is removed from the web UI, Worker route, shared API contracts, README, and runtime env.
+- Untappd API resolution is removed; stored beer metadata is kept to outbound search links only.
 - Tests, typecheck, and build pass.

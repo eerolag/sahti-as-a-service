@@ -1,32 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildUntappdBeerUrl,
+  createUntappdSearchUrl,
   createSearchLinkUntappdMeta,
-  isUntappdApiRecordExpired,
-  sanitizeUntappdUrl,
 } from "../../src/shared/untappd";
 
 describe("shared/untappd", () => {
-  it("sanitizes untappd url", () => {
-    expect(sanitizeUntappdUrl("http://untappd.com/b/beer/1")).toBe("https://untappd.com/b/beer/1");
-    expect(sanitizeUntappdUrl("https://example.com")).toBeNull();
-  });
-
   it("builds fallback untappd metadata", () => {
     const meta = createSearchLinkUntappdMeta("Sahti Lager");
-    expect(meta.untappd_url).toContain("untappd.com/search");
+    expect(meta.untappd_url).toBe("https://untappd.com/search?q=Sahti%20Lager");
     expect(meta.untappd_source).toBe("search-link");
+    expect(meta.untappd_confidence).toBeNull();
   });
 
-  it("builds beer url from api object", () => {
-    const url = buildUntappdBeerUrl({ beer: { beer_slug: "sahti", bid: 123 } });
-    expect(url).toBe("https://untappd.com/b/sahti/123");
-  });
-
-  it("checks api cache expiration", () => {
-    const now = new Date().toISOString();
-    const old = new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString();
-    expect(isUntappdApiRecordExpired(now)).toBe(false);
-    expect(isUntappdApiRecordExpired(old)).toBe(true);
+  it("encodes the outbound search link query", () => {
+    expect(createUntappdSearchUrl("Karhu III & IPA")).toBe(
+      "https://untappd.com/search?q=Karhu%20III%20%26%20IPA",
+    );
   });
 });

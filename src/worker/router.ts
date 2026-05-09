@@ -3,7 +3,6 @@ import { json } from "./http";
 import { handleCreateGame, handleGetGame, handleUpdateGame } from "./handlers/games";
 import { handleGetRatings, handleSaveRatings } from "./handlers/ratings";
 import { handleGetResults } from "./handlers/results";
-import { handleImageSearch } from "./handlers/image-search";
 import { handleGetQr } from "./handlers/qr";
 import { handleGetImage, handleUploadImage } from "./handlers/images";
 import { handleIdentifyBeerNameFromImage } from "./handlers/image-identify";
@@ -44,13 +43,6 @@ export async function routeApi(request: Request, env: Env): Promise<Response | n
   if (resultsMatch) {
     if (request.method === "GET") {
       return handleGetResults(Number(resultsMatch[1]), env);
-    }
-    return json({ error: "Not found" }, 404);
-  }
-
-  if (pathname === "/api/image-search") {
-    if (request.method === "GET") {
-      return handleImageSearch(url, env);
     }
     return json({ error: "Not found" }, 404);
   }
