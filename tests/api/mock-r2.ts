@@ -1,4 +1,4 @@
-import type { R2Bucket, R2Object, R2PutOptions } from "../../src/worker/env";
+import type { R2Bucket, R2Object, R2PutOptions } from "../../apps/api/src/env";
 
 type StoredObject = {
   key: string;

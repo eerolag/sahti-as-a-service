@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createUntappdSearchUrl,
   createSearchLinkUntappdMeta,
-} from "../../src/shared/untappd";
+} from "@breview/shared/untappd";
 
 describe("shared/untappd", () => {
   it("builds fallback untappd metadata", () => {

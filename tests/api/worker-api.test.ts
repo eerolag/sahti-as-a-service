@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MAX_IMAGE_UPLOAD_BYTES } from "../../src/shared/image-upload";
-import worker from "../../src/worker/index";
-import type { Env } from "../../src/worker/env";
+import { MAX_IMAGE_UPLOAD_BYTES } from "@breview/shared/image-upload";
+import worker from "../../apps/api/src/index";
+import type { Env } from "../../apps/api/src/env";
 import { MockD1Database } from "./mock-d1";
 import { MockR2Bucket } from "./mock-r2";
 

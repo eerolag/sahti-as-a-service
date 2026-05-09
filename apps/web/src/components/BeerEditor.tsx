@@ -1,0 +1,299 @@
+import { useState } from "react";
+import { createUntappdSearchUrl } from "@breview/shared/untappd";
+import { apiClient } from "../api/client";
+import { useBeerReorder } from "../hooks/useBeerReorder";
+import { useHaptics } from "../hooks/useHaptics";
+import { prepareImageForBeerNameRecognition } from "../utils/beer-name-image";
+
+export interface BeerEditorRow {
+  id?: number;
+  name: string;
+  imageUrl: string;
+  file: File | null;
+  untappdUrl?: string;
+}
+
+interface BeerEditorProps {
+  title: string;
+  gameName: string;
+  onGameNameChange: (value: string) => void;
+  beers: BeerEditorRow[];
+  onBeersChange: (beers: BeerEditorRow[]) => void;
+  onSubmit: () => Promise<void> | void;
+  submitting: boolean;
+  submitLabel: string;
+  addLabel: string;
+  onCancel?: () => void;
+  cancelLabel?: string;
+  surface?: "card" | "strip";
+}
+
+type IdentifyState = "idle" | "loading" | "success" | "error";
+
+interface IdentifyStatus {
+  state: IdentifyState;
+  message: string;
+}
+
+export function BeerEditor({
+  title,
+  gameName,
+  onGameNameChange,
+  beers,
+  onBeersChange,
+  onSubmit,
+  submitting,
+  submitLabel,
+  addLabel,
+  onCancel,
+  cancelLabel = "Peruuta",
+  surface = "card",
+}: BeerEditorProps) {
+  const haptics = useHaptics();
+  const [identifyStatusByRow, setIdentifyStatusByRow] = useState<Record<string, IdentifyStatus>>({});
+  const { dragIndex, overIndex, handlers } = useBeerReorder(beers, onBeersChange);
+
+  function setBeerField(index: number, patch: Partial<BeerEditorRow>) {
+    onBeersChange(
+      beers.map((beer, idx) => {
+        if (idx !== index) return beer;
+        return { ...beer, ...patch };
+      }),
+    );
+  }
+
+  function removeBeer(index: number) {
+    if (beers.length <= 1) return;
+    haptics.selection();
+    onBeersChange(beers.filter((_, idx) => idx !== index));
+  }
+
+  function addBeer() {
+    haptics.light();
+    onBeersChange([...beers, { name: "", imageUrl: "", file: null }]);
+  }
+
+  function moveBeer(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+    if (fromIndex < 0 || fromIndex >= beers.length) return;
+    if (toIndex < 0 || toIndex >= beers.length) return;
+
+    const next = [...beers];
+    const [moved] = next.splice(fromIndex, 1);
+    if (!moved) return;
+    next.splice(toIndex, 0, moved);
+    haptics.selection();
+    onBeersChange(next);
+  }
+
+  function rowKey(beer: BeerEditorRow, idx: number): string {
+    return `${beer.id ?? "new"}-${idx}`;
+  }
+
+  function setRowIdentifyStatus(key: string, status: IdentifyStatus) {
+    setIdentifyStatusByRow((prev) => ({ ...prev, [key]: status }));
+  }
+
+  const surfaceClass = surface === "strip" ? "surface-strip" : "card";
+
+  return (
+    <>
+      <div className={surfaceClass}>
+        <div className="flex flex-col gap-2">
+          <div className="font-semibold">{title}</div>
+          <div className="muted">Pelin nimi ja oluen nimi ovat pakollisia.</div>
+          <div className="muted hidden md:block">Raahaa oluita kahvasta (⋮⋮) vaihtaaksesi järjestystä.</div>
+          <div className="muted md:hidden">Vaihda oluen järjestys Rivi-valikosta.</div>
+          <label className="text-sm text-muted">Pelin nimi</label>
+          <input
+            className="input"
+            value={gameName}
+            onChange={(event) => onGameNameChange(event.target.value)}
+            placeholder="esim. Breview-ilta 2026"
+          />
+        </div>
+      </div>
+
+      <div className="beer-list">
+        {beers.map((beer, idx) => {
+          const untappdUrl = beer.untappdUrl || createUntappdSearchUrl(beer.name);
+          const key = rowKey(beer, idx);
+          const identifyStatus = identifyStatusByRow[key] ?? { state: "idle", message: "" };
+          return (
+            <div
+              key={key}
+              className={[
+                "card drag-row",
+                dragIndex === idx ? "dragging" : "",
+                overIndex === idx ? "drag-over" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              draggable={beers.length > 1}
+              onDragStart={() => handlers.onDragStart(idx)}
+              onDragOver={(event) => {
+                event.preventDefault();
+                handlers.onDragOver(idx);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                handlers.onDrop(idx);
+              }}
+              onDragEnd={handlers.onDragEnd}
+            >
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn hidden min-h-9 w-9 items-center justify-center p-0 text-base md:flex"
+                    disabled={beers.length < 2}
+                    title="Raahaa tästä järjestyksen vaihtamiseksi"
+                  >
+                    ⋮⋮
+                  </button>
+                  <div className="grow">
+                    <div className="font-semibold">{beer.name.trim() || "Nimeä olut"}</div>
+                    <div className="text-xs text-muted hidden md:block">Rivi {idx + 1}</div>
+                    <div className="mt-1 inline-flex md:hidden">
+                      <div className="relative inline-block">
+                        <select
+                          className="min-h-8 w-auto cursor-pointer appearance-none rounded-lg border border-amber-500/70 bg-[#1b1d22] py-1 pl-2 pr-7 text-xs font-semibold text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/60 disabled:cursor-not-allowed disabled:opacity-50"
+                          value={idx}
+                          disabled={beers.length < 2}
+                          onChange={(event) => {
+                            const nextIndex = Number(event.target.value);
+                            if (Number.isNaN(nextIndex)) return;
+                            moveBeer(idx, nextIndex);
+                          }}
+                          aria-label={`Vaihda rivin ${idx + 1} järjestystä`}
+                        >
+                          {beers.map((_, rowIdx) => (
+                            <option key={rowIdx} value={rowIdx}>
+                              Rivi {rowIdx + 1}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-[58%] text-xl leading-none text-amber-300">
+                          ▾
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    disabled={beers.length === 1}
+                    onClick={() => removeBeer(idx)}
+                  >
+                    Poista
+                  </button>
+                </div>
+
+                <label className="text-sm text-muted">Nimi</label>
+                <input
+                  className="input"
+                  value={beer.name}
+                  onChange={(event) => setBeerField(idx, { name: event.target.value })}
+                  placeholder="esim. Mallaski IPA"
+                />
+
+                <label className="text-sm text-muted">Kuva URL (optional)</label>
+                <input
+                  className="input"
+                  value={beer.imageUrl}
+                  onChange={(event) => setBeerField(idx, { imageUrl: event.target.value })}
+                  placeholder="https://..."
+                />
+
+                <label className="text-sm text-muted">Tai kuva tiedostona (optional)</label>
+                <input
+                  className="input"
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => {
+                    setBeerField(idx, { file: event.target.files?.[0] ?? null });
+                    setRowIdentifyStatus(key, { state: "idle", message: "" });
+                  }}
+                />
+                <div className="text-xs text-muted">
+                  Tiedosto ladataan palvelimelle (max 10 MB, suositus enintään 6000x6000 px).
+                </div>
+
+                {beer.file ? (
+                  <div className="flex flex-col gap-2">
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={identifyStatus.state === "loading" || submitting}
+                      onClick={async () => {
+                        if (!beer.file) return;
+
+                        haptics.light();
+                        setRowIdentifyStatus(key, { state: "loading", message: "Tunnistetaan nimea kuvasta..." });
+
+                        try {
+                          const preparedFile = await prepareImageForBeerNameRecognition(beer.file);
+                          const identified = await apiClient.identifyBeerName(preparedFile);
+                          setBeerField(idx, { name: identified.beerName });
+                          setRowIdentifyStatus(key, {
+                            state: "success",
+                            message: `Tunnistettu nimi: ${identified.beerName}`,
+                          });
+                          haptics.success();
+                        } catch (error) {
+                          setRowIdentifyStatus(key, {
+                            state: "error",
+                            message: String((error as Error)?.message ?? "Nimen tunnistus epaonnistui."),
+                          });
+                          haptics.error();
+                        }
+                      }}
+                    >
+                      {identifyStatus.state === "loading" ? "Tunnistetaan..." : "Tunnista nimi kuvasta"}
+                    </button>
+                    {identifyStatus.message ? (
+                      <div className={identifyStatus.state === "error" ? "text-sm text-red-300" : "text-sm text-muted"}>
+                        {identifyStatus.message}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div className="text-sm text-muted">
+                  Untappd:{" "}
+                  <a className="text-amber-300 underline" href={untappdUrl} target="_blank" rel="noreferrer">
+                    Untappd
+                  </a>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className={surfaceClass}>
+        <div className="flex flex-col gap-2">
+          <button className="btn" type="button" onClick={addBeer}>
+            {addLabel}
+          </button>
+          <button className="btn btn-primary" type="button" disabled={submitting} onClick={() => void onSubmit()}>
+            {submitting ? "Tallennetaan..." : submitLabel}
+          </button>
+          {onCancel ? (
+            <button
+              className="btn"
+              type="button"
+              disabled={submitting}
+              onClick={() => {
+                haptics.selection();
+                onCancel();
+              }}
+            >
+              {cancelLabel}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </>
+  );
+}

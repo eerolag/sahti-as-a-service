@@ -4,10 +4,12 @@ Breview on tuotantoon rakennettava web-, iOS- ja Android-sovellus oluiden arvioi
 
 Tuotantodomain: `https://breview.ing`
 
-Uusi arkkitehtuuri:
-- `src/worker`: API-reitit, handlerit, palvelut ja repositoryt
-- `src/shared`: framework-agnostinen domain-logiikka ja API-tyypit
-- `src/web`: React + Tailwind -käyttöliittymä
+Monorepo-arkkitehtuuri:
+- `apps/api`: Cloudflare Worker, API-reitit, D1-migraatiot ja binding-konfiguraatio
+- `apps/web`: React + Vite + Tailwind -web-käyttöliittymä
+- `apps/mobile`: Expo Router + AniUI + NativeWind -mobiilisovellus
+- `packages/shared`: framework-agnostinen domain-logiikka ja API-tyypit
+- `packages/api-client`: webin ja mobiilin jaettu typed fetch-client
 
 ## Agent workflow
 
@@ -27,25 +29,18 @@ Agentin pitää päivittää plans-dokumentit samassa muutoksessa, jos työn aik
 
 ```txt
 .
-├── src
-│   ├── worker
-│   │   ├── index.ts
-│   │   ├── router.ts
-│   │   ├── env.ts
-│   │   ├── http.ts
-│   │   ├── handlers/
-│   │   ├── repositories/
-│   │   └── services/
-│   ├── shared/
+├── apps
+│   ├── api/
+│   ├── mobile/
 │   └── web/
+├── packages
+│   ├── api-client/
+│   └── shared/
 ├── tests
 │   ├── api/
+│   ├── web/
 │   └── shared/
 ├── plans/
-├── migrations/
-├── wrangler.jsonc
-├── vite.config.ts
-├── tailwind.config.ts
 ├── vitest.config.ts
 └── tsconfig.json
 ```
@@ -58,10 +53,11 @@ Agentin pitää päivittää plans-dokumentit samassa muutoksessa, jos työn aik
 - Cloudflare Workers AI
 - Cloudflare Email Service
 - TypeScript
+- npm workspaces
 - React
 - Tailwind CSS
 - shadcn/ui (webin tuotantosuunta)
-- Expo + AniUI (mobiilin tuotantosuunta)
+- Expo Router + AniUI + NativeWind (mobiilin tuotantosuunta)
 - Vite
 - Vitest
 - qrcode
@@ -90,7 +86,7 @@ Luo bucket (vähintään kerran per ympäristö):
 npx wrangler r2 bucket create sahti-as-a-service-images
 ```
 
-`wrangler.jsonc` käyttää bindingia:
+`apps/api/wrangler.jsonc` käyttää bindingia:
 - `IMAGES_BUCKET` -> `sahti-as-a-service-images`
 
 ## Kehitys
@@ -104,7 +100,7 @@ npm install
 2. Aja D1-migraatiot paikalliseen kantaan:
 
 ```bash
-npx wrangler d1 migrations apply sahti-as-a-service-db --local
+npm --workspace @breview/api run migrate:local
 ```
 
 3. Käynnistä kehitys:
@@ -114,7 +110,7 @@ npm run dev
 ```
 
 Tämä käynnistää:
-- `npm run dev:web` -> build-watch `dist/web`-kansioon
+- `npm run dev:web` -> build-watch `apps/web/dist`-kansioon
 - `npm run dev:worker` -> `wrangler dev`
 
 4. Avaa selaimessa:
@@ -122,6 +118,51 @@ Tämä käynnistää:
 ```txt
 http://127.0.0.1:8787
 ```
+
+## Mobiili
+
+Breviewin mobiili on tällä hetkellä tarkoituksella Expo SDK 54 -projektina, jotta se toimii saman App Store Expo Go -version kanssa kuin muut aktiiviset SDK 54 -projektit. Päivitä SDK 55:een vasta, kun myös rinnakkainen projekti siirtyy SDK 55:een tai Breviewille tehdään oma development build/TestFlight-polku.
+
+```bash
+npm run dev:mobile
+```
+
+Metro/Expo välimuistin tyhjennyksellä:
+
+```bash
+npm --workspace @breview/mobile run start -- --clear
+```
+
+Expo dev serverissä:
+- `i` avaa iOS-simulaattorin
+- `a` avaa Android-emulaattorin
+- `w` avaa web-preview'n
+- QR-koodin voi skannata Expo Golla
+
+Repo pinnaa `lightningcss`-paketin versioon `1.30.1`, koska NativeWindin `react-native-css`-Metro-muunnos voi hajota uudemmalla versiolla iOS-bundlauksessa. Jos Metro antaa `failed to deserialize; expected an object-like struct named Specifier` -virheen, aja rootissa `npm install` ja käynnistä Metro uudelleen `--clear`-lipulla.
+
+Suoraan simulaattoriin tai emulaattoriin:
+
+```bash
+npm --workspace @breview/mobile run ios -- --clear
+npm --workspace @breview/mobile run android -- --clear
+```
+
+Expo käyttää oletuksena `https://breview.ing` API-basea. Paikallisen Workerin voi antaa muuttujalla `EXPO_PUBLIC_API_BASE_URL`.
+
+iOS-simulaattori tai Expo web:
+
+```bash
+EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8787 npm --workspace @breview/mobile run start -- --clear
+```
+
+Android-emulaattori:
+
+```bash
+EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:8787 npm --workspace @breview/mobile run start -- --clear
+```
+
+Fyysisellä puhelimella käytä kehityskoneen LAN-IP:tä, esimerkiksi `http://192.168.1.23:8787`.
 
 ## Build, test ja tyypitys
 
@@ -137,7 +178,7 @@ npm run deploy:worker
 1. Aja migraatiot etäkantaan:
 
 ```bash
-npx wrangler d1 migrations apply sahti-as-a-service-db --remote
+npm --workspace @breview/api run migrate:remote
 ```
 
 2. Rakenna web-assetit:

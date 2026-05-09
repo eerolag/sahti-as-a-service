@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePath } from "../../src/web/App";
+import { parsePath } from "../../apps/web/src/App";
 
 describe("web route parser", () => {
   it("parses game rate route", () => {

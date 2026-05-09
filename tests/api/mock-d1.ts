@@ -1,4 +1,4 @@
-import type { D1Database, D1PreparedStatement, D1QueryResult, D1RunResult } from "../../src/worker/env";
+import type { D1Database, D1PreparedStatement, D1QueryResult, D1RunResult } from "../../apps/api/src/env";
 
 type AnyRow = Record<string, any>;
 

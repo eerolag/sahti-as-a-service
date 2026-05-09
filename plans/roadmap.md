@@ -3,10 +3,12 @@
 ## Now
 
 - Maintain this `plans/` directory as the source of truth for production direction.
-- Keep `README.md` aligned with the agent workflow and current architecture.
-- Complete the Breview naming and canonical-domain baseline across user-visible web copy and documentation.
+- Keep `README.md` aligned with the agent workflow and current monorepo architecture.
+- Keep the npm workspaces layout healthy across `apps/api`, `apps/web`, `apps/mobile`, `packages/shared`, and `packages/api-client`.
 - Keep current Cloudflare resource names stable while the product brand changes.
 - Keep paid web image search out of the production API surface; beer-name recognition uses Workers AI and Untappd remains outbound search-link only.
+- Keep the mobile app on Expo SDK 54 during the current Expo Go transition so local testing does not fight the other active SDK 54 project.
+- Grow the Expo shell into the real create/join/history flows using AniUI components and the shared API client.
 
 ## Next
 
@@ -18,11 +20,11 @@
 
 ## Then
 
-- Create the Expo mobile app shell with Expo Router, TypeScript, AniUI, NativeWind, and shared API contracts.
-- Implement native screens for home/history, create game, join game, rating, results, game editing, sharing, and account settings.
+- Implement native screens for history, create game, join game, rating, results, game editing, sharing, and account settings.
 - Add deep links and app links for `breview://` and `https://breview.ing`.
 - Add mobile image picking/upload, camera/photo permission copy, haptics, loading states, and offline-friendly retry states.
 - In mobile beer creation, ask after camera/photo capture whether the user wants AI recognition or manual name entry.
+- Upgrade Breview and the other active mobile project to Expo SDK 55 together, or move Breview to an SDK 55 development build when Apple Developer/TestFlight setup is ready.
 
 ## Release
 

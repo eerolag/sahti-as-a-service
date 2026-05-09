@@ -12,7 +12,12 @@
     "allowJs": false,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@breview/api-client": ["packages/api-client/src/index.ts"],
+      "@breview/shared": ["packages/shared/src/index.ts"],
+      "@breview/shared/*": ["packages/shared/src/*"]
+    }
   },
-  "include": ["src", "tests", "vite.config.ts", "vitest.config.ts", "tailwind.config.ts"]
+  "include": ["tests", "vitest.config.ts"]
 }

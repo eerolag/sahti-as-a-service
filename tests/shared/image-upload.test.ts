@@ -4,7 +4,7 @@ import {
   createManagedImageKey,
   extractImageKeyFromUrl,
   isManagedImageKey,
-} from "../../src/shared/image-upload";
+} from "@breview/shared/image-upload";
 
 describe("shared/image-upload", () => {
   it("creates managed key for image mime types", () => {

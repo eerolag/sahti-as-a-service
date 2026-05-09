@@ -1,0 +1,29 @@
+{
+  "componentsDir": "src/components/ui",
+  "utilPath": "src/lib/utils.ts",
+  "theme": "default",
+  "style": "nativewind",
+  "tsx": true,
+  "installed": {
+    "input": {
+      "version": "0.2.27",
+      "hash": "a6abd614",
+      "addedAt": "2026-05-09T13:00:56.786Z"
+    },
+    "text": {
+      "version": "0.2.27",
+      "hash": "e1729b9b",
+      "addedAt": "2026-05-09T13:00:56.787Z"
+    },
+    "card": {
+      "version": "0.2.27",
+      "hash": "01af7b1d",
+      "addedAt": "2026-05-09T13:00:56.787Z"
+    },
+    "button": {
+      "version": "0.2.27",
+      "hash": "a949db07",
+      "addedAt": "2026-05-09T13:00:56.787Z"
+    }
+  }
+}

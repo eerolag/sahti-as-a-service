@@ -7,8 +7,8 @@ import {
   normalizeImageUrl,
   normalizeNickname,
   normalizeRatingComment,
-} from "../../src/shared/validation";
-import { normalizeBeersPayload } from "../../src/shared/game-domain";
+} from "@breview/shared/validation";
+import { normalizeBeersPayload } from "@breview/shared/game-domain";
 
 describe("shared/validation", () => {
   it("validates game name", () => {

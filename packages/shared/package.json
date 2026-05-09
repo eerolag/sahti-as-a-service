@@ -1,0 +1,17 @@
+{
+  "name": "@breview/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./api-contracts": "./src/api-contracts.ts",
+    "./game-domain": "./src/game-domain.ts",
+    "./image-upload": "./src/image-upload.ts",
+    "./scoring": "./src/scoring.ts",
+    "./untappd": "./src/untappd.ts",
+    "./validation": "./src/validation.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}

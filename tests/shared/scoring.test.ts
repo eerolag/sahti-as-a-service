@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeScore } from "../../src/shared/scoring";
+import { normalizeScore } from "@breview/shared/scoring";
 
 describe("shared/scoring", () => {
   it("normalizes and clamps score", () => {
