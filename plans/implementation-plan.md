@@ -27,7 +27,7 @@ Breview is a production web, iOS, and Android app for creating beer tasting game
 
 ## Current Slice
 
-This slice converts the repo to a production monorepo, keeps the existing Cloudflare Worker and web app running from workspace apps, and scaffolds the first Expo mobile shell without changing Cloudflare infrastructure resource names.
+This slice converts the repo to a production monorepo, keeps the existing Cloudflare Worker and web app running from workspace apps, and connects the first Expo mobile shell to the production Cloudflare API without changing Cloudflare infrastructure resource names.
 
 Acceptance criteria:
 
@@ -37,6 +37,8 @@ Acceptance criteria:
 - Shared contracts and domain logic run from `packages/shared`.
 - Web and mobile can use the shared typed client from `packages/api-client`.
 - Expo SDK 54 mobile shell exists in `apps/mobile` with Expo Router, AniUI, NativeWind, `breview://`, and `ing.breview.app`.
+- Mobile create, join, recent-games, and game detail screens call the shared API client and default to `https://breview.ing`.
+- Mobile uses `breview-logo.png` for in-app brand presentation and app icon configuration.
 - Cloudflare D1/R2/Worker resource names are left unchanged.
 - Kilo Gateway is replaced by Cloudflare Workers AI for beer-name recognition.
 - Paid Brave image search is removed from the web UI, Worker route, shared API contracts, README, and runtime env.

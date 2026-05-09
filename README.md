@@ -148,7 +148,7 @@ npm --workspace @breview/mobile run ios -- --clear
 npm --workspace @breview/mobile run android -- --clear
 ```
 
-Expo käyttää oletuksena `https://breview.ing` API-basea. Paikallisen Workerin voi antaa muuttujalla `EXPO_PUBLIC_API_BASE_URL`.
+Expo käyttää oletuksena `https://breview.ing` API-basea, eli simulaattori ja Expo Go osuvat oikeaan Cloudflare Workeriin ja sen D1/R2-resursseihin. Paikallisen Workerin voi antaa muuttujalla `EXPO_PUBLIC_API_BASE_URL`.
 
 iOS-simulaattori tai Expo web:
 
