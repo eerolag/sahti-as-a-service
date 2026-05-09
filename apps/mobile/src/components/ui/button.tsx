@@ -13,6 +13,7 @@ const buttonVariants = cva(
         outline: "border border-input bg-transparent",
         ghost: "bg-transparent",
         destructive: "bg-destructive",
+        success: "bg-emerald-700",
         link: "bg-transparent",
       },
       size: {
@@ -34,6 +35,7 @@ const buttonTextVariants = cva("text-center font-medium", {
       outline: "text-foreground",
       ghost: "text-foreground",
       destructive: "text-destructive-foreground",
+      success: "text-white",
       link: "text-primary underline",
     },
     size: { sm: "text-sm", md: "text-base", lg: "text-lg", icon: "text-sm" },
@@ -54,7 +56,7 @@ export interface ButtonProps
 
 export function Button({ variant, size, className, textClassName, children, icon, iconAfter, loading, disabled, ...props }: ButtonProps) {
   const isDisabled = disabled || loading;
-  const light = variant === "default" || variant === "destructive";
+  const light = variant === "default" || variant === "destructive" || variant === "success";
 
   return (
     <Pressable

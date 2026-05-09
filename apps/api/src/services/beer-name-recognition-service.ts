@@ -5,6 +5,8 @@ export const WORKERS_AI_BEER_RECOGNITION_MODEL = "@cf/google/gemma-4-26b-a4b-it"
 const WORKERS_AI_BEER_RECOGNITION_FALLBACK_MODEL = "@cf/moonshotai/kimi-k2.6";
 const WORKERS_AI_REQUEST_TIMEOUT_MS = 45_000;
 
+const BEER_NAME_JSON_KEYS = ["beerName", "beer_name", "name", "productName", "product_name"] as const;
+
 function bytesToBase64(bytes: Uint8Array): string {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   let out = "";
@@ -57,6 +59,48 @@ function sanitizeCandidate(value: string): string {
     .trim();
 }
 
+function extractCandidateFromObject(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  const record = value as Record<string, unknown>;
+  for (const key of BEER_NAME_JSON_KEYS) {
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim()) {
+      return sanitizeCandidate(candidate);
+    }
+  }
+
+  const result = record.result;
+  if (result && typeof result === "object" && !Array.isArray(result)) {
+    return extractCandidateFromObject(result);
+  }
+
+  return null;
+}
+
+function extractCandidateFromJson(raw: string): string | null {
+  const value = String(raw ?? "").trim();
+  if (!value) return null;
+
+  const candidates = [value];
+  const objectMatch = value.match(/\{[\s\S]*\}/);
+  if (objectMatch?.[0] && objectMatch[0] !== value) {
+    candidates.push(objectMatch[0]);
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      const name = extractCandidateFromObject(parsed);
+      if (name) return name;
+    } catch {
+      // Fall back to the line-based parser below.
+    }
+  }
+
+  return null;
+}
+
 function isStrictUnknown(value: string): boolean {
   const normalized = sanitizeCandidate(value).toLowerCase();
   return (
@@ -87,6 +131,34 @@ function isLikelyVisionUnsupportedResponse(value: string): boolean {
   );
 }
 
+function isInvalidCandidateShape(value: string): boolean {
+  const normalized = sanitizeCandidate(value);
+  const lower = normalized.toLowerCase();
+  if (!normalized) return true;
+  if (!/[a-zåäö0-9]/i.test(normalized)) return true;
+  if (/[{}[\]`*]/.test(normalized)) return true;
+  if (/:\s*$/.test(normalized) || /\*\*\s*$/.test(normalized)) return true;
+  if (/^(scan|analy[sz]e|read|look|inspect|identify|extract|ocr|text visible|visible text|the text|text is)\b/i.test(lower)) {
+    return true;
+  }
+  if (/^(the image|image shows|i can see|there is|there are|the user|user wants|i need|we need)\b/i.test(lower)) return true;
+  if (/\b(text is|text appears|in finnish|in english|screenshot|form|button|field|label)\b/i.test(lower)) return true;
+  if (/\b(pelin nimi|oluen nimi|pakollisia|kuva tiedostona|choose file|tunnista nimi|tallenna ja luo peli)\b/i.test(lower)) {
+    return true;
+  }
+  return false;
+}
+
+function isPlausibleBeerNameCandidate(value: string): boolean {
+  const candidate = sanitizeCandidate(value);
+  if (isInvalidCandidateShape(candidate)) return false;
+  if (isStrictUnknown(candidate)) return false;
+  if (isClearlyUncertainSentence(candidate)) return false;
+  if (candidate.split(/\s+/).filter(Boolean).length > 8) return false;
+  if (/^https?:\/\//i.test(candidate)) return false;
+  return true;
+}
+
 function extractBestGuessFromLine(value: string): string | null {
   const line = sanitizeCandidate(value);
   if (!line) return null;
@@ -101,16 +173,30 @@ function extractBestGuessFromLine(value: string): string | null {
     return sanitizeCandidate(maybeGuess[1]);
   }
 
+  const embeddedName = line.match(
+    /\b(?:beer(?:\s+name)?|brand|product|oluen\s+nimi|nimi)\b[^a-zåäö0-9]{0,12}(?:is|on|appears\s+to\s+be|looks\s+like|:)\s*['"]?([^'".,;:()]+)['"]?/i,
+  );
+  if (embeddedName?.[1]) {
+    return sanitizeCandidate(embeddedName[1]);
+  }
+
   return null;
 }
 
 function extractCandidateBeerName(raw: string): string {
+  const structured = extractCandidateFromJson(raw);
+  if (structured) return structured;
+
   const normalized = String(raw ?? "")
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
     .replace(/\r/g, "\n")
     .replace(/```/g, "")
     .trim();
+
+  if (/^\{[\s\S]*\}$/.test(normalized)) {
+    return "";
+  }
 
   const lines = normalized
     .split("\n")
@@ -122,17 +208,13 @@ function extractCandidateBeerName(raw: string): string {
     const candidate = guessed ?? line;
 
     if (!candidate) continue;
-    if (isStrictUnknown(candidate)) continue;
-    if (isClearlyUncertainSentence(candidate)) continue;
-
-    const words = candidate.split(/\s+/).filter(Boolean).length;
-    if (words > 8) continue;
-    if (/^https?:\/\//i.test(candidate)) continue;
+    if (!isPlausibleBeerNameCandidate(candidate)) continue;
 
     return candidate;
   }
 
-  return cleanupCandidateName(normalized);
+  const fallback = cleanupCandidateName(normalized);
+  return isPlausibleBeerNameCandidate(fallback) ? fallback : "";
 }
 
 function isUncertainName(candidate: string): boolean {
@@ -158,6 +240,11 @@ function ensureValidImage(file: File): void {
 }
 
 function parseModelContent(payload: Record<string, any>): string {
+  const directName = extractCandidateFromObject(payload);
+  if (directName) {
+    return directName;
+  }
+
   const directResponse = payload?.response;
   if (typeof directResponse === "string" && directResponse.trim()) {
     return directResponse.trim();
@@ -168,8 +255,9 @@ function parseModelContent(payload: Record<string, any>): string {
     return resultResponse.trim();
   }
 
-  const messageContent = payload?.choices?.[0]?.message?.content;
-  if (typeof messageContent === "string") return messageContent;
+  const message = payload?.choices?.[0]?.message;
+  const messageContent = message?.content;
+  if (typeof messageContent === "string" && messageContent.trim()) return messageContent;
 
   if (Array.isArray(messageContent)) {
     const joined = messageContent
@@ -190,9 +278,35 @@ function parseModelContent(payload: Record<string, any>): string {
     return choiceText.trim();
   }
 
+  const messageReasoning = message?.reasoning ?? message?.reasoning_content;
+  if (typeof messageReasoning === "string" && messageReasoning.trim()) {
+    return messageReasoning.trim();
+  }
+
   const outputText = payload?.output_text;
   if (typeof outputText === "string" && outputText.trim()) {
     return outputText.trim();
+  }
+
+  if (Array.isArray(payload?.output)) {
+    const joined = payload.output
+      .map((part: any) => {
+        if (typeof part === "string") return part;
+        if (typeof part?.content === "string") return part.content;
+        if (Array.isArray(part?.content)) {
+          return part.content
+            .map((item: any) => {
+              if (typeof item === "string") return item;
+              if (typeof item?.text === "string") return item.text;
+              return "";
+            })
+            .join("\n");
+        }
+        return "";
+      })
+      .join("\n")
+      .trim();
+    if (joined) return joined;
   }
 
   return "";
@@ -220,6 +334,12 @@ function createUncertainResultError(rawContent: string, model: string): Error {
   const detail = preview ? ` (malli ${model} vastasi: ${preview})` : ` (malli: ${model})`;
   const err = new Error(`Nimea ei saatu tunnistettua kuvasta luotettavasti${detail}`);
   (err as any).statusCode = 422;
+  return err;
+}
+
+function createEmptyModelResultError(model: string): Error {
+  const err = new Error(`Nimen tunnistus epaonnistui: Workers AI ei palauttanut tekstivastausta (malli: ${model})`);
+  (err as any).statusCode = 502;
   return err;
 }
 
@@ -274,34 +394,48 @@ function normalizeWorkersAiError(error: unknown): Error {
 }
 
 async function runModelAttempt(env: Env, model: string, imageDataUrl: string): Promise<ModelAttempt> {
-  const body = {
+  const prompt = [
+    "Read the beer can, bottle, label, tap list, or package in the image.",
+    "Return JSON only in this exact shape: {\"beerName\":\"...\"}.",
+    "Use the clearest visible beer brand or product name.",
+    "Ignore app UI, browser UI, form labels, buttons, filenames, and screenshot instructions.",
+    "If the image is only an app/web form screenshot and not beer packaging or a tap list, return {\"beerName\":null}.",
+    "If the exact beer style/version is unclear, the visible brand name alone is acceptable.",
+    "If there are no usable beer-name clues, return {\"beerName\":null}.",
+    "Do not include explanations.",
+  ].join(" ");
+
+  const body: Record<string, unknown> = {
     temperature: 0,
-    max_tokens: 64,
     max_completion_tokens: 64,
+    response_format: { type: "json_object" },
     messages: [
+      {
+        role: "system",
+        content: "You extract beer names from images for a beer tasting app. Answer only with the requested JSON.",
+      },
       {
         role: "user",
         content: [
           {
             type: "text",
-            text: [
-              "Identify the beer name in the image.",
-              "Return exactly one line containing only the beer name.",
-              "If exact product is unclear, return your single best guess.",
-              "Reply UNKNOWN only if there are absolutely no usable clues in the image.",
-              "Do not include any explanation.",
-            ].join(" "),
+            text: prompt,
           },
           {
             type: "image_url",
             image_url: {
               url: imageDataUrl,
+              detail: "high",
             },
           },
         ],
       },
     ],
   };
+
+  if (model.includes("@cf/moonshotai/kimi-")) {
+    body.chat_template_kwargs = { thinking: false };
+  }
 
   let payload: Record<string, any> | null = null;
 
@@ -314,6 +448,10 @@ async function runModelAttempt(env: Env, model: string, imageDataUrl: string): P
 
   const rawContent = parseModelContent(payload ?? {});
   const beerName = extractCandidateBeerName(rawContent);
+
+  if (!rawContent.trim()) {
+    return { model, rawContent, beerName: null };
+  }
 
   if (!beerName || beerName.length < 2 || beerName.length > 120 || isUncertainName(beerName)) {
     return { model, rawContent, beerName: null };
@@ -362,6 +500,10 @@ export async function identifyBeerNameFromImage(env: Env, file: File): Promise<I
       };
     }
 
+    if (!fallbackAttempt.rawContent.trim()) {
+      throw createEmptyModelResultError(fallbackAttempt.model);
+    }
+
     throw createUncertainResultError(fallbackAttempt.rawContent, fallbackAttempt.model);
   }
 
@@ -383,11 +525,19 @@ export async function identifyBeerNameFromImage(env: Env, file: File): Promise<I
       };
     }
 
+    if (!fallbackAttempt.rawContent.trim()) {
+      throw createEmptyModelResultError(fallbackAttempt.model);
+    }
+
     if (isLikelyVisionUnsupportedResponse(primaryAttempt?.rawContent ?? "")) {
       throw createUncertainResultError(fallbackAttempt.rawContent, fallbackAttempt.model);
     }
 
     throw createUncertainResultError(fallbackAttempt.rawContent, fallbackAttempt.model);
+  }
+
+  if (!primaryAttempt?.rawContent.trim()) {
+    throw createEmptyModelResultError(primaryModel);
   }
 
   throw createUncertainResultError(primaryAttempt?.rawContent ?? "", primaryModel);

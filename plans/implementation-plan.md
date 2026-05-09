@@ -37,10 +37,12 @@ Acceptance criteria:
 - Shared contracts and domain logic run from `packages/shared`.
 - Web and mobile can use the shared typed client from `packages/api-client`.
 - Expo SDK 54 mobile shell exists in `apps/mobile` with Expo Router, AniUI, NativeWind, `breview://`, and `ing.breview.app`.
-- Mobile create, join, recent-games, and game detail screens call the shared API client and default to `https://breview.ing`.
+- Mobile create, join, recent-games, rating, comments, save, and results screens call the shared API client and default to `https://breview.ing`.
+- Mobile and web share the same Breview dark visual direction while using shadcn/ui on web and AniUI/NativeWind components on mobile.
 - Mobile uses `breview-logo.png` for in-app brand presentation and app icon configuration.
 - Cloudflare D1/R2/Worker resource names are left unchanged.
 - Kilo Gateway is replaced by Cloudflare Workers AI for beer-name recognition.
+- Workers AI beer-name recognition requests use high-detail image input, JSON-only extraction, and Kimi reasoning handling so empty model responses are treated as service failures instead of user image failures.
 - Paid Brave image search is removed from the web UI, Worker route, shared API contracts, README, and runtime env.
 - Untappd API resolution is removed; stored beer metadata is kept to outbound search links only.
 - Tests, typecheck, and build pass.

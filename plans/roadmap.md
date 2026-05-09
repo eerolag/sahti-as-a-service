@@ -7,9 +7,11 @@
 - Keep the npm workspaces layout healthy across `apps/api`, `apps/web`, `apps/mobile`, `packages/shared`, and `packages/api-client`.
 - Keep current Cloudflare resource names stable while the product brand changes.
 - Keep paid web image search out of the production API surface; beer-name recognition uses Workers AI and Untappd remains outbound search-link only.
+- Keep Workers AI beer-name recognition observable and robust: JSON-only name extraction, high-detail image input, Kimi reasoning handling, and clear distinction between uncertain images and upstream empty responses.
 - Keep the mobile app on Expo SDK 54 during the current Expo Go transition so local testing does not fight the other active SDK 54 project.
-- Keep the Expo create, join, recent-games, and game detail flows connected to the shared API client and production Cloudflare API by default.
-- Grow the Expo shell into full native rating, results, editing, image upload, and account flows using AniUI components.
+- Keep the Expo create, join, recent-games, rating, comments, save, and results flows connected to the shared API client and production Cloudflare API by default.
+- Keep the mobile dark Breview visual direction aligned with the web UI while using AniUI/NativeWind components.
+- Grow the Expo shell into full native game editing, image upload, sharing, and account flows using AniUI components.
 
 ## Next
 
@@ -21,7 +23,7 @@
 
 ## Then
 
-- Implement native screens for rating, game editing, sharing, image capture/upload, and account settings.
+- Implement native screens for game editing, sharing, image capture/upload, and account settings.
 - Add deep links and app links for `breview://` and `https://breview.ing`.
 - Add mobile image picking/upload, camera/photo permission copy, haptics, loading states, and offline-friendly retry states.
 - In mobile beer creation, ask after camera/photo capture whether the user wants AI recognition or manual name entry.

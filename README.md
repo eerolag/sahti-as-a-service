@@ -150,6 +150,8 @@ npm --workspace @breview/mobile run android -- --clear
 
 Expo käyttää oletuksena `https://breview.ing` API-basea, eli simulaattori ja Expo Go osuvat oikeaan Cloudflare Workeriin ja sen D1/R2-resursseihin. Paikallisen Workerin voi antaa muuttujalla `EXPO_PUBLIC_API_BASE_URL`.
 
+Mobiilissa voi tällä hetkellä luoda pelin, liittyä peliin, arvostella oluet sliderilla, lisätä kommentit, tallentaa arviot ja katsoa tulokset samalla Cloudflare API:lla kuin webissä. Mobiilin tumma Breview-ilme pidetään linjassa webin kanssa, vaikka komponenttipohja on eri.
+
 iOS-simulaattori tai Expo web:
 
 ```bash

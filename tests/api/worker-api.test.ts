@@ -500,7 +500,109 @@ describe("worker api", () => {
     expect(firstCall).toBeTruthy();
     expect(firstCall?.[0]).toBe("@cf/google/gemma-4-26b-a4b-it");
     const requestBody = (firstCall?.[1] ?? {}) as Record<string, any>;
-    expect(requestBody.messages?.[0]?.content?.[1]?.image_url?.url).toMatch(/^data:image\/jpeg;base64,/);
+    expect(requestBody.response_format).toEqual({ type: "json_object" });
+    expect(requestBody.messages?.[1]?.content?.[1]?.image_url?.url).toMatch(/^data:image\/jpeg;base64,/);
+    expect(requestBody.messages?.[1]?.content?.[1]?.image_url?.detail).toBe("high");
+  });
+
+  it("identifies beer name from JSON Workers AI response", async () => {
+    env.AI = {
+      run: vi.fn(async () => {
+        return {
+          choices: [
+            {
+              message: {
+                content: "{\"beerName\":\"Karhu\"}",
+              },
+            },
+          ],
+        };
+      }),
+    };
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([1, 2])], { type: "image/jpeg" }), "beer.jpg");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await json(response);
+    expect(payload.beerName).toBe("Karhu");
+  });
+
+  it("reads Kimi reasoning field and disables Kimi thinking in fallback request", async () => {
+    const aiRun = vi.fn(async (model: string, _input: Record<string, unknown>) => {
+      if (model === "@cf/google/gemma-4-26b-a4b-it") {
+        return {
+          choices: [
+            {
+              message: {
+                content: "{\"beerName\":null}",
+              },
+            },
+          ],
+        };
+      }
+
+      return {
+        choices: [
+          {
+            message: {
+              content: "",
+              reasoning: "{\"beerName\":\"Karhu III\"}",
+            },
+          },
+        ],
+      };
+    });
+    env.AI = { run: aiRun };
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([1, 2])], { type: "image/jpeg" }), "beer.jpg");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await json(response);
+    expect(payload.beerName).toBe("Karhu III");
+
+    expect(aiRun).toHaveBeenCalledTimes(2);
+    const fallbackBody = aiRun.mock.calls[1]?.[1] as Record<string, any>;
+    expect(fallbackBody.chat_template_kwargs).toEqual({ thinking: false });
+  });
+
+  it("treats empty Workers AI responses as service failures", async () => {
+    env.AI = {
+      run: vi.fn(async () => {
+        return {
+          choices: [
+            {
+              message: {
+                content: "",
+              },
+            },
+          ],
+        };
+      }),
+    };
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([8, 8])], { type: "image/jpeg" }), "beer.jpg");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(502);
+    const payload = await json(response);
+    expect(String(payload.error)).toContain("ei palauttanut tekstivastausta");
   });
 
   it("returns 422 when Workers AI cannot identify a reliable beer name", async () => {
@@ -548,6 +650,138 @@ describe("worker api", () => {
 
     const form = new FormData();
     form.set("file", new Blob([new Uint8Array([5, 5])], { type: "image/jpeg" }), "beer.jpg");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await json(response);
+    expect(payload.beerName).toBe("Karhu III");
+  });
+
+  it("does not accept model process headings as beer names", async () => {
+    env.AI = {
+      run: vi.fn(async () => {
+        return {
+          choices: [
+            {
+              message: {
+                content: "**Scan for text:**",
+              },
+            },
+          ],
+        };
+      }),
+    };
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([6, 6])], { type: "image/jpeg" }), "beer.jpg");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(422);
+  });
+
+  it("does not accept app form text as beer names", async () => {
+    env.AI = {
+      run: vi.fn(async () => {
+        return {
+          choices: [
+            {
+              message: {
+                content: "Pelin nimi ja oluen nimi ovat pak",
+              },
+            },
+          ],
+        };
+      }),
+    };
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([2, 4])], { type: "image/jpeg" }), "screen.jpg");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(422);
+  });
+
+  it("does not accept generic image text descriptions as beer names", async () => {
+    env.AI = {
+      run: vi.fn(async () => {
+        return {
+          choices: [
+            {
+              message: {
+                content: "The text is in Finnish.",
+              },
+            },
+          ],
+        };
+      }),
+    };
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([2, 5])], { type: "image/jpeg" }), "screen.jpg");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(422);
+  });
+
+  it("does not accept model instruction prose as beer names", async () => {
+    env.AI = {
+      run: vi.fn(async () => {
+        return {
+          choices: [
+            {
+              message: {
+                content: "The user wants me to extract a beer name from the provided image.",
+              },
+            },
+          ],
+        };
+      }),
+    };
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([2, 6])], { type: "image/jpeg" }), "screen.jpg");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(422);
+  });
+
+  it("extracts embedded beer names from explanatory model text", async () => {
+    env.AI = {
+      run: vi.fn(async () => {
+        return {
+          choices: [
+            {
+              message: {
+                content: "**Scan for text:**\nThe beer name is Karhu III.",
+              },
+            },
+          ],
+        };
+      }),
+    };
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([4, 4])], { type: "image/jpeg" }), "beer.jpg");
 
     const response = await call(env, "/api/images/identify-beer-name", {
       method: "POST",

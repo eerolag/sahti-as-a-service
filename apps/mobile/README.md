@@ -11,3 +11,5 @@ npm run dev:mobile
 ```
 
 API-osoite tulee muuttujasta `EXPO_PUBLIC_API_BASE_URL`. Jos muuttujaa ei ole asetettu, mobiili käyttää tuotantodomainia `https://breview.ing`.
+
+Nykyinen mobiilishell tukee luontia, liittymistä, viimeisimpiä pelejä, slider-arvosteluja, kommentteja, tallennusta ja tuloksia tuotannon Cloudflare API:a vasten.

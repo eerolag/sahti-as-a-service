@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/breview-logo.png",
     "scheme": "breview",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
       "bundleIdentifier": "ing.breview.app",
       "icon": "./assets/images/breview-logo.png"
