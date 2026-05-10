@@ -22,7 +22,7 @@ Breview is a production web, iOS, and Android app for creating beer tasting game
 - Mobile app: build a native Expo app with create/join/rate/results/edit/share/account flows, deep links, app links, image upload, and history sync.
 - AI and image handling: use Workers AI via the `AI` binding for beer-name recognition, keep R2 for uploads, remove paid web image search from the production app and API surface, and keep provider failures graceful.
 - Untappd: do not use scraping, private APIs, or the Untappd API. Keep only user-visible outbound search links unless legal/product review decides to remove them; avoid implying any affiliation or endorsement.
-- Store release: configure EAS builds, TestFlight, Google Play testing tracks, store metadata, screenshots, review notes, versioning, and production rollout.
+- Store release: use `plans/release-checklist.md` as the operational release checklist, then configure EAS builds, Apple Developer/App Store Connect ownership, Google Play Console ownership, TestFlight, Google Play testing tracks, store metadata, screenshots, review notes, versioning, and production rollout.
 - Observability: add structured API errors, deployment checks, email/auth event logging, and lightweight release verification.
 
 ## Current Slice

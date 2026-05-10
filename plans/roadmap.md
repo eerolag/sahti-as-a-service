@@ -25,9 +25,9 @@
 ## Next
 
 - Add full `/privacy`, `/support`, and `/delete-account` web pages suitable for App Store and Google Play review.
-- Add email/auth event logging, resend cooldown UI, and clearer delivery diagnostics for login-code failures.
+- Add email/auth event logging, login-code resend cooldown UI, and clearer delivery diagnostics for login-code failures.
 - Keep beer-name recognition on Cloudflare Workers AI, starting with Gemma 4 and escalating to Kimi K2.6 only if quality requires it.
-- Decide whether Untappd outbound search links remain after legal/product review; do not use scraping, private endpoints, or Untappd branding.
+- Keep Untappd as outbound search links only; do not use scraping, private endpoints, API calls, or Untappd branding.
 
 ## Then
 
@@ -38,7 +38,9 @@
 
 ## Release
 
+- Use `plans/release-checklist.md` as the store-release checklist and keep it current as Apple Developer, Google Play Console, and Expo/EAS setup decisions are made.
 - Configure EAS production builds for `ing.breview.app` on iOS and Android.
+- Create or confirm Apple Developer Program, Google Play Console, and Expo/EAS account ownership before store build work starts.
 - Prepare TestFlight and Google Play internal/closed testing builds with reviewer-ready demo access.
 - Complete App Store privacy details, Google Play Data safety, account deletion links, screenshots, descriptions, support URL, and review notes.
 - Run production release checks: API migration, web deploy, mobile build verification, TestFlight smoke test, Play test smoke test, and post-release monitoring.
