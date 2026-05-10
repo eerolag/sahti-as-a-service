@@ -12,4 +12,6 @@ npm run dev:mobile
 
 API-osoite tulee muuttujasta `EXPO_PUBLIC_API_BASE_URL`. Jos muuttujaa ei ole asetettu, mobiili käyttää tuotantodomainia `https://breview.ing`.
 
+Maker-tukilinkki tulee muuttujasta `EXPO_PUBLIC_SUPPORT_PAGE_URL`. Jos muuttujaa ei ole asetettu, mobiili avaa osoitteen `https://breview.ing/makers` ulkoiseen selaimeen.
+
 Nykyinen mobiilishell tukee luontia, liittymistä, viimeisimpiä pelejä, slider-arvosteluja, kommentteja, tallennusta, tuloksia, jakamista sekä pelin ja oluiden muokkausta tuotannon Cloudflare API:a vasten. Muokkaus tukee kuvan lisäämistä kamerasta tai kuvakirjastosta, R2-uploadia ja Workers AI -nimientunnistusta.

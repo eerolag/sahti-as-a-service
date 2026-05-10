@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react";
 import { HomeRoute } from "./routes/HomeRoute";
 import { GameRoute, type GameSection } from "./routes/GameRoute";
+import { MakersRoute } from "./routes/MakersRoute";
 
 export type AppRoute =
   | { type: "home" }
+  | { type: "makers" }
   | { type: "game"; gameId: number; section: GameSection }
   | { type: "not-found" };
 
 export function parsePath(pathname: string): AppRoute {
   if (pathname === "/" || pathname === "") {
     return { type: "home" };
+  }
+
+  if (pathname === "/makers" || pathname === "/makers/") {
+    return { type: "makers" };
   }
 
   const resultsMatch = pathname.match(/^\/(\d+)\/results\/?$/);
@@ -41,6 +47,10 @@ export function App() {
 
   if (route.type === "home") {
     return <HomeRoute />;
+  }
+
+  if (route.type === "makers") {
+    return <MakersRoute />;
   }
 
   if (route.type === "game") {

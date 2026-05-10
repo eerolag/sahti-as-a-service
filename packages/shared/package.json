@@ -8,6 +8,7 @@
     "./game-domain": "./src/game-domain.ts",
     "./image-upload": "./src/image-upload.ts",
     "./scoring": "./src/scoring.ts",
+    "./support": "./src/support.ts",
     "./untappd": "./src/untappd.ts",
     "./validation": "./src/validation.ts"
   },

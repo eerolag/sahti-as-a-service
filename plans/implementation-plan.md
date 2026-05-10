@@ -52,6 +52,8 @@ Acceptance criteria:
 - Mobile image pickers show the selected image preview but do not render the local device filename in the UI.
 - Web and mobile show `Tunnista nimi AI:lla` as a separate action that becomes usable only after an image is selected.
 - Web and mobile show AI recognition warnings in a clear popup/alert as well as inline status text.
+- Web exposes a public `/makers` page for `Breview by Five Pint Sauna`, using `SUPPORT_PAYMENT_URL` and optional `SUPPORT_PAYMENT_LABEL` for a provider-agnostic external support CTA.
+- Mobile account UI links to the public support page through `EXPO_PUBLIC_SUPPORT_PAGE_URL` and does not implement native payments.
 - Paid Brave image search is removed from the web UI, Worker route, shared API contracts, README, and runtime env.
 - Untappd API resolution is removed; stored beer metadata is kept to outbound search links only.
 - Tests, typecheck, and build pass.

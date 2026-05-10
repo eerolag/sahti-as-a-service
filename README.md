@@ -182,6 +182,12 @@ EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:8787 npm --workspace @breview/mobile ru
 
 Fyysisellä puhelimella käytä kehityskoneen LAN-IP:tä, esimerkiksi `http://192.168.1.23:8787`.
 
+## Maker-support-sivu
+
+Webissä on julkinen maker-sivu osoitteessa `/makers`. Maksupainike käyttää vain ulkoista linkkiä muuttujasta `SUPPORT_PAYMENT_URL`; jos muuttujaa ei ole, sivu näyttää tekstin `Support link coming soon.` eikä avaa maksua. Valinnainen `SUPPORT_PAYMENT_LABEL` näkyy CTA:n alla.
+
+Mobiili ei sisällä natiivia maksuflow'ta. Tili-välilehden maker-linkki avaa ulkoisen web-sivun muuttujasta `EXPO_PUBLIC_SUPPORT_PAGE_URL`, jonka oletus on `https://breview.ing/makers`.
+
 ## Build, test ja tyypitys
 
 ```bash

@@ -12,6 +12,11 @@ describe("web route parser", () => {
     expect(parsePath("/123/results/")).toEqual({ type: "game", gameId: 123, section: "results" });
   });
 
+  it("parses makers route", () => {
+    expect(parsePath("/makers")).toEqual({ type: "makers" });
+    expect(parsePath("/makers/")).toEqual({ type: "makers" });
+  });
+
   it("returns not-found for unknown routes", () => {
     expect(parsePath("/foo")).toEqual({ type: "not-found" });
     expect(parsePath("/123/other")).toEqual({ type: "not-found" });

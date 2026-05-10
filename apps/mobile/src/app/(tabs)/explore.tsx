@@ -1,11 +1,20 @@
 import React from "react";
-import { ScrollView, View } from "react-native";
+import { Alert, Linking, ScrollView, View } from "react-native";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Text } from "@/components/ui/text";
+import { mobileSupportConfig } from "@/lib/support";
 
 export default function AccountScreen() {
+  async function openSupportPage() {
+    try {
+      await Linking.openURL(mobileSupportConfig.pageUrl);
+    } catch {
+      Alert.alert("Support page", "Support page could not be opened.");
+    }
+  }
+
   return (
     <ScrollView
       className="flex-1 bg-background"
@@ -25,6 +34,19 @@ export default function AccountScreen() {
         <CardContent className="gap-3">
           <Button>Kirjaudu sähköpostilla</Button>
           <Button variant="outline">Jatka ilman tiliä</Button>
+        </CardContent>
+      </Card>
+
+      <Card className="gap-4 border-primary/40">
+        <CardHeader>
+          <CardTitle>Made by {mobileSupportConfig.makerName}</CardTitle>
+          <CardDescription>Want to support future beer science?</CardDescription>
+        </CardHeader>
+        <CardContent className="gap-3">
+          <Text variant="muted">No pressure. The app works either way.</Text>
+          <Button variant="outline" onPress={() => void openSupportPage()}>
+            {mobileSupportConfig.ctaLabel}
+          </Button>
         </CardContent>
       </Card>
 

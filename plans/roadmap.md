@@ -16,6 +16,7 @@
 - Keep manual image URL entry out of web and mobile UI; image input happens through file, camera, or photo library, and `Tunnista nimi AI:lla` activates only after an image is selected.
 - Keep local device image filenames hidden in mobile UI; selected image preview is enough feedback.
 - Keep AI recognition warnings visible as popup/alert feedback in web and mobile, not only inline status text.
+- Keep the `/makers` creator-support page provider-agnostic: web reads `SUPPORT_PAYMENT_URL`, mobile only opens `EXPO_PUBLIC_SUPPORT_PAGE_URL` externally, and no native payment flow is added.
 - Keep the mobile dark Breview visual direction aligned with the web UI while using AniUI/NativeWind components.
 - Grow the Expo shell from current native game editing, image upload, and sharing into account flows, deeper link handling, and release-grade review states using AniUI components.
 
