@@ -20,14 +20,14 @@ function PrivacyDetails() {
     <div className="grid gap-3 text-sm leading-6 text-muted">
       <p>
         Breview käyttää sähköpostiosoitetta vain tilin kirjautumiseen ja omien arvostelujen löytämiseen.
-        Arvosteluissa tallentuvat nimimerkki, arvosanat, kommentit, pelin tiedot ja mahdolliset ladatut kuvat.
+        Arvosteluissa tallentuvat nimimerkki, arvosanat, kommentit, session tiedot ja mahdolliset ladatut kuvat.
       </p>
       <p>
         Selaimeen tai sovellukseen tallennetaan tekninen tunniste, jolla aiemmat arvostelut voidaan liittää tiliin
         kirjautumisen jälkeen. Kertakäyttökoodi vanhenee 10 minuutissa.
       </p>
       <p>
-        Tietoja käytetään pelien luomiseen, arvostelujen tallentamiseen, tulosten näyttämiseen ja väärinkäytön
+        Tietoja käytetään sessioiden luomiseen, arvostelujen tallentamiseen, tulosten näyttämiseen ja väärinkäytön
         rajoittamiseen. Kirjautunut käyttäjä voi poistaa tilinsä tältä sivulta.
       </p>
     </div>
@@ -48,7 +48,7 @@ function HistoryList({ history }: { history: AccountHistoryItemDto[] }) {
           href={`/${item.gameId}`}
         >
           <span className="min-w-0">
-            <span className="block truncate font-semibold">{item.gameName || `Peli #${item.gameId}`}</span>
+            <span className="block truncate font-semibold">{item.gameName || `Sessio #${item.gameId}`}</span>
             <span className="block text-sm text-muted">{formatHistoryDate(item.updatedAt)}</span>
           </span>
           <span className="badge shrink-0">{item.ratingsCount} arviota</span>
@@ -199,7 +199,7 @@ export function AccountRoute() {
           <div className="mt-1 text-2xl font-extrabold">Tili</div>
         </div>
         <a className="btn btn-pill no-underline" href="/">
-          Pelit
+          Sessiot
         </a>
       </div>
 

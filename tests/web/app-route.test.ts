@@ -3,13 +3,24 @@ import { parsePath } from "../../apps/web/src/App";
 
 describe("web route parser", () => {
   it("parses game rate route", () => {
-    expect(parsePath("/123")).toEqual({ type: "game", gameId: 123, section: "rate" });
-    expect(parsePath("/123/")).toEqual({ type: "game", gameId: 123, section: "rate" });
+    expect(parsePath("/123")).toEqual({ type: "game", gameId: 123, section: "rate", legacy: true });
+    expect(parsePath("/123/")).toEqual({ type: "game", gameId: 123, section: "rate", legacy: true });
   });
 
   it("parses game results route", () => {
-    expect(parsePath("/123/results")).toEqual({ type: "game", gameId: 123, section: "results" });
-    expect(parsePath("/123/results/")).toEqual({ type: "game", gameId: 123, section: "results" });
+    expect(parsePath("/123/results")).toEqual({ type: "game", gameId: 123, section: "results", legacy: true });
+    expect(parsePath("/123/results/")).toEqual({ type: "game", gameId: 123, section: "results", legacy: true });
+  });
+
+  it("parses unguessable session routes", () => {
+    expect(parsePath("/s/abc_123")).toEqual({ type: "session", shareId: "abc_123", section: "rate", host: false });
+    expect(parsePath("/s/abc_123/results")).toEqual({
+      type: "session",
+      shareId: "abc_123",
+      section: "results",
+      host: false,
+    });
+    expect(parsePath("/h/abc_123")).toEqual({ type: "session", shareId: "abc_123", section: "rate", host: true });
   });
 
   it("parses makers route", () => {

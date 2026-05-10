@@ -2,10 +2,11 @@ import { Copy, QrCode, Share2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useHaptics } from "../hooks/useHaptics";
-import { isWebShareSupported, shareUrl } from "../utils/web-share";
+import { isWebShareSupported, shareUrl as nativeShareUrl } from "../utils/web-share";
 
 interface SharePanelProps {
-  gameId: number;
+  shareUrl: string;
+  hostUrl?: string;
 }
 
 async function copyToClipboard(text: string): Promise<void> {
@@ -28,15 +29,16 @@ async function copyToClipboard(text: string): Promise<void> {
   }
 }
 
-export function SharePanel({ gameId }: SharePanelProps) {
+export function SharePanel({ shareUrl, hostUrl }: SharePanelProps) {
   const haptics = useHaptics();
   const [open, setOpen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [qrStatus, setQrStatus] = useState("");
-  const [copyState, setCopyState] = useState("Kopioi pelin URL");
+  const [copyState, setCopyState] = useState("Kopioi sessiolinkki");
+  const [hostCopyState, setHostCopyState] = useState("Kopioi host-linkki");
   const supportsWebShare = useMemo(() => isWebShareSupported(), []);
 
-  const targetUrl = useMemo(() => `${window.location.origin}/${gameId}`, [gameId]);
+  const targetUrl = shareUrl;
 
   async function toggle() {
     const next = !open;
@@ -48,7 +50,7 @@ export function SharePanel({ gameId }: SharePanelProps) {
     try {
       const dataUrl = await apiClient.qrSvgDataUrl(targetUrl);
       setQrDataUrl(dataUrl);
-      setQrStatus("Skannaa QR avataksesi pelin");
+      setQrStatus("Skannaa QR avataksesi session");
     } catch (error) {
       haptics.error();
       setQrStatus(String((error as Error)?.message ?? "QR-koodin luonti epäonnistui"));
@@ -60,7 +62,7 @@ export function SharePanel({ gameId }: SharePanelProps) {
       await copyToClipboard(targetUrl);
       haptics.success();
       setCopyState("Kopioitu!");
-      window.setTimeout(() => setCopyState("Kopioi pelin URL"), 900);
+      window.setTimeout(() => setCopyState("Kopioi sessiolinkki"), 900);
     } catch (error) {
       haptics.error();
       alert(String((error as Error)?.message ?? "URL:n kopiointi epäonnistui"));
@@ -72,9 +74,9 @@ export function SharePanel({ gameId }: SharePanelProps) {
 
     try {
       haptics.light();
-      await shareUrl({
+      await nativeShareUrl({
         title: "Breview",
-        text: "Liity peliin",
+        text: "Liity Breview-sessioon",
         url: targetUrl,
       });
       haptics.success();
@@ -85,12 +87,25 @@ export function SharePanel({ gameId }: SharePanelProps) {
     }
   }
 
+  async function copyHostUrl() {
+    if (!hostUrl) return;
+    try {
+      await copyToClipboard(hostUrl);
+      haptics.success();
+      setHostCopyState("Kopioitu!");
+      window.setTimeout(() => setHostCopyState("Kopioi host-linkki"), 900);
+    } catch (error) {
+      haptics.error();
+      alert(String((error as Error)?.message ?? "Host-linkin kopiointi epäonnistui"));
+    }
+  }
+
   return (
     <div className="surface-strip">
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
-          <div className="font-semibold">Kutsu pelaajia</div>
-          <div className="muted">Peli-ID: {gameId}</div>
+          <div className="font-semibold">Kutsu maistelijat</div>
+          <div className="muted">Jaa arvaamaton sessiolinkki osallistujille.</div>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -107,7 +122,14 @@ export function SharePanel({ gameId }: SharePanelProps) {
           {supportsWebShare ? (
             <button className="btn btn-pill" type="button" onClick={() => void shareGame()}>
               <Share2 size={15} />
-              Jaa peli
+              Jaa sessio
+            </button>
+          ) : null}
+
+          {hostUrl ? (
+            <button className="btn btn-pill" type="button" onClick={() => void copyHostUrl()}>
+              <Copy size={15} />
+              {hostCopyState}
             </button>
           ) : null}
         </div>
@@ -118,7 +140,7 @@ export function SharePanel({ gameId }: SharePanelProps) {
               {qrDataUrl ? (
                 <img
                   src={qrDataUrl}
-                  alt="QR-koodi pelin linkille"
+                  alt="QR-koodi session linkille"
                   className="h-[132px] w-[132px] rounded-lg border border-line bg-white p-1"
                 />
               ) : null}

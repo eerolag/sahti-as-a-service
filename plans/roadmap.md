@@ -20,6 +20,10 @@
 - Keep optional email-code accounts working across web and mobile: Cloudflare Email Service sends login codes, resend cooldown UI prevents rapid repeat taps, D1 sessions link device ratings to accounts, and account deletion is shown only after login.
 - Keep structured auth logs in Worker logs for login-code requests, send success/failure, verify success/failure, logout, and account deletion; user-facing auth errors must remain concise and non-leaky.
 - Keep public `/privacy`, `/support`, and `/delete-account` pages reachable without login and linked from account/support surfaces.
+- Keep new production sessions on unguessable `/s/:shareId` participant links and `/h/:shareId#hostToken` host links; numeric routes are legacy compatibility only.
+- Keep host-only session editing, configurable rating scales, and hidden-result reveal behavior working across web and mobile.
+- Keep UGC hardening active: safety acceptance before creation, basic abusive-text blocking, content report submission, and store-safe support/payment wording.
+- Keep `plans/pre-release-improvements.md` as the current release-hardening plan before App Store and Google Play submission.
 - Keep `breview://` plus prepared iOS universal links and Android app links for `https://breview.ing`; final production association still needs Apple Team ID and Android SHA-256 signing fingerprint.
 - Keep privacy basics available from the account UI before login and link to the fuller public reviewer pages.
 - Keep the mobile dark Breview visual direction aligned with the web UI while using AniUI/NativeWind components.
@@ -31,6 +35,7 @@
 - Test universal/app link behavior from Messages, Safari/Chrome, email, QR codes, and web fallback on real iOS and Android builds.
 - Keep beer-name recognition on Cloudflare Workers AI, starting with Gemma 4 and escalating to Kimi K2.6 only if quality requires it.
 - Keep Untappd as outbound search links only; do not use scraping, private endpoints, API calls, or Untappd branding.
+- Complete full-string localization QA for all supported locale resources, especially RTL layout for Arabic and Urdu.
 
 ## Then
 

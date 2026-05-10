@@ -12,7 +12,7 @@ import { normalizeBeersPayload } from "@breview/shared/game-domain";
 
 describe("shared/validation", () => {
   it("validates game name", () => {
-    expect(normalizeGameName(" ")).toEqual({ error: "Anna pelille nimi" });
+    expect(normalizeGameName(" ")).toEqual({ error: "Anna sessiolle nimi" });
     const tooLong = "a".repeat(121);
     expect(normalizeGameName(tooLong)).toHaveProperty("error");
     expect(normalizeGameName("Testipeli")).toEqual({ value: "Testipeli" });
@@ -55,7 +55,7 @@ describe("shared/validation", () => {
       ],
       { allowIds: true },
     );
-    expect(missingName).toEqual({ error: "Anna nimi kaikille oluille (rivi 2)" });
+    expect(missingName).toEqual({ error: "Anna nimi kaikille juomille (rivi 2)" });
 
     const bad = normalizeBeersPayload([{ id: -1, name: "Beer", image_url: null }], { allowIds: true });
     expect("error" in bad).toBe(true);

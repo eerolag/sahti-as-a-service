@@ -33,14 +33,14 @@ function PrivacyText() {
     <View className="gap-3">
       <Text selectable variant="muted">
         Breview käyttää sähköpostiosoitetta vain kirjautumiseen ja omien arvostelujen löytämiseen.
-        Arvosteluissa tallentuvat nimimerkki, arvosanat, kommentit, pelin tiedot ja mahdolliset ladatut kuvat.
+        Arvosteluissa tallentuvat nimimerkki, arvosanat, kommentit, session tiedot ja mahdolliset ladatut kuvat.
       </Text>
       <Text selectable variant="muted">
         Laitteeseen tallennetaan tekninen tunniste, jolla aiemmat arvostelut voidaan liittää tiliin. Kertakäyttökoodi
         vanhenee 10 minuutissa.
       </Text>
       <Text selectable variant="muted">
-        Tietoja käytetään pelien luomiseen, arvostelujen tallentamiseen, tulosten näyttämiseen ja väärinkäytön
+        Tietoja käytetään sessioiden luomiseen, arvostelujen tallentamiseen, tulosten näyttämiseen ja väärinkäytön
         rajoittamiseen. Kirjautunut käyttäjä voi poistaa tilinsä tästä näkymästä.
       </Text>
     </View>
@@ -56,7 +56,7 @@ function HistoryList({ history }: { history: AccountHistoryItemDto[] }) {
     <View className="gap-2">
       {history.map((item) => (
         <View key={item.gameId} className="gap-1 rounded-md border border-border bg-background p-3">
-          <Text variant="large">{item.gameName || `Peli #${item.gameId}`}</Text>
+          <Text variant="large">{item.gameName || `Sessio #${item.gameId}`}</Text>
           <Text variant="muted">
             {item.ratingsCount} arviota · {formatHistoryDate(item.updatedAt)}
           </Text>
@@ -239,7 +239,7 @@ export default function AccountScreen() {
           <CardTitle>{session ? "Omat arvostelut" : "Historia talteen"}</CardTitle>
           <CardDescription>
             {session
-              ? "Tilille linkitetyt arvostelupelit löytyvät tästä."
+              ? "Tilille linkitetyt arvostelusessiot löytyvät tästä."
               : "Kirjautuminen yhdistää tämän laitteen arvostelut sähköpostiin."}
           </CardDescription>
         </CardHeader>
@@ -293,7 +293,7 @@ export default function AccountScreen() {
       <Card className="gap-4 border-primary/40">
         <CardHeader>
           <CardTitle>Made by {mobileSupportConfig.makerName}</CardTitle>
-          <CardDescription>Tue Breviewin ylläpitoa ulkoisen web-sivun kautta.</CardDescription>
+          <CardDescription>Tue Breviewin ylläpitoa ulkoisen web-sivun kautta. Tuki ei avaa lisäominaisuuksia.</CardDescription>
         </CardHeader>
         <CardContent className="gap-3">
           <Text variant="muted">Sovellus toimii samalla tavalla ilman maksua.</Text>

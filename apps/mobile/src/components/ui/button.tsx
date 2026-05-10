@@ -70,7 +70,9 @@ export function Button({ variant, size, className, textClassName, children, icon
         <ActivityIndicator size="small" color={light ? "#fafafa" : "#18181b"} />
       ) : icon ?? null}
       {children ? (
-        <Text className={cn(buttonTextVariants({ variant, size }), textClassName)}>{children}</Text>
+        <Text className={cn(buttonTextVariants({ variant, size }), textClassName)} style={{ fontFamily: "Figtree" }}>
+          {children}
+        </Text>
       ) : null}
       {!loading && iconAfter ? iconAfter : null}
     </Pressable>

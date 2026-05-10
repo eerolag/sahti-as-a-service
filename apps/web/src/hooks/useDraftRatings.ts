@@ -6,7 +6,7 @@ const DRAFT_STORAGE_PREFIX = "saas_ratings_draft_v1";
 const SAVE_DEBOUNCE_MS = 300;
 
 export interface DraftRatingValue {
-  score: number;
+  score: number | null;
   comment: string;
 }
 
@@ -70,8 +70,8 @@ function loadDraft(gameId: number, clientId: string, validBeerIds: Set<number>):
         commentRaw = row.comment;
       }
 
-      const score = normalizeScore(scoreRaw);
-      if (score == null) continue;
+      const score = scoreRaw == null || scoreRaw === "" ? null : normalizeScore(scoreRaw);
+      if (scoreRaw != null && scoreRaw !== "" && score == null) continue;
 
       draft[beerId] = {
         score,
@@ -90,7 +90,7 @@ function serializeRatings(ratings: Record<number, DraftRatingValue>, beerIds: nu
   const payload: Record<number, DraftRatingValue> = {};
   for (const id of beerIds) {
     payload[id] = {
-      score: normalizeScore(ratings[id]?.score) ?? 0,
+      score: ratings[id]?.score == null ? null : normalizeScore(ratings[id]?.score),
       comment: normalizeComment(ratings[id]?.comment),
     };
   }
@@ -120,7 +120,7 @@ export function useDraftRatings(gameId: number, clientId: string) {
 
       for (const beerId of beerIds) {
         const row = backendSavedRatings[beerId];
-        const score = normalizeScore(row?.score) ?? 0;
+        const score = row?.score == null ? null : normalizeScore(row?.score);
         const comment = normalizeComment(row?.comment);
 
         nextSavedRatings[beerId] = { score, comment };
@@ -131,7 +131,7 @@ export function useDraftRatings(gameId: number, clientId: string) {
       for (const [beerIdRaw, row] of Object.entries(draft)) {
         const beerId = Number(beerIdRaw);
         nextRatings[beerId] = {
-          score: normalizeScore(row?.score) ?? 0,
+          score: row?.score == null ? null : normalizeScore(row?.score),
           comment: normalizeComment(row?.comment),
         };
       }
@@ -157,7 +157,7 @@ export function useDraftRatings(gameId: number, clientId: string) {
     setRatings((prev) => ({
       ...prev,
       [beerId]: {
-        score: normalizeScore(prev[beerId]?.score) ?? 0,
+        score: prev[beerId]?.score == null ? null : normalizeScore(prev[beerId]?.score),
         comment: normalizeComment(comment),
       },
     }));
@@ -165,20 +165,20 @@ export function useDraftRatings(gameId: number, clientId: string) {
 
   const getChangedRatings = useCallback((): ChangedRatingValue[] => {
     return beerIdsRef.current
-      .map((beerId) => {
+      .flatMap((beerId) => {
         const current = ratings[beerId];
         const saved = savedRatings[beerId];
 
-        return {
+        const row = {
           beerId,
-          score: normalizeScore(current?.score) ?? 0,
+          score: current?.score == null ? null : normalizeScore(current?.score),
           comment: normalizeComment(current?.comment),
-          prevScore: normalizeScore(saved?.score) ?? 0,
+          prevScore: saved?.score == null ? null : normalizeScore(saved?.score),
           prevComment: normalizeComment(saved?.comment),
         };
-      })
-      .filter((row) => row.score !== row.prevScore || row.comment !== row.prevComment)
-      .map((row) => ({ beerId: row.beerId, score: row.score, comment: row.comment }));
+        if (row.score == null || (row.score === row.prevScore && row.comment === row.prevComment)) return [];
+        return [{ beerId: row.beerId, score: row.score, comment: row.comment }];
+      });
   }, [ratings, savedRatings]);
 
   const markSaved = useCallback((changed: ChangedRatingValue[]) => {
@@ -186,7 +186,7 @@ export function useDraftRatings(gameId: number, clientId: string) {
       const next = { ...prev };
       for (const row of changed) {
         next[row.beerId] = {
-          score: normalizeScore(row.score) ?? 0,
+          score: normalizeScore(row.score),
           comment: normalizeComment(row.comment),
         };
       }

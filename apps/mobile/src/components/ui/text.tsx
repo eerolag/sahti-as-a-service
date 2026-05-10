@@ -28,10 +28,11 @@ export interface TextProps
   className?: string;
 }
 
-export function Text({ variant, className, ...props }: TextProps) {
+export function Text({ variant, className, style, ...props }: TextProps) {
   return (
     <RNText
       className={cn(textVariants({ variant }), className)}
+      style={[{ fontFamily: "Figtree" }, style]}
       {...props}
     />
   );

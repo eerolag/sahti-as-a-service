@@ -1,8 +1,9 @@
 import type { CreateGameRequest } from "@breview/shared/api-contracts";
+import { getWelcomeCopy } from "@breview/shared";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, View } from "react-native";
 
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { apiClient, identifyBeerNameAsset, uploadImageAsset, type MobileImageAsset } from "@/lib/api";
 import { haptics } from "@/lib/haptics";
+import { saveHostToken } from "@/lib/creator-session";
 import { getOrCreateClientId } from "@/lib/player-identity";
 import { loadRecentGames, recentGameFromPayload, saveRecentGame, type RecentGame } from "@/lib/recent-games";
 
@@ -38,40 +40,43 @@ function asMobileImageAsset(asset: ImagePicker.ImagePickerAsset): MobileImageAss
   };
 }
 
-function parseGameIdInput(value: string): number | null {
+type SessionTarget = { type: "game"; id: number } | { type: "session"; shareId: string; host: boolean };
+
+function parseSessionLink(value: string): SessionTarget | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  if (/^\d+$/.test(trimmed)) {
-    const gameId = Number(trimmed);
-    return Number.isInteger(gameId) && gameId > 0 ? gameId : null;
-  }
-
   try {
     const url = new URL(trimmed);
+    const match = url.pathname.match(/^\/([sh])\/([A-Za-z0-9_-]+)\/?$/);
+    if (match) return { type: "session", host: match[1] === "h", shareId: match[2] };
+
     const gameIdSegment = url.pathname.split("/").find((part) => /^\d+$/.test(part));
     if (!gameIdSegment) return null;
 
     const gameId = Number(gameIdSegment);
-    return Number.isInteger(gameId) && gameId > 0 ? gameId : null;
+    return Number.isInteger(gameId) && gameId > 0 ? { type: "game", id: gameId } : null;
   } catch {
+    const sessionMatch = trimmed.match(/(?:^|\/)([sh])\/([A-Za-z0-9_-]+)(?:$|[/?#])/);
+    if (sessionMatch) return { type: "session", host: sessionMatch[1] === "h", shareId: sessionMatch[2] };
+
     const match = trimmed.match(/(?:^|\/)(\d+)(?:$|[/?#])/);
     if (!match) return null;
 
     const gameId = Number(match[1]);
-    return Number.isInteger(gameId) && gameId > 0 ? gameId : null;
+    return Number.isInteger(gameId) && gameId > 0 ? { type: "game", id: gameId } : null;
   }
 }
 
 function beerMeta(count: number): string {
-  return count === 1 ? "1 olut" : `${count} olutta`;
+  return count === 1 ? "1 juoma" : `${count} juomaa`;
 }
 
 function showImagePermissionDenied(source: "camera" | "library") {
   const label = source === "camera" ? "kamera" : "kuvakirjasto";
   Alert.alert(
     source === "camera" ? "Kamera ei ole käytössä" : "Kuvakirjasto ei ole käytössä",
-    `Salli ${label} laitteen asetuksista, jotta voit lisätä olutkuvan peliin.`,
+    `Salli ${label} laitteen asetuksista, jotta voit lisätä kuvan sessioon.`,
     [
       { text: "Peruuta", style: "cancel" },
       {
@@ -86,6 +91,7 @@ function showImagePermissionDenied(source: "camera" | "library") {
 
 export default function GamesScreen() {
   const router = useRouter();
+  const welcomeCopy = useMemo(() => getWelcomeCopy([Intl.DateTimeFormat().resolvedOptions().locale]), []);
   const [gameName, setGameName] = useState("");
   const [beers, setBeers] = useState<CreateBeerDraft[]>([createEmptyBeerDraft()]);
   const [joinInput, setJoinInput] = useState("");
@@ -93,6 +99,7 @@ export default function GamesScreen() {
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [safetyAccepted, setSafetyAccepted] = useState(false);
 
   useEffect(() => {
     setRecentGames(loadRecentGames());
@@ -103,16 +110,27 @@ export default function GamesScreen() {
     router.push({ pathname: "/[gameId]", params: { gameId: String(gameId) } });
   }
 
+  function openSession(shareId: string, host = false) {
+    haptics.selection();
+    router.push({ pathname: host ? "/h/[gameId]" : "/s/[gameId]", params: { gameId: shareId } });
+  }
+
   async function openRemoteGame(gameId: number) {
     const payload = await apiClient.getGame(gameId);
     setRecentGames(saveRecentGame(recentGameFromPayload(payload)));
     openGame(gameId);
   }
 
+  async function openRemoteSession(shareId: string, host = false) {
+    const payload = await apiClient.getSession(shareId);
+    setRecentGames(saveRecentGame(recentGameFromPayload(payload)));
+    openSession(shareId, host);
+  }
+
   async function handleJoinGame() {
-    const gameId = parseGameIdInput(joinInput);
-    if (!gameId) {
-      setMessage("Syötä pelin numero tai Breview-linkki.");
+    const target = parseSessionLink(joinInput);
+    if (!target) {
+      setMessage("Liitä Breviewin jaettu sessiolinkki.");
       haptics.error();
       return;
     }
@@ -122,7 +140,11 @@ export default function GamesScreen() {
     setMessage(null);
 
     try {
-      await openRemoteGame(gameId);
+      if (target.type === "session") {
+        await openRemoteSession(target.shareId, target.host);
+      } else {
+        await openRemoteGame(target.id);
+      }
       haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
@@ -137,7 +159,13 @@ export default function GamesScreen() {
     const payloadBeers: CreateGameRequest["beers"] = [];
 
     if (!name) {
-      setMessage("Anna pelille nimi.");
+      setMessage("Anna sessiolle nimi.");
+      haptics.error();
+      return;
+    }
+
+    if (!safetyAccepted) {
+      setMessage("Hyväksy turvallisen käytön ehdot ennen session luontia.");
       haptics.error();
       return;
     }
@@ -151,7 +179,7 @@ export default function GamesScreen() {
         const beer = beers[index];
         const beerName = beer.name.trim();
         if (!beerName) {
-          throw new Error(`Anna nimi kaikille oluille tai poista tyhjä rivi (rivi ${index + 1}).`);
+          throw new Error(`Anna nimi kaikille juomille tai poista tyhjä rivi (rivi ${index + 1}).`);
         }
 
         let image_url: string | null = null;
@@ -164,11 +192,16 @@ export default function GamesScreen() {
       }
 
       if (!payloadBeers.length) {
-        throw new Error("Lisää vähintään yksi olut.");
+        throw new Error("Lisää vähintään yksi juoma.");
       }
 
-      const created = await apiClient.createGame({ name, beers: payloadBeers });
-      await openRemoteGame(created.gameId);
+      const created = await apiClient.createGame({
+        name,
+        beers: payloadBeers,
+        settings: { ratingMode: "slider", scoreMin: 0, scoreMax: 10, scoreStep: 0.25, resultsVisibility: "host_reveal" },
+      });
+      await saveHostToken(created.shareId, created.hostToken);
+      await openRemoteSession(created.shareId, true);
       setGameName("");
       setBeers([createEmptyBeerDraft()]);
       haptics.success();
@@ -233,7 +266,7 @@ export default function GamesScreen() {
     updateBeer(index, {
       localAsset: asset,
     });
-    setMessage("Kuva valittu. Voit tunnistaa nimen tai jatkaa pelin luontia.");
+    setMessage("Kuva valittu. Voit tunnistaa nimen tai jatkaa session luontia.");
     haptics.success();
   }
 
@@ -279,7 +312,8 @@ export default function GamesScreen() {
           <Text variant="h1" className="text-foreground">
             Breview
           </Text>
-          <Text variant="muted">Pelit</Text>
+          <Text variant="muted">Sessio</Text>
+          <Text variant="muted">{welcomeCopy.welcomeSubtitle}</Text>
         </View>
       </View>
 
@@ -293,18 +327,18 @@ export default function GamesScreen() {
 
       <Card className="gap-4">
         <CardHeader>
-          <CardTitle>Luo peli</CardTitle>
-          <CardDescription>Lisää oluet ja jaettava pelikoodi syntyy automaattisesti.</CardDescription>
+          <CardTitle>Luo sessio</CardTitle>
+          <CardDescription>Lisää juomat ja jaettava sessiolinkki syntyy automaattisesti.</CardDescription>
         </CardHeader>
         <CardContent className="gap-3">
-          <Input placeholder="Pelin nimi" value={gameName} onChangeText={setGameName} returnKeyType="next" />
+          <Input placeholder="Session nimi" value={gameName} onChangeText={setGameName} returnKeyType="next" />
 
           <View className="gap-2">
             {beers.map((beer, index) => (
               <View key={beer.clientKey} className="gap-3 rounded-lg border border-border bg-background p-4">
                 <View className="flex-row items-start gap-3">
                   <View className="h-[64px] w-[64px] items-center justify-center overflow-hidden rounded-xl border border-border bg-card">
-                    {beer.localAsset ? (
+                      {beer.localAsset ? (
                       <Image source={{ uri: beer.localAsset.uri }} style={{ width: 64, height: 64 }} contentFit="cover" />
                     ) : (
                       <Text variant="muted" className="text-center text-xs">
@@ -313,7 +347,7 @@ export default function GamesScreen() {
                     )}
                   </View>
                   <View className="flex-1 gap-1">
-                    <Text variant="large">{beer.name.trim() || `Olut ${index + 1}`}</Text>
+                    <Text variant="large">{beer.name.trim() || `Juoma ${index + 1}`}</Text>
                     <Text variant="muted">
                       {beer.localAsset ? "Kuva valittu" : `Rivi ${index + 1}`}
                     </Text>
@@ -326,7 +360,7 @@ export default function GamesScreen() {
                 </View>
 
                 <Input
-                  placeholder={`Olut ${index + 1}`}
+                  placeholder={`Juoma ${index + 1}`}
                   value={beer.name}
                   onChangeText={(value) => updateBeer(index, { name: value })}
                   returnKeyType="next"
@@ -356,22 +390,27 @@ export default function GamesScreen() {
           </View>
 
           <Button variant="outline" onPress={addBeerRow}>
-            Lisää olut
+            Lisää juoma
           </Button>
+          <Pressable accessibilityRole="checkbox" onPress={() => setSafetyAccepted((value) => !value)}>
+            <Text variant="muted">
+              {safetyAccepted ? "✓" : "○"} Lisään vain asiallista sisältöä ja ymmärrän, että sisältö näkyy linkin saaneille.
+            </Text>
+          </Pressable>
           <Button loading={creating} onPress={handleCreateGame}>
-            Luo peli
+            Luo sessio
           </Button>
         </CardContent>
       </Card>
 
       <Card className="gap-4">
         <CardHeader>
-          <CardTitle>Liity peliin</CardTitle>
-          <CardDescription>Avaa jaettu peli numerolla tai linkillä.</CardDescription>
+          <CardTitle>Avaa sessiolinkki</CardTitle>
+          <CardDescription>Liity avaamalla sinulle jaettu Breview-linkki.</CardDescription>
         </CardHeader>
         <CardContent className="gap-3">
           <Input
-            placeholder="Pelikoodi tai linkki"
+            placeholder="https://breview.ing/s/..."
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -409,7 +448,7 @@ export default function GamesScreen() {
             </Pressable>
           ))
         ) : (
-          <Text variant="muted">Ei vielä avattuja pelejä tällä laitteella.</Text>
+          <Text variant="muted">Ei vielä avattuja sessioita tällä laitteella.</Text>
         )}
       </View>
     </ScrollView>

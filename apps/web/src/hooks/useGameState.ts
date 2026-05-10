@@ -9,7 +9,12 @@ interface GameState {
   error: string;
 }
 
-export function useGameState(gameId: number | null) {
+export type GameStateTarget =
+  | { type: "game"; gameId: number }
+  | { type: "session"; shareId: string }
+  | null;
+
+export function useGameState(target: GameStateTarget) {
   const [state, setState] = useState<GameState>({
     game: null,
     beers: [],
@@ -18,10 +23,10 @@ export function useGameState(gameId: number | null) {
   });
 
   const loadGame = useCallback(async () => {
-    if (!gameId) return;
+    if (!target) return;
     setState((prev) => ({ ...prev, loading: true, error: "" }));
     try {
-      const data = await apiClient.getGame(gameId);
+      const data = target.type === "session" ? await apiClient.getSession(target.shareId) : await apiClient.getGame(target.gameId);
       setState({
         game: data.game,
         beers: data.beers,
@@ -35,7 +40,7 @@ export function useGameState(gameId: number | null) {
         error: String((error as Error)?.message ?? "Lataus epäonnistui"),
       }));
     }
-  }, [gameId]);
+  }, [target]);
 
   useEffect(() => {
     void loadGame();

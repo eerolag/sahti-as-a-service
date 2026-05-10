@@ -1,3 +1,5 @@
+import type { RatingConfig, ResultsVisibility, SessionSettingsInput } from "./session-settings";
+
 export interface ErrorResponse {
   error: string;
 }
@@ -17,6 +19,10 @@ export interface GameDto {
   id: number;
   name: string;
   created_at: string;
+  publicId: string;
+  ratingConfig: RatingConfig;
+  resultsVisibility: ResultsVisibility;
+  resultsRevealedAt: string | null;
 }
 
 export interface CreateGameRequest {
@@ -25,11 +31,16 @@ export interface CreateGameRequest {
     name: string;
     image_url: string | null;
   }>;
+  settings?: SessionSettingsInput;
 }
 
 export interface CreateGameResponse {
   ok: true;
   gameId: number;
+  shareId: string;
+  shareUrl: string;
+  hostToken: string;
+  hostUrl: string;
 }
 
 export interface GetGameResponse {
@@ -44,6 +55,7 @@ export interface UpdateGameRequest {
     name: string;
     image_url: string | null;
   }>;
+  settings?: SessionSettingsInput;
 }
 
 export interface UpdateGameResponse {
@@ -88,6 +100,24 @@ export interface GetResultsResponse {
     nickname: string | null;
   }>;
   beers: ResultBeerDto[];
+}
+
+export interface RevealResultsResponse {
+  ok: true;
+  game: GameDto;
+}
+
+export interface ReportSessionRequest {
+  targetType: "session" | "beer" | "comment" | "participant" | "image";
+  targetId?: string | number | null;
+  reason: string;
+  details?: string | null;
+  clientId?: string | null;
+}
+
+export interface ReportSessionResponse {
+  ok: true;
+  reportId: number;
 }
 
 export interface UploadImageResponse {

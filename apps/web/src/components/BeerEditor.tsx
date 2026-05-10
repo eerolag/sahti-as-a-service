@@ -7,6 +7,7 @@ import { prepareImageForBeerNameRecognition } from "../utils/beer-name-image";
 import { getOrCreateClientId } from "../utils/player-identity";
 
 export interface BeerEditorRow {
+  clientKey?: string;
   id?: number;
   name: string;
   imageUrl: string;
@@ -71,7 +72,7 @@ export function BeerEditor({
 
   function addBeer() {
     haptics.light();
-    onBeersChange([...beers, { name: "", imageUrl: "", file: null }]);
+    onBeersChange([...beers, { clientKey: `new-${Date.now()}-${Math.random().toString(36).slice(2)}`, name: "", imageUrl: "", file: null }]);
   }
 
   function moveBeer(fromIndex: number, toIndex: number) {
@@ -88,7 +89,7 @@ export function BeerEditor({
   }
 
   function rowKey(beer: BeerEditorRow, idx: number): string {
-    return `${beer.id ?? "new"}-${idx}`;
+    return beer.clientKey ?? `${beer.id ?? "new"}-${idx}`;
   }
 
   function setRowIdentifyStatus(key: string, status: IdentifyStatus) {
@@ -102,15 +103,15 @@ export function BeerEditor({
       <div className={surfaceClass}>
         <div className="flex flex-col gap-2">
           <div className="font-semibold">{title}</div>
-          <div className="muted">Pelin nimi ja oluen nimi ovat pakollisia.</div>
-          <div className="muted hidden md:block">Raahaa oluita kahvasta (⋮⋮) vaihtaaksesi järjestystä.</div>
-          <div className="muted md:hidden">Vaihda oluen järjestys Rivi-valikosta.</div>
-          <label className="text-sm text-muted">Pelin nimi</label>
+          <div className="muted">Session nimi ja juoman nimi ovat pakollisia.</div>
+          <div className="muted hidden md:block">Raahaa juomia kahvasta (⋮⋮) vaihtaaksesi järjestystä.</div>
+          <div className="muted md:hidden">Vaihda juoman järjestys Rivi-valikosta.</div>
+          <label className="text-sm text-muted">Session nimi</label>
           <input
             className="input"
             value={gameName}
             onChange={(event) => onGameNameChange(event.target.value)}
-            placeholder="esim. Breview-ilta 2026"
+            placeholder="esim. Breview-ilta"
           />
         </div>
       </div>
@@ -153,7 +154,7 @@ export function BeerEditor({
                     ⋮⋮
                   </button>
                   <div className="grow">
-                    <div className="font-semibold">{beer.name.trim() || "Nimeä olut"}</div>
+                    <div className="font-semibold">{beer.name.trim() || "Nimeä juoma"}</div>
                     <div className="text-xs text-muted hidden md:block">Rivi {idx + 1}</div>
                     <div className="mt-1 inline-flex md:hidden">
                       <div className="relative inline-block">
@@ -199,15 +200,18 @@ export function BeerEditor({
                 />
 
                 <label className="text-sm text-muted">Kuva (valinnainen)</label>
-                <input
-                  className="input"
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => {
-                    setBeerField(idx, { file: event.target.files?.[0] ?? null });
-                    setRowIdentifyStatus(key, { state: "idle", message: "" });
-                  }}
-                />
+                <label className="btn inline-flex cursor-pointer justify-center">
+                  {beer.file ? "Vaihda kuva" : "Valitse kuva"}
+                  <input
+                    className="sr-only"
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      setBeerField(idx, { file: event.target.files?.[0] ?? null });
+                      setRowIdentifyStatus(key, { state: "idle", message: "" });
+                    }}
+                  />
+                </label>
                 <div className="text-xs text-muted">
                   Tiedosto ladataan palvelimelle (max 10 MB, suositus enintään 6000x6000 px).
                 </div>
@@ -221,7 +225,7 @@ export function BeerEditor({
                       if (!beer.file) return;
 
                       haptics.light();
-                      setRowIdentifyStatus(key, { state: "loading", message: "Tunnistetaan nimea kuvasta..." });
+                      setRowIdentifyStatus(key, { state: "loading", message: "Tunnistetaan nimeä kuvasta..." });
 
                       try {
                         const preparedFile = await prepareImageForBeerNameRecognition(beer.file);
@@ -233,7 +237,7 @@ export function BeerEditor({
                         });
                         haptics.success();
                       } catch (error) {
-                        const message = String((error as Error)?.message ?? "Nimen tunnistus epaonnistui.");
+                        const message = String((error as Error)?.message ?? "Nimen tunnistus epäonnistui.");
                         setRowIdentifyStatus(key, {
                           state: "error",
                           message,
@@ -253,9 +257,9 @@ export function BeerEditor({
                 </div>
 
                 <div className="text-sm text-muted">
-                  Untappd:{" "}
+                  Ulkoinen haku:{" "}
                   <a className="text-amber-300 underline" href={untappdUrl} target="_blank" rel="noreferrer">
-                    Untappd
+                    Avaa haku
                   </a>
                 </div>
               </div>

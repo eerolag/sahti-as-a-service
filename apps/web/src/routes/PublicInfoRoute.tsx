@@ -66,8 +66,8 @@ function PrivacyPage() {
       <section className="public-panel">
         <h2>Mitä tietoja Breview käsittelee</h2>
         <p>
-          Breview tallentaa pelien nimet, oluiden nimet, käyttäjien nimimerkit, arvosanat, kommentit ja
-          käyttäjän lisäämät olutkuvat. Jos kirjaudut sähköpostilla, Breview tallentaa sähköpostiosoitteesi,
+          Breview tallentaa sessioiden nimet, juomien nimet, käyttäjien nimimerkit, arvosanat, kommentit ja
+          käyttäjän lisäämät kuvat. Jos kirjaudut sähköpostilla, Breview tallentaa sähköpostiosoitteesi,
           tilin istunnot ja tiliin linkitetyn arvosteluhistorian.
         </p>
         <p>
@@ -79,12 +79,12 @@ function PrivacyPage() {
       <section className="public-panel">
         <h2>Mihin tietoja käytetään</h2>
         <p>
-          Tietoja käytetään olutarvostelupelien luomiseen, jakamiseen, arvosanojen tallentamiseen, tulosten
+          Tietoja käytetään maistelusessioiden luomiseen, jakamiseen, arvosanojen tallentamiseen, tulosten
           näyttämiseen, kirjautumiseen, väärinkäytön rajoittamiseen ja palvelun vianmääritykseen.
         </p>
         <p>
-          Olutkuvien nimientunnistus käsitellään Cloudflare Workers AI:n kautta. Ladatut kuvat säilytetään
-          Cloudflare R2:ssa, jotta pelit ja tulokset voivat näyttää niihin liitetyt kuvat.
+          Kuvien nimientunnistus käsitellään Cloudflare Workers AI:n kautta. Ladatut kuvat säilytetään
+          Cloudflare R2:ssa, jotta sessiot ja tulokset voivat näyttää niihin liitetyt kuvat.
         </p>
       </section>
 
@@ -95,8 +95,9 @@ function PrivacyPage() {
           Email Serviceä. Breview ei sisällä kolmannen osapuolen mainonta- tai seurantakirjastoja.
         </p>
         <p>
-          Pelilinkit ovat jaettavia. Henkilö, jolla on pelin linkki tai pelinumero, voi nähdä pelin, siihen
-          tallennetut oluet ja tulokset. Älä lisää kommentteihin tietoja, joita et halua jakaa muille pelaajille.
+          Sessiolinkit ovat jaettavia. Henkilö, jolla on session linkki, voi nähdä session, siihen tallennetut
+          juomat ja näkyvissä olevat tulokset. Älä lisää kommentteihin tietoja, joita et halua jakaa muille
+          osallistujille.
         </p>
       </section>
 
@@ -127,7 +128,7 @@ function SupportPage() {
       <section className="public-panel">
         <h2>Yhteydenotto</h2>
         <p>
-          Jos kirjautuminen, pelin avaaminen, kuvien lataaminen tai tilin poistaminen ei toimi, lähetä viesti
+          Jos kirjautuminen, session avaaminen, kuvien lataaminen tai tilin poistaminen ei toimi, lähetä viesti
           osoitteeseen{" "}
           <a className="inline-link" href={`mailto:${SUPPORT_EMAIL}`}>
             {SUPPORT_EMAIL}
@@ -135,7 +136,7 @@ function SupportPage() {
           .
         </p>
         <p>
-          Liitä mukaan käyttämäsi sähköpostiosoite, pelin numero, laitteen tyyppi ja lyhyt kuvaus siitä, mitä
+          Liitä mukaan käyttämäsi sähköpostiosoite, sessiolinkki, laitteen tyyppi ja lyhyt kuvaus siitä, mitä
           tapahtui. Älä lähetä kirjautumiskoodeja tai istuntotunnuksia.
         </p>
       </section>
@@ -212,11 +213,11 @@ function DeleteAccountPage() {
         <h2>Mitä poistetaan</h2>
         <p>
           Poistamme tilin sähköpostiosoitteen, aktiiviset istunnot, tiliin linkitetyt pelaajarivit, arvosanat ja
-          kommentit. Kun pelaajarivi poistuu, siihen liittyvät arvosanat eivät enää näy pelin tuloksissa.
+          kommentit. Kun pelaajarivi poistuu, siihen liittyvät arvosanat eivät enää näy session tuloksissa.
         </p>
         <p>
-          Pelit, olutlistat ja muiden pelaajien arvosanat voivat jäädä näkyviin, koska ne eivät kuulu vain yhteen
-          tiliin. Tilin poistaminen ei poista muiden käyttäjien jakamia tai tallentamia tietoja.
+          Sessiot, juomalistat ja muiden osallistujien arvosanat voivat jäädä näkyviin, koska ne eivät kuulu vain
+          yhteen tiliin. Tilin poistaminen ei poista muiden käyttäjien jakamia tai tallentamia tietoja.
         </p>
       </section>
 

@@ -2,6 +2,7 @@ import { ArrowLeft, ChevronDown, Settings, Share2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { GetResultsResponse, ResultBeerDto, UpdateGameRequest } from "@breview/shared/api-contracts";
 import { normalizeScore } from "@breview/shared/scoring";
+import type { RatingMode, ResultsVisibility } from "@breview/shared";
 import { normalizeNickname } from "@breview/shared/validation";
 import { apiClient } from "../api/client";
 import { BeerCard } from "../components/BeerCard";
@@ -16,6 +17,13 @@ import { prepareImageForManagedUpload } from "../utils/beer-name-image";
 import { isWebShareSupported, shareUrl } from "../utils/web-share";
 import { loadAccountSession } from "../utils/account-session";
 import {
+  consumeHostTokenFromHash,
+  loadHostToken,
+  saveHostToken,
+  sessionHostUrl,
+  sessionShareUrl,
+} from "../utils/creator-session";
+import {
   type PlayerIdentity,
   generateAnonymousNickname,
   getOrCreateClientId,
@@ -28,7 +36,7 @@ export type GameSection = "rate" | "results";
 function gameDisplayName(name: string | null | undefined, gameId: number): string {
   const clean = String(name ?? "").trim();
   if (clean) return clean;
-  return `Peli #${gameId}`;
+  return gameId > 0 ? `Sessio #${gameId}` : "Sessio";
 }
 
 interface NicknameModalProps {
@@ -53,7 +61,7 @@ function NicknameModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-4 md:items-center">
       <div className="flex w-full max-w-lg flex-col gap-3 rounded-card border border-line bg-card p-4">
-        <div className="font-semibold">Liity peliin nimimerkillä</div>
+        <div className="font-semibold">Liity sessioon nimimerkillä</div>
         <div className="muted">Jätä tyhjäksi, jos haluat automaattisen nimen (esim. Nimetön nimimerkki 112).</div>
         <label className="text-sm text-muted" htmlFor="nickname">
           Nimimerkki (valinnainen)
@@ -74,7 +82,7 @@ function NicknameModal({
         />
         <div className="flex gap-2">
           <button className="btn btn-primary grow" type="button" onClick={onConfirm}>
-            Jatka peliin
+            Jatka sessioon
           </button>
           {canClose ? (
             <button className="btn grow" type="button" onClick={onCancel}>
@@ -88,21 +96,31 @@ function NicknameModal({
 }
 
 interface GameRouteProps {
-  gameId: number;
+  target:
+    | { type: "game"; gameId: number }
+    | { type: "session"; shareId: string; host: boolean };
   section: GameSection;
   onSectionChange: (section: GameSection) => void;
 }
 
-export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) {
+export function GameRoute({ target, section, onSectionChange }: GameRouteProps) {
   const haptics = useHaptics();
   const fallbackClientId = useMemo(() => getOrCreateClientId(), []);
-  const { game, beers, loading, error, loadGame, setGameAndBeers } = useGameState(gameId);
+  const stateTarget = useMemo(
+    () => (target.type === "session" ? { type: "session" as const, shareId: target.shareId } : target),
+    [target],
+  );
+  const { game, beers, loading, error, loadGame, setGameAndBeers } = useGameState(stateTarget);
   const [playerIdentity, setPlayerIdentity] = useState<PlayerIdentity | null>(null);
   const [accountSession] = useState(() => loadAccountSession());
+  const [creatorToken, setCreatorToken] = useState("");
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [nicknameModalOpen, setNicknameModalOpen] = useState(false);
   const [playersAccordionOpen, setPlayersAccordionOpen] = useState(false);
   const [hasAttemptedResultsLoad, setHasAttemptedResultsLoad] = useState(false);
+  const gameId = game?.id ?? (target.type === "game" ? target.gameId : 0);
+  const shareId = game?.publicId ?? (target.type === "session" ? target.shareId : "");
+  const canHost = target.type === "game" || Boolean(creatorToken);
   const activeClientId = playerIdentity?.clientId ?? fallbackClientId;
 
   const { ratings, hydrate, setRating, setComment, hasDirty, getChangedRatings, markSaved } = useDraftRatings(
@@ -117,12 +135,29 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
   const [editDraft, setEditDraft] = useState<{
     gameName: string;
     beers: BeerEditorRow[];
+    ratingMode: RatingMode;
+    scoreMin: string;
+    scoreMax: string;
+    scoreStep: string;
+    resultsVisibility: ResultsVisibility;
     submitting: boolean;
   } | null>(null);
 
   const supportsWebShare = useMemo(() => isWebShareSupported(), []);
-  const resultsUrl = useMemo(() => `${window.location.origin}/${gameId}/results`, [gameId]);
+  const resultsUrl = useMemo(() => (shareId ? `${sessionShareUrl(shareId)}/results` : `${window.location.origin}/${gameId}/results`), [gameId, shareId]);
   const title = gameDisplayName(game?.name, gameId);
+  const shareLink = shareId ? sessionShareUrl(shareId) : `${window.location.origin}/${gameId}`;
+  const hostLink = shareId && creatorToken ? sessionHostUrl(shareId, creatorToken) : "";
+
+  useEffect(() => {
+    if (target.type !== "session" || !target.host) return;
+    const tokenFromHash = consumeHostTokenFromHash();
+    const token = tokenFromHash || loadHostToken(target.shareId);
+    if (token) {
+      saveHostToken(target.shareId, token);
+      setCreatorToken(token);
+    }
+  }, [target]);
 
   const openResults = useCallback(
     async (useHaptics = true) => {
@@ -130,7 +165,9 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
       setResultsLoading(true);
 
       try {
-        const payload = await apiClient.getResults(gameId);
+        const payload = shareId
+          ? await apiClient.getSessionResults(shareId, activeClientId, creatorToken)
+          : await apiClient.getResults(gameId);
         setResults(payload);
         if (useHaptics) haptics.selection();
       } catch (error) {
@@ -140,10 +177,11 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
         setResultsLoading(false);
       }
     },
-    [gameId, haptics],
+    [activeClientId, creatorToken, gameId, haptics, shareId],
   );
 
   useEffect(() => {
+    if (!gameId) return;
     const existingIdentity = loadPlayerIdentity(gameId);
     if (existingIdentity) {
       setPlayerIdentity(existingIdentity);
@@ -158,23 +196,26 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
   }, [gameId]);
 
   useEffect(() => {
+    if (!gameId) return;
     setResults(null);
     setHasAttemptedResultsLoad(false);
-  }, [gameId]);
+  }, [gameId, shareId]);
 
   useEffect(() => {
-    if (!beers.length || !playerIdentity) return;
+    if (!gameId || !beers.length || !playerIdentity) return;
 
     let cancelled = false;
     void (async () => {
       try {
-        const data = await apiClient.getRatings(gameId, playerIdentity.clientId, accountSession?.sessionToken);
+        const data = shareId
+          ? await apiClient.getSessionRatings(shareId, playerIdentity.clientId, accountSession?.sessionToken)
+          : await apiClient.getRatings(gameId, playerIdentity.clientId, accountSession?.sessionToken);
         if (cancelled) return;
 
         const backendRatings: Record<number, { score: number; comment: string }> = {};
         for (const row of data.ratings) {
           const beerId = Number(row.beerId);
-          const score = normalizeScore(row.score);
+          const score = normalizeScore(row.score, game?.ratingConfig);
           if (!Number.isInteger(beerId) || score == null) continue;
           backendRatings[beerId] = {
             score,
@@ -199,7 +240,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
     return () => {
       cancelled = true;
     };
-  }, [accountSession?.sessionToken, beers, gameId, hydrate, playerIdentity]);
+  }, [accountSession?.sessionToken, beers, game?.ratingConfig, gameId, hydrate, playerIdentity, shareId]);
 
   useEffect(() => {
     if (section !== "results") {
@@ -218,6 +259,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
   }, [hasAttemptedResultsLoad, openResults, results, resultsLoading, section]);
 
   function openEdit() {
+    if (!game || !canHost) return;
     haptics.selection();
     setEditDraft({
       gameName: game?.name ?? "",
@@ -228,6 +270,11 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
         untappdUrl: beer.untappd_url ?? "",
         file: null,
       })),
+      ratingMode: game.ratingConfig.mode,
+      scoreMin: String(game.ratingConfig.scoreMin),
+      scoreMax: String(game.ratingConfig.scoreMax),
+      scoreStep: String(game.ratingConfig.scoreStep),
+      resultsVisibility: game.resultsVisibility,
       submitting: false,
     });
   }
@@ -258,15 +305,16 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
     setSaveButtonText("Tallennetaan...");
 
     try {
-      await apiClient.saveRatings(
-        gameId,
-        {
-          clientId: playerIdentity.clientId,
-          nickname: playerIdentity.nickname,
-          ratings: changed,
-        },
-        accountSession?.sessionToken,
-      );
+      const payload = {
+        clientId: playerIdentity.clientId,
+        nickname: playerIdentity.nickname,
+        ratings: changed,
+      };
+      if (shareId) {
+        await apiClient.saveSessionRatings(shareId, payload, accountSession?.sessionToken);
+      } else {
+        await apiClient.saveRatings(gameId, payload, accountSession?.sessionToken);
+      }
       markSaved(changed);
       haptics.success();
       setSaveButtonText("Tallennettu");
@@ -321,7 +369,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
       haptics.light();
       await shareUrl({
         title: `${title} – tulokset`,
-        text: `Katso pelin ${title} tulokset`,
+        text: `Katso session ${title} tulokset`,
         url: resultsUrl,
       });
       haptics.success();
@@ -329,6 +377,47 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
       if ((error as Error)?.name === "AbortError") return;
       haptics.error();
       alert(String((error as Error)?.message ?? "Jakaminen epäonnistui"));
+    }
+  }
+
+  async function revealResults() {
+    if (!shareId || !creatorToken) return;
+    try {
+      haptics.light();
+      const response = await apiClient.revealSessionResults(shareId, creatorToken);
+      setGameAndBeers(response.game, beers);
+      setResults(null);
+      setHasAttemptedResultsLoad(false);
+      await openResults(false);
+      haptics.success();
+    } catch (error) {
+      haptics.error();
+      alert(String((error as Error)?.message ?? "Tulosten paljastus epäonnistui"));
+    }
+  }
+
+  async function reportContent(targetType: "session" | "beer" | "image" | "comment" | "participant", targetId?: number | string) {
+    if (!shareId) {
+      alert("Ilmoittaminen on käytössä uusissa sessiolinkeissä.");
+      return;
+    }
+
+    const reason = window.prompt("Kerro lyhyesti, mikä sisällössä on asiatonta.");
+    if (!reason?.trim()) return;
+
+    try {
+      haptics.light();
+      await apiClient.reportSession(shareId, {
+        targetType,
+        targetId,
+        reason: reason.trim(),
+        clientId: activeClientId,
+      });
+      haptics.success();
+      alert("Ilmoitus vastaanotettu. Kiitos.");
+    } catch (error) {
+      haptics.error();
+      alert(String((error as Error)?.message ?? "Ilmoituksen lähetys epäonnistui"));
     }
   }
 
@@ -341,7 +430,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
 
       const trimmedName = editDraft.gameName.trim();
       if (!trimmedName) {
-        throw new Error("Anna pelille nimi");
+        throw new Error("Anna sessiolle nimi");
       }
 
       const payloadBeers: UpdateGameRequest["beers"] = [];
@@ -349,7 +438,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
         const row = editDraft.beers[index];
         const name = row.name.trim();
         if (!name) {
-          throw new Error(`Anna nimi kaikille oluille tai poista tyhjä rivi (rivi ${index + 1})`);
+          throw new Error(`Anna nimi kaikille juomille tai poista tyhjä rivi (rivi ${index + 1})`);
         }
 
         let image_url = row.imageUrl.trim() || null;
@@ -368,13 +457,23 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
       }
 
       if (!payloadBeers.length) {
-        throw new Error("Lisää vähintään yksi olut");
+        throw new Error("Lisää vähintään yksi juoma");
       }
 
-      const updated = await apiClient.updateGame(gameId, {
+      const updatePayload = {
         name: trimmedName,
         beers: payloadBeers,
-      });
+        settings: {
+          ratingMode: editDraft.ratingMode,
+          scoreMin: Number(editDraft.scoreMin),
+          scoreMax: Number(editDraft.scoreMax),
+          scoreStep: Number(editDraft.scoreStep),
+          resultsVisibility: editDraft.resultsVisibility,
+        },
+      };
+      const updated = shareId
+        ? await apiClient.updateSession(shareId, updatePayload, creatorToken)
+        : await apiClient.updateGame(gameId, updatePayload);
 
       setGameAndBeers(updated.game, updated.beers);
       setResults(null);
@@ -418,7 +517,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
     return (
       <div className="app-wrap app-wrap-with-header pb-20">
         <div className="app-header">
-          <button className="icon-btn" type="button" onClick={closeEdit} aria-label="Takaisin peliin">
+          <button className="icon-btn" type="button" onClick={closeEdit} aria-label="Takaisin sessioon">
             <ArrowLeft size={18} />
           </button>
           <a className="header-brand" href="/">
@@ -427,12 +526,69 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
           <span className="icon-btn-placeholder" aria-hidden="true" />
         </div>
 
-        <div className="mb-3 text-center text-sm text-muted">{title} • Muokkaa peliä</div>
+        <div className="mb-3 text-center text-sm text-muted">{title} • Muokkaa sessiota</div>
 
-        <SharePanel gameId={gameId} />
+        <SharePanel shareUrl={shareLink} hostUrl={hostLink} />
+
+        <div className="surface-strip">
+          <div className="grid gap-3">
+            <div className="font-semibold">Asetukset</div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="grid gap-1 text-sm text-muted">
+                Arvostelutapa
+                <select
+                  className="input"
+                  value={editDraft.ratingMode}
+                  onChange={(event) =>
+                    setEditDraft((prev) => (prev ? { ...prev, ratingMode: event.target.value as RatingMode } : prev))
+                  }
+                >
+                  <option value="slider">Slideri</option>
+                  <option value="stars">Tähdet</option>
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm text-muted">
+                Tulokset
+                <select
+                  className="input"
+                  value={editDraft.resultsVisibility}
+                  onChange={(event) =>
+                    setEditDraft((prev) =>
+                      prev ? { ...prev, resultsVisibility: event.target.value as ResultsVisibility } : prev,
+                    )
+                  }
+                >
+                  <option value="host_reveal">Paljasta lopussa</option>
+                  <option value="after_submit">Näytä oman tallennuksen jälkeen</option>
+                  <option value="live">Näytä heti</option>
+                </select>
+              </label>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <input
+                className="input"
+                value={editDraft.scoreMin}
+                onChange={(event) => setEditDraft((prev) => (prev ? { ...prev, scoreMin: event.target.value } : prev))}
+                aria-label="Asteikon minimi"
+              />
+              <input
+                className="input"
+                value={editDraft.scoreMax}
+                onChange={(event) => setEditDraft((prev) => (prev ? { ...prev, scoreMax: event.target.value } : prev))}
+                aria-label="Asteikon maksimi"
+              />
+              <input
+                className="input"
+                value={editDraft.scoreStep}
+                onChange={(event) => setEditDraft((prev) => (prev ? { ...prev, scoreStep: event.target.value } : prev))}
+                aria-label="Asteikon askel"
+              />
+            </div>
+          </div>
+        </div>
 
         <BeerEditor
-          title="Muokkaa peliä"
+          title="Muokkaa sessiota"
           gameName={editDraft.gameName}
           onGameNameChange={(value) => setEditDraft((prev) => (prev ? { ...prev, gameName: value } : prev))}
           beers={editDraft.beers}
@@ -440,7 +596,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
           onSubmit={saveGameEdits}
           submitting={editDraft.submitting}
           submitLabel="Tallenna muutokset"
-          addLabel="+ Lisää olut"
+          addLabel="+ Lisää juoma"
           onCancel={closeEdit}
           surface="strip"
         />
@@ -461,19 +617,34 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
           Breview
         </a>
 
-        <button className="icon-btn" type="button" onClick={openEdit} aria-label="Asetukset ja pelin muokkaus">
-          <Settings size={18} />
-        </button>
+        {canHost ? (
+          <button className="icon-btn" type="button" onClick={openEdit} aria-label="Asetukset ja session muokkaus">
+            <Settings size={18} />
+          </button>
+        ) : (
+          <span className="icon-btn-placeholder" aria-hidden="true" />
+        )}
       </div>
 
       <div className="mb-4 px-1 text-center">
         <div className="text-2xl font-bold leading-tight">{title}</div>
-        <div className="mt-2 text-sm text-muted">Peli-ID: {gameId} • {beers.length} olutta</div>
+        <div className="mt-2 text-sm text-muted">
+          {beers.length} juomaa • {game?.ratingConfig.mode === "stars" ? "Tähdet" : "Slideri"}{" "}
+          {game ? `${game.ratingConfig.scoreMin}-${game.ratingConfig.scoreMax}` : ""}
+        </div>
         <div className="text-sm text-muted">
           Nimimerkki: {playerIdentity?.nickname ?? "Ei asetettu"}{" "}
           <button className="inline-link" type="button" onClick={openNicknameModal}>
             (Vaihda)
           </button>
+          {shareId ? (
+            <>
+              {" "}
+              <button className="inline-link" type="button" onClick={() => void reportContent("session")}>
+                Ilmoita sessiosta
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -502,10 +673,12 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
                 key={beer.id}
                 beer={beer}
                 mode="play"
-                score={ratings[beer.id]?.score ?? 0}
+                ratingConfig={game?.ratingConfig}
+                score={ratings[beer.id]?.score ?? null}
                 comment={ratings[beer.id]?.comment ?? ""}
                 onScoreChange={(score) => setRating(beer.id, score)}
                 onCommentChange={(comment) => setComment(beer.id, comment)}
+                onReport={() => void reportContent("beer", beer.id)}
               />
             ))}
           </div>
@@ -526,7 +699,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
       ) : (
         <>
           <div className="mb-2 px-1 text-xs text-muted">Järjestetty keskiarvon mukaan</div>
-          <ResultList beers={resultBeers} />
+          <ResultList beers={resultBeers} ratingConfig={game?.ratingConfig} />
 
           <div className="accordion-shell">
             <button
@@ -567,6 +740,11 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
                       <Share2 size={16} />
                       Jaa tulokset
                     </span>
+                  </button>
+                ) : null}
+                {canHost && game?.resultsVisibility === "host_reveal" && !game.resultsRevealedAt ? (
+                  <button className="btn btn-primary grow" type="button" onClick={() => void revealResults()}>
+                    Paljasta tulokset
                   </button>
                 ) : null}
               </div>

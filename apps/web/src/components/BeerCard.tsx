@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { BeerDto, ResultBeerDto } from "@breview/shared/api-contracts";
 import { normalizeScore } from "@breview/shared/scoring";
+import { DEFAULT_RATING_CONFIG, type RatingConfig } from "@breview/shared";
 import { MAX_RATING_COMMENT_LENGTH } from "@breview/shared/validation";
 import { useHaptics } from "../hooks/useHaptics";
 
-const SCORE_MIN = 0;
-const SCORE_MAX = 10;
 const DESKTOP_SLIDER_STEP = 0.05;
 const MOBILE_SLIDER_STEP = 0.25;
 const MOBILE_LIKE_QUERY = "(pointer: coarse), (hover: none), (max-width: 768px)";
@@ -14,21 +13,23 @@ const HAPTIC_SCORE_STEP = 0.25;
 interface BeerCardProps {
   beer: BeerDto | ResultBeerDto;
   mode: "play" | "results";
-  score?: number;
+  ratingConfig?: RatingConfig;
+  score?: number | null;
   comment?: string;
   onScoreChange?: (score: number) => void;
   onCommentChange?: (comment: string) => void;
+  onReport?: () => void;
 }
 
-function formatScore(value: unknown): string {
-  const normalized = normalizeScore(value) ?? 0;
+function formatScore(value: unknown, config: RatingConfig = DEFAULT_RATING_CONFIG): string {
+  const normalized = normalizeScore(value, config) ?? config.scoreMin;
   return normalized.toFixed(2);
 }
 
-function parseScoreInput(value: string): number | null {
+function parseScoreInput(value: string, config: RatingConfig): number | null {
   const normalizedText = String(value ?? "").trim().replace(",", ".");
   if (!normalizedText) return null;
-  return normalizeScore(normalizedText);
+  return normalizeScore(normalizedText, config);
 }
 
 function untappdSearchUrl(name: string): string {
@@ -41,32 +42,41 @@ function beerUntappdUrl(beer: BeerDto | ResultBeerDto): string {
   return untappdSearchUrl(beer.name);
 }
 
-export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentChange }: BeerCardProps) {
+export function BeerCard({
+  beer,
+  mode,
+  ratingConfig = DEFAULT_RATING_CONFIG,
+  score,
+  comment,
+  onScoreChange,
+  onCommentChange,
+  onReport,
+}: BeerCardProps) {
   const haptics = useHaptics();
   const imageStyle = beer.image_url
     ? { backgroundImage: `url("${beer.image_url.replace(/"/g, "&quot;")}")` }
     : undefined;
 
   const untappdUrl = beerUntappdUrl(beer);
-  const normalizedScore = normalizeScore(score) ?? 0;
+  const normalizedScore = score == null ? null : normalizeScore(score, ratingConfig);
   const normalizedComment = String(comment ?? "");
-  const [scoreInput, setScoreInput] = useState(() => formatScore(normalizedScore));
+  const [scoreInput, setScoreInput] = useState(() => (normalizedScore == null ? "" : formatScore(normalizedScore, ratingConfig)));
   const [isEditingInput, setIsEditingInput] = useState(false);
-  const lastSliderScoreRef = useRef<number>(normalizedScore);
+  const lastSliderScoreRef = useRef<number>(normalizedScore ?? ratingConfig.scoreMin);
   const [isCoarsePointer, setIsCoarsePointer] = useState(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
     return window.matchMedia(MOBILE_LIKE_QUERY).matches;
   });
-  const sliderStep = isCoarsePointer ? MOBILE_SLIDER_STEP : DESKTOP_SLIDER_STEP;
+  const sliderStep = ratingConfig.mode === "stars" ? ratingConfig.scoreStep : isCoarsePointer ? Math.max(MOBILE_SLIDER_STEP, ratingConfig.scoreStep) : Math.max(DESKTOP_SLIDER_STEP, ratingConfig.scoreStep);
 
   useEffect(() => {
     if (isEditingInput) return;
-    setScoreInput(formatScore(normalizedScore));
-  }, [isEditingInput, normalizedScore]);
+    setScoreInput(normalizedScore == null ? "" : formatScore(normalizedScore, ratingConfig));
+  }, [isEditingInput, normalizedScore, ratingConfig]);
 
   useEffect(() => {
-    lastSliderScoreRef.current = normalizedScore;
-  }, [normalizedScore]);
+    lastSliderScoreRef.current = normalizedScore ?? ratingConfig.scoreMin;
+  }, [normalizedScore, ratingConfig.scoreMin]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
@@ -88,7 +98,7 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
   }
 
   function handleSliderChange(rawValue: string) {
-    const next = normalizeScore(rawValue);
+    const next = normalizeScore(rawValue, ratingConfig);
     if (next == null) return;
 
     const previous = lastSliderScoreRef.current;
@@ -114,14 +124,21 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
           </div>
 
           <div className="flex min-h-[72px] flex-col justify-center gap-2">
-            <div className="font-bold">{beer.name}</div>
+            <div className="flex items-start justify-between gap-2">
+              <div className="font-bold">{beer.name}</div>
+              {onReport ? (
+                <button className="inline-link shrink-0 text-xs" type="button" onClick={onReport}>
+                  Ilmoita
+                </button>
+              ) : null}
+            </div>
             <a
               className="text-sm text-amber-300 underline"
               href={untappdUrl}
               target="_blank"
               rel="noreferrer"
             >
-              Untappd
+              Ulkoinen haku
             </a>
           </div>
         </div>
@@ -129,25 +146,45 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
         {mode === "results" ? (
           <div className="flex items-center gap-2">
             <div className="rounded-lg border border-line bg-[#14161b] px-2 py-1 font-bold">
-              {formatScore((beer as ResultBeerDto).avg_score)}
+              {formatScore((beer as ResultBeerDto).avg_score, ratingConfig)}
             </div>
             <div className="muted">keskiarvo</div>
             <div className="badge">{Number((beer as ResultBeerDto).rating_count ?? 0)} arvosanaa</div>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
+            {ratingConfig.mode === "stars" ? (
+              <div className="grid grid-cols-5 gap-2" role="radiogroup" aria-label={`Arvosana juomalle ${beer.name}`}>
+                {Array.from({ length: Math.max(1, Math.round(ratingConfig.scoreMax - ratingConfig.scoreMin)) }, (_, idx) => {
+                  const value = ratingConfig.scoreMin + idx + 1;
+                  return (
+                    <button
+                      key={value}
+                      className={`btn min-h-10 px-2 ${normalizedScore != null && normalizedScore >= value ? "btn-primary" : ""}`}
+                      type="button"
+                      onClick={() => onScoreChange?.(value)}
+                    >
+                      ★
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
             <div className="flex items-center gap-3">
-              <input
-                className="range"
-                type="range"
-                min={SCORE_MIN}
-                max={SCORE_MAX}
-                step={sliderStep}
-                value={normalizedScore}
-                onInput={(event) => handleSliderChange((event.target as HTMLInputElement).value)}
-                onChange={(event) => handleSliderChange(event.target.value)}
-                aria-label={`Arvosana oluelle ${beer.name}`}
-              />
+              {ratingConfig.mode === "slider" ? (
+                <input
+                  className="range"
+                  type="range"
+                  min={ratingConfig.scoreMin}
+                  max={ratingConfig.scoreMax}
+                  step={sliderStep}
+                  value={normalizedScore ?? ratingConfig.scoreMin}
+                  onInput={(event) => handleSliderChange((event.target as HTMLInputElement).value)}
+                  onChange={(event) => handleSliderChange(event.target.value)}
+                  aria-label={`Arvosana juomalle ${beer.name}`}
+                />
+              ) : null}
               <input
                 className="w-20 rounded-lg border border-line bg-[#14161b] px-2 py-1 text-right tabular-nums text-text"
                 type="text"
@@ -157,16 +194,16 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
                 onChange={(event) => {
                   const raw = event.target.value;
                   setScoreInput(raw);
-                  const next = parseScoreInput(raw);
+                  const next = parseScoreInput(raw, ratingConfig);
                   if (next == null) return;
                   onScoreChange?.(next);
                 }}
                 onBlur={() => {
-                  const parsed = parseScoreInput(scoreInput);
+                  const parsed = parseScoreInput(scoreInput, ratingConfig);
                   setIsEditingInput(false);
-                  setScoreInput(formatScore(parsed ?? normalizedScore));
+                  setScoreInput(parsed == null && normalizedScore == null ? "" : formatScore(parsed ?? normalizedScore, ratingConfig));
                 }}
-                aria-label={`Arvosana numerona oluelle ${beer.name}`}
+                aria-label={`Arvosana numerona juomalle ${beer.name}`}
               />
             </div>
 
@@ -179,7 +216,7 @@ export function BeerCard({ beer, mode, score, comment, onScoreChange, onCommentC
               maxLength={MAX_RATING_COMMENT_LENGTH}
               value={normalizedComment}
               onChange={(event) => onCommentChange?.(event.target.value)}
-              aria-label={`Kommentti oluelle ${beer.name}`}
+              aria-label={`Kommentti juomalle ${beer.name}`}
             />
             <div className="text-right text-xs text-muted">
               {normalizedComment.length}/{MAX_RATING_COMMENT_LENGTH}

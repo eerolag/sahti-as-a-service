@@ -10,7 +10,8 @@ export type AppRoute =
   | { type: "account" }
   | { type: "makers" }
   | { type: "public-info"; page: PublicInfoPage }
-  | { type: "game"; gameId: number; section: GameSection }
+  | { type: "game"; gameId: number; section: GameSection; legacy: true }
+  | { type: "session"; shareId: string; section: GameSection; host: boolean }
   | { type: "not-found" };
 
 export function parsePath(pathname: string): AppRoute {
@@ -40,12 +41,32 @@ export function parsePath(pathname: string): AppRoute {
 
   const resultsMatch = pathname.match(/^\/(\d+)\/results\/?$/);
   if (resultsMatch) {
-    return { type: "game", gameId: Number(resultsMatch[1]), section: "results" };
+    return { type: "game", gameId: Number(resultsMatch[1]), section: "results", legacy: true };
   }
 
   const rateMatch = pathname.match(/^\/(\d+)\/?$/);
   if (rateMatch) {
-    return { type: "game", gameId: Number(rateMatch[1]), section: "rate" };
+    return { type: "game", gameId: Number(rateMatch[1]), section: "rate", legacy: true };
+  }
+
+  const sessionMatch = pathname.match(/^\/s\/([A-Za-z0-9_-]+)(?:\/(results))?\/?$/);
+  if (sessionMatch) {
+    return {
+      type: "session",
+      shareId: sessionMatch[1],
+      section: sessionMatch[2] === "results" ? "results" : "rate",
+      host: false,
+    };
+  }
+
+  const hostMatch = pathname.match(/^\/h\/([A-Za-z0-9_-]+)(?:\/(results))?\/?$/);
+  if (hostMatch) {
+    return {
+      type: "session",
+      shareId: hostMatch[1],
+      section: hostMatch[2] === "results" ? "results" : "rate",
+      host: true,
+    };
   }
 
   return { type: "not-found" };
@@ -84,10 +105,27 @@ export function App() {
   if (route.type === "game") {
     return (
       <GameRoute
-        gameId={route.gameId}
+        target={{ type: "game", gameId: route.gameId }}
         section={route.section}
         onSectionChange={(section) => {
           const targetPath = section === "results" ? `/${route.gameId}/results` : `/${route.gameId}`;
+          if (window.location.pathname === targetPath) return;
+          window.history.pushState({}, "", targetPath);
+          setPathname(targetPath);
+        }}
+      />
+    );
+  }
+
+  if (route.type === "session") {
+    return (
+      <GameRoute
+        target={{ type: "session", shareId: route.shareId, host: route.host }}
+        section={route.section}
+        onSectionChange={(section) => {
+          const prefix = route.host ? "/h" : "/s";
+          const targetPath =
+            section === "results" ? `${prefix}/${route.shareId}/results` : `${prefix}/${route.shareId}`;
           if (window.location.pathname === targetPath) return;
           window.history.pushState({}, "", targetPath);
           setPathname(targetPath);

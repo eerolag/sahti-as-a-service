@@ -1,4 +1,4 @@
-import { normalizeImageUrl } from "./validation";
+import { normalizeImageUrl, validateUserGeneratedText } from "./validation";
 
 export interface BeerPayloadInput {
   id?: number | string;
@@ -27,13 +27,17 @@ export function normalizeBeersPayload(
     const b = input[i] as BeerPayloadInput;
     const name = String(b?.name ?? "").trim();
     if (!name) {
-      return { error: `Anna nimi kaikille oluille (rivi ${i + 1})` };
+      return { error: `Anna nimi kaikille juomille (rivi ${i + 1})` };
+    }
+    const safety = validateUserGeneratedText(name);
+    if ("error" in safety) {
+      return { error: `${safety.error} (rivi ${i + 1})` };
     }
 
     const imageUrlRaw = typeof b?.image_url === "string" && b.image_url.trim() ? b.image_url.trim() : null;
     const normalizedImageUrl = normalizeImageUrl(imageUrlRaw);
     if ("error" in normalizedImageUrl) {
-      return { error: `Virheellinen kuva oluelle "${name}": ${normalizedImageUrl.error}` };
+      return { error: `Virheellinen kuva juomalle "${name}": ${normalizedImageUrl.error}` };
     }
 
     const normalized: NormalizedBeer = {
@@ -45,7 +49,7 @@ export function normalizeBeersPayload(
     if (allowIds && b?.id != null && b.id !== "") {
       const id = Number(b.id);
       if (!Number.isInteger(id) || id <= 0) {
-        return { error: "Virheellinen olut-ID" };
+        return { error: "Virheellinen juoma-ID" };
       }
       normalized.id = id;
     }
@@ -54,10 +58,10 @@ export function normalizeBeersPayload(
   }
 
   if (beers.length < 1) {
-    return { error: "Lisää vähintään yksi olut" };
+    return { error: "Lisää vähintään yksi juoma" };
   }
   if (beers.length > 100) {
-    return { error: "Liikaa oluita (max 100)" };
+    return { error: "Liikaa juomia (max 100)" };
   }
 
   return { beers };

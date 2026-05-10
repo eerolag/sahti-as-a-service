@@ -21,7 +21,8 @@ export default {
         card: "var(--shadow-card)",
       },
       fontFamily: {
-        sans: ["system-ui", "-apple-system", "Segoe UI", "Roboto", "Arial", "sans-serif"],
+        sans: ["Figtree", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Arial", "sans-serif"],
+        mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
     },
   },

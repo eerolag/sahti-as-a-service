@@ -111,7 +111,9 @@ Jos natiivijulkaisun omistajatietoja ei ole asetettu, nämä endpointit palautta
 - `ANDROID_PACKAGE_NAME` - oletus `ing.breview.app`, aseta vain jos package muuttuu
 - `ANDROID_SHA256_CERT_FINGERPRINTS` - pilkuilla erotetut Android signing certificate SHA-256 -sormenjäljet
 
-Samat `https://breview.ing/:gameId` -linkit toimivat web-fallbackina, jos natiivisovellusta ei ole asennettu.
+Tuotannon jakolinkit käyttävät arvaamattomia polkuja `https://breview.ing/s/:shareId` osallistujille ja
+`https://breview.ing/h/:shareId#hostToken` hostille. Vanhat numeeriset `/:gameId`-linkit jäävät vain
+siirtymäkauden yhteensopivuudeksi.
 
 ## R2-kuvabucket (pakollinen kuvatiedostoille)
 
@@ -203,7 +205,7 @@ npm --workspace @breview/mobile run android -- --clear
 
 Expo käyttää oletuksena `https://breview.ing` API-basea, eli simulaattori ja Expo Go osuvat oikeaan Cloudflare Workeriin ja sen D1/R2-resursseihin. Paikallisen Workerin voi antaa muuttujalla `EXPO_PUBLIC_API_BASE_URL`.
 
-Mobiilissa voi tällä hetkellä luoda pelin, liittyä peliin, arvostella oluet sliderilla, lisätä kommentit, tallentaa arviot, katsoa tulokset, jakaa pelin linkin sekä muokata peliä ja oluita. Muokkaus tukee kuvan lisäämistä kamerasta tai kuvakirjastosta, kuvan latausta R2:een ja nimen tunnistusta Workers AI:lla. Tili-välilehti tukee sähköpostiin lähetettävää kertakäyttökoodia, näyttää resend-cooldownin, linkittää tämän laitteen aiemmat arviot tiliin ja näyttää tilille talletetut arvostelupelit. Mobiili linkittää julkisiin privacy/support/delete-account-sivuihin ja pitää valitun paikallisen kuvan tiedostonimen piilossa. Mobiilin tumma Breview-ilme pidetään linjassa webin kanssa, vaikka komponenttipohja on eri.
+Mobiilissa voi tällä hetkellä luoda session, avata jaetun sessiolinkin, arvostella juomat sliderilla tai tähdillä, lisätä kommentit, tallentaa arviot, katsoa tulokset, jakaa sessiolinkin sekä hostina muokata sessiota ja juomia. Muokkaus tukee kuvan lisäämistä kamerasta tai kuvakirjastosta, kuvan latausta R2:een ja nimen tunnistusta Workers AI:lla. Tili-välilehti tukee sähköpostiin lähetettävää kertakäyttökoodia, näyttää resend-cooldownin, linkittää tämän laitteen aiemmat arviot tiliin ja näyttää tilille talletetut arvostelusessiot. Mobiili linkittää julkisiin privacy/support/delete-account-sivuihin ja pitää valitun paikallisen kuvan tiedostonimen piilossa. Mobiilin tumma Breview-ilme pidetään linjassa webin kanssa, vaikka komponenttipohja on eri.
 
 iOS-simulaattori tai Expo web:
 
@@ -273,6 +275,13 @@ Jotta workflow voi deployata Cloudflareen, lisää GitHub-repoon `Settings -> Se
 ## API-päätepisteet
 
 - `POST /api/create-game`
+- `GET /api/sessions/:shareId`
+- `PUT /api/sessions/:shareId` (`x-breview-creator-token`)
+- `POST /api/sessions/:shareId/ratings`
+- `GET /api/sessions/:shareId/ratings?clientId=...`
+- `GET /api/sessions/:shareId/results`
+- `POST /api/sessions/:shareId/reveal-results` (`x-breview-creator-token`)
+- `POST /api/sessions/:shareId/reports`
 - `GET /api/games/:id`
 - `PUT /api/games/:id`
 - `POST /api/games/:id/ratings` (body: `clientId`, `ratings`, optional `nickname`; ratingissä valinnainen `comment`, max 255 merkkiä)
@@ -284,11 +293,12 @@ Jotta workflow voi deployata Cloudflareen, lisää GitHub-repoon `Settings -> Se
 - `GET /api/account/me` (`Authorization: Bearer <sessionToken>`)
 - `DELETE /api/account/me` (`Authorization: Bearer <sessionToken>`; poistaa tilin ja siihen linkitetyt pelaajarivit/arviot)
 - `POST /api/images/upload` (`multipart/form-data`, kenttä `file`, max 10 MB; UI validoi lisäksi max 6000x6000 px)
-- `POST /api/images/identify-beer-name` (`multipart/form-data`, kenttä `file`; palauttaa tunnistetun oluen nimen tai virheen)
+- `POST /api/images/identify-beer-name` (`multipart/form-data`, kenttä `file`; palauttaa tunnistetun juoman nimen tai virheen)
 - `GET /api/images/:key`
 - `GET /api/qr?url=<http/https-url-encoded>`
 
-Pääpelin vastauskentät ovat taaksepäin yhteensopivat aiemman version kanssa.
+Pääsession vastauskentät ovat taaksepäin yhteensopivat aiemman version kanssa. Uudet share-UI:t eivät näytä
+numeerista session ID:tä.
 
 ## Lisenssi
 

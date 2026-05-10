@@ -38,6 +38,7 @@ export function Input({
   className,
   leadingIcon,
   trailingIcon,
+  style,
   ...props
 }: InputProps) {
   const hasIcons = !!(leadingIcon || trailingIcon);
@@ -48,6 +49,7 @@ export function Input({
     return (
       <TextInput
         className={cn(inputVariants({ variant, size }), className)}
+        style={[{ fontFamily: "Figtree" }, style]}
         placeholderTextColor="#71717a"
         keyboardAppearance={dark ? "dark" : "light"}
         selectionColor={caret}
@@ -68,6 +70,7 @@ export function Input({
       {leadingIcon && <View className="me-2">{leadingIcon}</View>}
       <TextInput
         className="flex-1 text-foreground p-0 text-base"
+        style={[{ fontFamily: "Figtree" }, style]}
         placeholderTextColor="#71717a"
         keyboardAppearance={dark ? "dark" : "light"}
         selectionColor={caret}

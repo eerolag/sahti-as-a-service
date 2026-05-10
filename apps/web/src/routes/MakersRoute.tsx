@@ -1,4 +1,4 @@
-import { Beer, Coffee, ExternalLink, Home } from "lucide-react";
+import { Coffee, ExternalLink, Heart, Home } from "lucide-react";
 import { useEffect } from "react";
 import makersImageUrl from "../../../../makers-image.png";
 import { supportConfig } from "../config/support";
@@ -23,8 +23,8 @@ export function MakersRoute() {
           </a>
 
           <div className="makers-kicker">
-            <Beer size={16} aria-hidden="true" />
-            Buy us a round
+            <Heart size={16} aria-hidden="true" />
+            Support Breview
           </div>
 
           <h1 className="makers-title">{supportConfig.title}</h1>
@@ -70,20 +70,19 @@ export function MakersRoute() {
         <article className="makers-panel">
           <h2>How this got started</h2>
           <p>
-            Breview started as an idea between five friends over beers. It helps tasting groups rate,
-            compare and argue about beer with slightly more structure than a napkin and blind confidence.
+            Breview started as an idea between five friends around tasting notes. It helps groups rate,
+            compare and discuss drinks with slightly more structure than a napkin and blind confidence.
           </p>
         </article>
 
         <article className="makers-panel makers-panel--warm">
           <h2>The research budget</h2>
           <p>
-            If Breview made your tasting night smoother, funnier or only slightly more statistically
-            questionable, you can buy us a coffee. Or, more accurately, a beer.
+            If Breview made your tasting session smoother, funnier or only slightly more statistically
+            questionable, you can support the project with a coffee.
           </p>
           <p className="makers-small-print">
-            No pressure. The app works either way. All support goes toward serious beer research,
-            questionable snacks and keeping the app alive.
+            No pressure. The app works either way. Support helps keep the app maintained, reviewed and available.
           </p>
         </article>
       </section>

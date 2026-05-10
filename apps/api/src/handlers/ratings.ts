@@ -9,14 +9,14 @@ import {
   linkPlayerToUser,
 } from "../repositories/auth-repo";
 import { listBeerIdsByGameId } from "../repositories/beers-repo";
-import { gameExists } from "../repositories/games-repo";
+import { gameExists, getGameById } from "../repositories/games-repo";
 import { getOrCreatePlayerId, updatePlayerNickname } from "../repositories/players-repo";
 import { getRatingsForClient, saveRatings } from "../repositories/ratings-repo";
 import { getSessionUser } from "../services/auth-service";
 
 export async function handleGetRatings(gameId: number, request: Request, env: Env): Promise<Response> {
   const exists = await gameExists(env, gameId);
-  if (!exists) return json({ error: "Peliä ei löytynyt" }, 404);
+  if (!exists) return json({ error: "Sessiota ei löytynyt" }, 404);
 
   const url = new URL(request.url);
   const clientId = normalizeClientId(url.searchParams.get("clientId"));
@@ -38,7 +38,9 @@ export async function handleSaveRatings(gameId: number, request: Request, env: E
   }
 
   const exists = await gameExists(env, gameId);
-  if (!exists) return json({ error: "Peliä ei löytynyt" }, 404);
+  if (!exists) return json({ error: "Sessiota ei löytynyt" }, 404);
+  const game = await getGameById(env, gameId);
+  if (!game) return json({ error: "Sessiota ei löytynyt" }, 404);
 
   const normalizedNickname = normalizeNickname(body.nickname);
   if ("error" in normalizedNickname) {
@@ -64,7 +66,7 @@ export async function handleSaveRatings(gameId: number, request: Request, env: E
   for (let index = 0; index < body.ratings.length; index += 1) {
     const r = body.ratings[index];
     const beerId = Number(r?.beerId);
-    const score = normalizeScore(r?.score);
+    const score = normalizeScore(r?.score, game.ratingConfig);
     const comment = normalizeRatingComment(r?.comment);
     if ("error" in comment) {
       return json({ error: `${comment.error} (rivi ${index + 1})` }, 400);

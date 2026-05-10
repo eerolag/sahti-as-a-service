@@ -98,6 +98,102 @@ describe("worker api", () => {
     expect(gamePayload.beers[0].untappd_confidence).toBeNull();
   });
 
+  it("creates unguessable session links and requires host token for edits", async () => {
+    const createRes = await call(env, "/api/create-game", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Hidden Session",
+        settings: { resultsVisibility: "host_reveal", ratingMode: "slider", scoreMin: 0, scoreMax: 5, scoreStep: 0.5 },
+        beers: [{ name: "Beer A", image_url: null }],
+      }),
+    });
+
+    expect(createRes.status).toBe(200);
+    const created = await json(createRes);
+    expect(created.shareId).toMatch(/^[A-Za-z0-9_-]{20,}$/);
+    expect(created.shareUrl).toContain(`/s/${created.shareId}`);
+    expect(created.hostUrl).toContain(`/h/${created.shareId}#`);
+
+    const session = await json(await call(env, `/api/sessions/${created.shareId}`));
+    expect(session.game.publicId).toBe(created.shareId);
+    expect(session.game.ratingConfig).toMatchObject({ mode: "slider", scoreMax: 5, scoreStep: 0.5 });
+
+    const deniedUpdate = await call(env, `/api/sessions/${created.shareId}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Nope", beers: [{ id: session.beers[0].id, name: "Beer A", image_url: null }] }),
+    });
+    expect(deniedUpdate.status).toBe(403);
+
+    const allowedUpdate = await call(env, `/api/sessions/${created.shareId}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", "x-breview-creator-token": created.hostToken },
+      body: JSON.stringify({ name: "Host Edit", beers: [{ id: session.beers[0].id, name: "Beer A+", image_url: null }] }),
+    });
+    expect(allowedUpdate.status).toBe(200);
+    expect((await json(allowedUpdate)).game.name).toBe("Host Edit");
+  });
+
+  it("hides host-reveal results until the creator reveals them", async () => {
+    const created = await json(
+      await call(env, "/api/create-game", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Reveal Later",
+          settings: { resultsVisibility: "host_reveal" },
+          beers: [{ name: "Beer A", image_url: null }],
+        }),
+      }),
+    );
+
+    const game = await json(await call(env, `/api/sessions/${created.shareId}`));
+    await call(env, `/api/sessions/${created.shareId}/ratings`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: "hidden-client",
+        nickname: "Hidden",
+        ratings: [{ beerId: game.beers[0].id, score: 7 }],
+      }),
+    });
+
+    const hidden = await call(env, `/api/sessions/${created.shareId}/results?clientId=hidden-client`);
+    expect(hidden.status).toBe(403);
+
+    const reveal = await call(env, `/api/sessions/${created.shareId}/reveal-results`, {
+      method: "POST",
+      headers: { "x-breview-creator-token": created.hostToken },
+    });
+    expect(reveal.status).toBe(200);
+
+    const visible = await call(env, `/api/sessions/${created.shareId}/results?clientId=hidden-client`);
+    expect(visible.status).toBe(200);
+    expect((await json(visible)).beers[0].avg_score).toBe(7);
+  });
+
+  it("accepts content reports for sessions", async () => {
+    const created = await json(
+      await call(env, "/api/create-game", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Reportable",
+          beers: [{ name: "Beer A", image_url: null }],
+        }),
+      }),
+    );
+
+    const report = await call(env, `/api/sessions/${created.shareId}/reports`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ targetType: "session", reason: "spam", details: "Looks off", clientId: "reporter" }),
+    });
+    expect(report.status).toBe(200);
+    expect((await json(report)).reportId).toBe(1);
+  });
+
   it("rejects create when a beer name is empty", async () => {
     const response = await call(env, "/api/create-game", {
       method: "POST",
@@ -113,11 +209,11 @@ describe("worker api", () => {
 
     expect(response.status).toBe(400);
     const payload = await json(response);
-    expect(payload.error).toBe("Anna nimi kaikille oluille (rivi 2)");
+    expect(payload.error).toBe("Anna nimi kaikille juomille (rivi 2)");
   });
 
   it("updates game and validates beer ids", async () => {
-    await call(env, "/api/create-game", {
+    const create = await call(env, "/api/create-game", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -125,10 +221,11 @@ describe("worker api", () => {
         beers: [{ name: "Beer A", image_url: null }],
       }),
     });
+    const created = await json(create);
 
     const invalidUpdate = await call(env, "/api/games/1", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-breview-creator-token": created.hostToken },
       body: JSON.stringify({
         name: "Updated",
         beers: [{ id: 999, name: "Beer A", image_url: null }],
@@ -142,7 +239,7 @@ describe("worker api", () => {
 
     const validUpdate = await call(env, "/api/games/1", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-breview-creator-token": created.hostToken },
       body: JSON.stringify({
         name: "Updated",
         beers: [
@@ -160,7 +257,7 @@ describe("worker api", () => {
   });
 
   it("rejects update when an existing beer name is emptied", async () => {
-    await call(env, "/api/create-game", {
+    const create = await call(env, "/api/create-game", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -168,13 +265,14 @@ describe("worker api", () => {
         beers: [{ name: "Beer A", image_url: null }],
       }),
     });
+    const created = await json(create);
 
     const current = await json(await call(env, "/api/games/1"));
     const existingId = current.beers[0].id;
 
     const response = await call(env, "/api/games/1", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-breview-creator-token": created.hostToken },
       body: JSON.stringify({
         name: "Updated",
         beers: [{ id: existingId, name: " ", image_url: null }],
@@ -183,7 +281,7 @@ describe("worker api", () => {
 
     expect(response.status).toBe(400);
     const payload = await json(response);
-    expect(payload.error).toBe("Anna nimi kaikille oluille (rivi 1)");
+    expect(payload.error).toBe("Anna nimi kaikille juomille (rivi 1)");
   });
 
   it("saves ratings and returns per-client ratings", async () => {
@@ -1281,6 +1379,7 @@ describe("worker api", () => {
       }),
     });
     expect(createResponse.status).toBe(200);
+    const created = await json(createResponse);
 
     const game = await json(await call(env, "/api/games/1"));
     const beerId = game.beers[0].id;
@@ -1291,7 +1390,7 @@ describe("worker api", () => {
 
     const updateResponse = await call(env, "/api/games/1", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-breview-creator-token": String(created.hostToken) },
       body: JSON.stringify({
         name: "Replace Image",
         beers: [{ id: beerId, name: "Beer A", image_url: secondUpload.imageUrl }],
@@ -1308,7 +1407,7 @@ describe("worker api", () => {
     uploadForm.set("file", new Blob([new Uint8Array([3, 3])], { type: "image/jpeg" }), "drop.jpg");
     const upload = await json(await call(env, "/api/images/upload", { method: "POST", body: uploadForm }));
 
-    await call(env, "/api/create-game", {
+    const createResponse = await call(env, "/api/create-game", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -1319,6 +1418,7 @@ describe("worker api", () => {
         ],
       }),
     });
+    const created = await json(createResponse);
 
     const game = await json(await call(env, "/api/games/1"));
     const beerB = game.beers.find((row: Record<string, any>) => row.name === "Beer B");
@@ -1326,7 +1426,7 @@ describe("worker api", () => {
 
     const updateResponse = await call(env, "/api/games/1", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-breview-creator-token": String(created.hostToken) },
       body: JSON.stringify({
         name: "Delete Image Row",
         beers: [{ id: beerB.id, name: "Beer B", image_url: null }],
@@ -1348,13 +1448,14 @@ describe("worker api", () => {
       }),
     });
     expect(createResponse.status).toBe(200);
+    const created = await json(createResponse);
 
     const game = await json(await call(env, "/api/games/1"));
     const beerId = game.beers[0].id;
 
     const updateResponse = await call(env, "/api/games/1", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-breview-creator-token": String(created.hostToken) },
       body: JSON.stringify({
         name: "Legacy Data URL Updated",
         beers: [{ id: beerId, name: "Beer A+", image_url: legacyImage }],

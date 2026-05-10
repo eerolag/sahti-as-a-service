@@ -11,7 +11,7 @@ export default function AppTabs() {
       <TabList asChild>
         <View className="absolute bottom-4 left-4 right-4 flex-row rounded-lg border border-border bg-card p-2">
           <TabTrigger name="home" href="/" asChild>
-            <TabButton>Pelit</TabButton>
+            <TabButton>Sessiot</TabButton>
           </TabTrigger>
           <TabTrigger name="account" href="/explore" asChild>
             <TabButton>Tili</TabButton>

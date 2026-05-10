@@ -14,7 +14,7 @@ export default function AppTabs() {
       labelStyle={{ default: { color: colors.textSecondary }, selected: { color: colors.text } }}
     >
       <NativeTabs.Trigger name="index">
-        <Label>Pelit</Label>
+        <Label>Sessiot</Label>
         <Icon src={require("@/assets/images/tabIcons/home.png")} />
       </NativeTabs.Trigger>
 

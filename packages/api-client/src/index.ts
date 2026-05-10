@@ -8,8 +8,11 @@ import type {
   GetResultsResponse,
   IdentifyBeerNameResponse,
   LogoutResponse,
+  ReportSessionRequest,
+  ReportSessionResponse,
   RequestLoginCodeRequest,
   RequestLoginCodeResponse,
+  RevealResultsResponse,
   SaveRatingsRequest,
   SaveRatingsResponse,
   UploadImageResponse,
@@ -76,6 +79,10 @@ function authHeaders(sessionToken?: string): HeadersInit | undefined {
   return sessionToken ? { authorization: `Bearer ${sessionToken}` } : undefined;
 }
 
+function creatorHeaders(creatorToken?: string): HeadersInit | undefined {
+  return creatorToken ? { "x-breview-creator-token": creatorToken } : undefined;
+}
+
 export function createApiClient(options: ApiClientOptions = {}) {
   const request = createRequest(options);
   const fetcher = options.fetchImpl ?? fetch;
@@ -99,8 +106,28 @@ export function createApiClient(options: ApiClientOptions = {}) {
       });
     },
 
+    getSession(shareId: string) {
+      return request<GetGameResponse>(`/api/sessions/${encodeURIComponent(shareId)}`);
+    },
+
+    updateSession(shareId: string, payload: UpdateGameRequest, creatorToken?: string) {
+      return request<UpdateGameResponse>(`/api/sessions/${encodeURIComponent(shareId)}`, {
+        method: "PUT",
+        headers: creatorHeaders(creatorToken),
+        bodyJson: payload,
+      });
+    },
+
     saveRatings(gameId: number, payload: SaveRatingsRequest, sessionToken?: string) {
       return request<SaveRatingsResponse>(`/api/games/${gameId}/ratings`, {
+        method: "POST",
+        headers: authHeaders(sessionToken),
+        bodyJson: payload,
+      });
+    },
+
+    saveSessionRatings(shareId: string, payload: SaveRatingsRequest, sessionToken?: string) {
+      return request<SaveRatingsResponse>(`/api/sessions/${encodeURIComponent(shareId)}/ratings`, {
         method: "POST",
         headers: authHeaders(sessionToken),
         bodyJson: payload,
@@ -114,8 +141,36 @@ export function createApiClient(options: ApiClientOptions = {}) {
       });
     },
 
+    getSessionRatings(shareId: string, clientId: string, sessionToken?: string) {
+      const q = encodeURIComponent(clientId);
+      return request<GetRatingsResponse>(`/api/sessions/${encodeURIComponent(shareId)}/ratings?clientId=${q}`, {
+        headers: authHeaders(sessionToken),
+      });
+    },
+
     getResults(gameId: number) {
       return request<GetResultsResponse>(`/api/games/${gameId}/results`);
+    },
+
+    getSessionResults(shareId: string, clientId?: string, creatorToken?: string) {
+      const q = clientId ? `?clientId=${encodeURIComponent(clientId)}` : "";
+      return request<GetResultsResponse>(`/api/sessions/${encodeURIComponent(shareId)}/results${q}`, {
+        headers: creatorHeaders(creatorToken),
+      });
+    },
+
+    revealSessionResults(shareId: string, creatorToken?: string) {
+      return request<RevealResultsResponse>(`/api/sessions/${encodeURIComponent(shareId)}/reveal-results`, {
+        method: "POST",
+        headers: creatorHeaders(creatorToken),
+      });
+    },
+
+    reportSession(shareId: string, payload: ReportSessionRequest) {
+      return request<ReportSessionResponse>(`/api/sessions/${encodeURIComponent(shareId)}/reports`, {
+        method: "POST",
+        bodyJson: payload,
+      });
     },
 
     uploadImage(file: File) {

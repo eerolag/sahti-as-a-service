@@ -1,12 +1,21 @@
 import type { Env } from "./env";
 import { json } from "./http";
-import { handleCreateGame, handleGetGame, handleUpdateGame } from "./handlers/games";
+import {
+  handleCreateGame,
+  handleGetGame,
+  handleGetSession,
+  handleRevealSessionResults,
+  handleUpdateGame,
+  handleUpdateSession,
+} from "./handlers/games";
 import { handleGetRatings, handleSaveRatings } from "./handlers/ratings";
 import { handleGetResults } from "./handlers/results";
+import { handleCreateReport } from "./handlers/reports";
 import { handleGetQr } from "./handlers/qr";
 import { handleGetImage, handleUploadImage } from "./handlers/images";
 import { handleIdentifyBeerNameFromImage } from "./handlers/image-identify";
 import { handleAndroidAssetLinks, handleAppleAppSiteAssociation } from "./handlers/app-links";
+import { getGameByPublicId } from "./repositories/games-repo";
 import {
   handleDeleteAccount,
   handleGetAccount,
@@ -35,6 +44,59 @@ export async function routeApi(request: Request, env: Env): Promise<Response | n
 
   if (pathname === "/api/create-game" && request.method === "POST") {
     return handleCreateGame(request, env);
+  }
+
+  const sessionMatch = pathname.match(/^\/api\/sessions\/([A-Za-z0-9_-]+)$/);
+  if (sessionMatch) {
+    const publicId = sessionMatch[1];
+    if (request.method === "GET") {
+      return handleGetSession(publicId, env);
+    }
+    if (request.method === "PUT") {
+      return handleUpdateSession(publicId, request, env);
+    }
+    return json({ error: "Not found" }, 404);
+  }
+
+  const sessionRatingsMatch = pathname.match(/^\/api\/sessions\/([A-Za-z0-9_-]+)\/ratings$/);
+  if (sessionRatingsMatch) {
+    const game = await getGameByPublicId(env, sessionRatingsMatch[1]);
+    if (!game) return json({ error: "Sessiota ei löytynyt" }, 404);
+    if (request.method === "POST") {
+      return handleSaveRatings(game.id, request, env);
+    }
+    if (request.method === "GET") {
+      return handleGetRatings(game.id, request, env);
+    }
+    return json({ error: "Not found" }, 404);
+  }
+
+  const sessionResultsMatch = pathname.match(/^\/api\/sessions\/([A-Za-z0-9_-]+)\/results$/);
+  if (sessionResultsMatch) {
+    const game = await getGameByPublicId(env, sessionResultsMatch[1]);
+    if (!game) return json({ error: "Sessiota ei löytynyt" }, 404);
+    if (request.method === "GET") {
+      return handleGetResults(game.id, request, env, game);
+    }
+    return json({ error: "Not found" }, 404);
+  }
+
+  const revealResultsMatch = pathname.match(/^\/api\/sessions\/([A-Za-z0-9_-]+)\/reveal-results$/);
+  if (revealResultsMatch) {
+    if (request.method === "POST") {
+      return handleRevealSessionResults(revealResultsMatch[1], request, env);
+    }
+    return json({ error: "Not found" }, 404);
+  }
+
+  const sessionReportMatch = pathname.match(/^\/api\/sessions\/([A-Za-z0-9_-]+)\/reports$/);
+  if (sessionReportMatch) {
+    const game = await getGameByPublicId(env, sessionReportMatch[1]);
+    if (!game) return json({ error: "Sessiota ei löytynyt" }, 404);
+    if (request.method === "POST") {
+      return handleCreateReport(game, request, env);
+    }
+    return json({ error: "Not found" }, 404);
   }
 
   if (pathname === "/api/auth/request-code") {
@@ -95,7 +157,7 @@ export async function routeApi(request: Request, env: Env): Promise<Response | n
   const resultsMatch = pathname.match(/^\/api\/games\/(\d+)\/results$/);
   if (resultsMatch) {
     if (request.method === "GET") {
-      return handleGetResults(Number(resultsMatch[1]), env);
+      return handleGetResults(Number(resultsMatch[1]), request, env);
     }
     return json({ error: "Not found" }, 404);
   }

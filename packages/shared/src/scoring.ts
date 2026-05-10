@@ -1,6 +1,12 @@
-export function normalizeScore(value: unknown): number | null {
-  const score = Number(value);
-  if (!Number.isFinite(score)) return null;
-  const clamped = Math.min(10, Math.max(0, score));
-  return Number(clamped.toFixed(2));
+import { normalizeScoreForConfig, type RatingConfig } from "./session-settings";
+
+const LEGACY_SCORE_CONFIG: RatingConfig = {
+  mode: "slider",
+  scoreMin: 0,
+  scoreMax: 10,
+  scoreStep: 0.01,
+};
+
+export function normalizeScore(value: unknown, config: RatingConfig = LEGACY_SCORE_CONFIG): number | null {
+  return normalizeScoreForConfig(value, config);
 }

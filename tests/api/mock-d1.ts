@@ -6,6 +6,14 @@ type GameRow = {
   id: number;
   name: string;
   created_at: string;
+  public_id: string | null;
+  creator_token_hash: string | null;
+  rating_mode: string;
+  score_min: number;
+  score_max: number;
+  score_step: number;
+  results_visibility: string;
+  results_revealed_at: string | null;
 };
 
 type BeerRow = {
@@ -79,6 +87,17 @@ type UserPlayerRow = {
   linked_at: string;
 };
 
+type ContentReportRow = {
+  id: number;
+  game_id: number;
+  target_type: string;
+  target_id: string | null;
+  reason: string;
+  details: string | null;
+  client_id: string | null;
+  created_at: string;
+};
+
 function now(): string {
   return new Date().toISOString();
 }
@@ -125,11 +144,13 @@ export class MockD1Database implements D1Database {
   private loginChallenges: LoginChallengeRow[] = [];
   private sessions: SessionRow[] = [];
   private userPlayers: UserPlayerRow[] = [];
+  private contentReports: ContentReportRow[] = [];
 
   private gameIdCounter = 1;
   private beerIdCounter = 1;
   private playerIdCounter = 1;
   private userIdCounter = 1;
+  private reportIdCounter = 1;
 
   prepare(query: string): D1PreparedStatement {
     return new MockPreparedStatement(this, query);
@@ -152,9 +173,21 @@ export class MockD1Database implements D1Database {
   async executeRun(sqlRaw: string, values: unknown[]): Promise<D1RunResult> {
     const sql = normalizeSql(sqlRaw);
 
-    if (sql.startsWith("insert into games (name) values (?)")) {
-      const name = String(values[0] ?? "");
-      const row: GameRow = { id: this.gameIdCounter++, name, created_at: now() };
+    if (sql.startsWith("insert into games (name, public_id, creator_token_hash, rating_mode, score_min, score_max, score_step, results_visibility) values (?, ?, ?, ?, ?, ?, ?, ?)")) {
+      const [name, public_id, creator_token_hash, rating_mode, score_min, score_max, score_step, results_visibility] = values;
+      const row: GameRow = {
+        id: this.gameIdCounter++,
+        name: String(name ?? ""),
+        created_at: now(),
+        public_id: String(public_id ?? ""),
+        creator_token_hash: String(creator_token_hash ?? ""),
+        rating_mode: String(rating_mode ?? "slider"),
+        score_min: Number(score_min ?? 0),
+        score_max: Number(score_max ?? 10),
+        score_step: Number(score_step ?? 0.25),
+        results_visibility: String(results_visibility ?? "live"),
+        results_revealed_at: null,
+      };
       this.games.push(row);
       return { success: true, meta: { last_row_id: row.id } };
     }
@@ -164,6 +197,26 @@ export class MockD1Database implements D1Database {
       const gameId = Number(values[1]);
       const game = this.games.find((g) => g.id === gameId);
       if (game) game.name = name;
+      return { success: true, meta: {} };
+    }
+
+    if (sql.startsWith("update games set name = ?, rating_mode = ?, score_min = ?, score_max = ?, score_step = ?, results_visibility = ? where id = ?")) {
+      const [name, rating_mode, score_min, score_max, score_step, results_visibility, id] = values;
+      const game = this.games.find((g) => g.id === Number(id));
+      if (game) {
+        game.name = String(name ?? "");
+        game.rating_mode = String(rating_mode ?? "slider");
+        game.score_min = Number(score_min ?? 0);
+        game.score_max = Number(score_max ?? 10);
+        game.score_step = Number(score_step ?? 0.25);
+        game.results_visibility = String(results_visibility ?? "live");
+      }
+      return { success: true, meta: {} };
+    }
+
+    if (sql.startsWith("update games set results_revealed_at = datetime('now') where id = ?")) {
+      const game = this.games.find((g) => g.id === Number(values[0]));
+      if (game) game.results_revealed_at = now();
       return { success: true, meta: {} };
     }
 
@@ -419,6 +472,22 @@ export class MockD1Database implements D1Database {
       return { success: true, meta: {} };
     }
 
+    if (sql.startsWith("insert into content_reports (game_id, target_type, target_id, reason, details, client_id) values (?, ?, ?, ?, ?, ?)")) {
+      const [game_id, target_type, target_id, reason, details, client_id] = values;
+      const row: ContentReportRow = {
+        id: this.reportIdCounter++,
+        game_id: Number(game_id),
+        target_type: String(target_type ?? ""),
+        target_id: target_id == null ? null : String(target_id),
+        reason: String(reason ?? ""),
+        details: details == null ? null : String(details),
+        client_id: client_id == null ? null : String(client_id),
+        created_at: now(),
+      };
+      this.contentReports.push(row);
+      return { success: true, meta: { last_row_id: row.id } };
+    }
+
     if (
       sql.startsWith("insert into ai_recognition_usage") &&
       sql.includes("violations = ai_recognition_usage.violations + 1")
@@ -482,9 +551,25 @@ export class MockD1Database implements D1Database {
   async executeFirst(sqlRaw: string, values: unknown[]): Promise<AnyRow | null> {
     const sql = normalizeSql(sqlRaw);
 
-    if (sql.startsWith("select id, name, created_at from games where id = ?")) {
-      const game = this.games.find((row) => row.id === Number(values[0]));
-      return game ?? null;
+    if (sql.startsWith("select id, name, created_at, coalesce(public_id, cast(id as text)) as publicid")) {
+      const isPublicIdLookup = sql.includes("where public_id = ?");
+      const game = isPublicIdLookup
+        ? this.games.find((row) => row.public_id === String(values[0] ?? ""))
+        : this.games.find((row) => row.id === Number(values[0]));
+      if (!game) return null;
+      return {
+        id: game.id,
+        name: game.name,
+        created_at: game.created_at,
+        publicId: game.public_id ?? String(game.id),
+        creatorTokenHash: game.creator_token_hash,
+        ratingMode: game.rating_mode,
+        scoreMin: game.score_min,
+        scoreMax: game.score_max,
+        scoreStep: game.score_step,
+        resultsVisibility: game.results_visibility,
+        resultsRevealedAt: game.results_revealed_at,
+      };
     }
 
     if (sql.startsWith("select id from games where id = ?")) {
