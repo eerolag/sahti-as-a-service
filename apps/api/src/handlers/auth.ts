@@ -15,6 +15,7 @@ import {
   countRecentLoginChallenges,
   createSession,
   deleteAccountAndLinkedPlayers,
+  deleteLoginChallenge,
   getAccountHistory,
   getLatestValidLoginChallenge,
   getOrCreateUserByEmail,
@@ -35,6 +36,7 @@ import {
   createChallengeId,
   createLoginCode,
   createSecretToken,
+  describeEmailSendFailure,
   getSessionUser,
   hashLoginCode,
   hashSessionToken,
@@ -71,9 +73,10 @@ export async function handleRequestLoginCode(request: Request, env: Env): Promis
   const salt = createSecretToken(16);
   const codeHash = await hashLoginCode(email.value, code, salt, env);
   const expiresAt = addSeconds(now, LOGIN_CODE_EXPIRES_IN_SECONDS).toISOString();
+  const challengeId = createChallengeId();
 
   await insertLoginChallenge(env, {
-    id: createChallengeId(),
+    id: challengeId,
     email: email.value,
     codeHash,
     salt,
@@ -84,7 +87,9 @@ export async function handleRequestLoginCode(request: Request, env: Env): Promis
   try {
     await sendLoginCodeEmail(env, email.value, code);
   } catch (error) {
-    return json({ error: String((error as Error)?.message ?? error) }, 503);
+    await deleteLoginChallenge(env, challengeId);
+    const emailError = describeEmailSendFailure(error, env.AUTH_EMAIL_FROM ?? "login@breview.ing");
+    return json({ error: emailError.message }, emailError.status);
   }
 
   const response: RequestLoginCodeResponse = {

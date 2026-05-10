@@ -75,7 +75,7 @@ Nykyinen Worker toimii ilman ulkoisia avaimia:
 - ilman Cloudflare Email Service -bindingia kirjautumiskoodin lähetys palauttaa `503`
 - Untappd toimii pelkkänä ulkoisena hakulinkkinä eikä tarvitse avaimia
 
-Kuvatunnistus käyttää Cloudflare Workers AI -bindingia `AI` ja aloittaa mallilla `@cf/google/gemma-4-26b-a4b-it`. Kirjautuminen käyttää Cloudflare Email Service -bindingia `EMAIL`, D1:een tallennettuja kertakäyttöisiä kirjautumishaasteita ja hashattuja sessiotunnisteita. Untappd-integraatio on pelkkä käyttäjälle näkyvä ulkoinen hakulinkki, ei API-kutsu. Katso tarkempi vaiheistus plans-dokumenteista.
+Kuvatunnistus käyttää Cloudflare Workers AI -bindingia `AI` ja aloittaa mallilla `@cf/google/gemma-4-26b-a4b-it`. Kirjautuminen käyttää Cloudflare Email Service -bindingia `EMAIL`, D1:een tallennettuja kertakäyttöisiä kirjautumishaasteita ja hashattuja sessiotunnisteita. Paikallinen `wrangler dev` simuloi sähköpostilähetyksen ja tulostaa viestin konsoliin; lisää `remote: true` `send_email`-bindingiin vain silloin, kun haluat lähettää paikallisesta devistä oikeita viestejä onboardatun Email Sending -domainin kautta. Untappd-integraatio on pelkkä käyttäjälle näkyvä ulkoinen hakulinkki, ei API-kutsu. Katso tarkempi vaiheistus plans-dokumenteista.
 
 Tuotannossa aseta lisäksi salaisuus:
 

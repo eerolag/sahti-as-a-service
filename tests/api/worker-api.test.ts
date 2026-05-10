@@ -555,6 +555,21 @@ describe("worker api", () => {
     expect(payload.error).toBe("Koodi ei täsmää");
   });
 
+  it("returns actionable email service errors without consuming the retry limit", async () => {
+    vi.mocked(env.EMAIL!.send).mockRejectedValue(new Error("internal server error"));
+
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const response = await call(env, "/api/auth/request-code", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "email-down@example.com" }),
+      });
+      expect(response.status).toBe(503);
+      const payload = await json(response);
+      expect(payload.error).toContain("Cloudflare Email Servicessä");
+    }
+  });
+
   it("deletes an authenticated account and linked ratings", async () => {
     await call(env, "/api/create-game", {
       method: "POST",

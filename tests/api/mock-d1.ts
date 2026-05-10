@@ -286,6 +286,12 @@ export class MockD1Database implements D1Database {
       return { success: true, meta: {} };
     }
 
+    if (sql.startsWith("delete from login_challenges where id = ?")) {
+      const id = String(values[0] ?? "");
+      this.loginChallenges = this.loginChallenges.filter((row) => row.id !== id);
+      return { success: true, meta: {} };
+    }
+
     if (sql.startsWith("update login_challenges set consumed_at = ? where id = ?")) {
       const consumedAt = String(values[0] ?? "");
       const id = String(values[1] ?? "");

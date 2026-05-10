@@ -111,6 +111,48 @@ export function uniqueClientIds(input: unknown): string[] {
   return out;
 }
 
+export function describeEmailSendFailure(
+  error: unknown,
+  fromEmail: string,
+): { status: number; message: string } {
+  const errorLike = error as { code?: unknown; message?: unknown };
+  const code = String(errorLike?.code ?? "");
+  const rawMessage = String(errorLike?.message ?? error ?? "");
+  const normalizedMessage = rawMessage.toLowerCase();
+
+  if (code === "E_RATE_LIMIT_EXCEEDED" || code === "E_DAILY_LIMIT_EXCEEDED") {
+    return {
+      status: 429,
+      message: "Sähköpostien lähetysraja tuli vastaan. Yritä hetken päästä uudelleen.",
+    };
+  }
+
+  if (
+    code === "E_SENDER_NOT_VERIFIED" ||
+    code === "E_SENDER_DOMAIN_NOT_AVAILABLE" ||
+    normalizedMessage.includes("sender") ||
+    normalizedMessage.includes("domain") ||
+    normalizedMessage.includes("verified address")
+  ) {
+    return {
+      status: 503,
+      message: `Sähköpostin lähetys ei ole vielä valmis. Tarkista Cloudflare Email Servicen Email Sending -domain ja sallittu lähettäjä ${fromEmail}.`,
+    };
+  }
+
+  if (code === "E_INTERNAL_SERVER_ERROR" || normalizedMessage === "internal server error") {
+    return {
+      status: 503,
+      message: `Sähköpostin lähetys epäonnistui Cloudflare Email Servicessä. Tarkista Email Sending -domainin käyttöönotto ja sallittu lähettäjä ${fromEmail}.`,
+    };
+  }
+
+  return {
+    status: 503,
+    message: rawMessage || "Sähköpostin lähetys epäonnistui",
+  };
+}
+
 export async function sendLoginCodeEmail(env: Env, email: string, code: string): Promise<void> {
   if (!env.EMAIL) {
     throw new Error("Sähköpostilähetys ei ole käytössä tässä ympäristössä");

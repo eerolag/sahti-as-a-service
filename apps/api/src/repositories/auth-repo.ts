@@ -85,6 +85,12 @@ export async function incrementLoginChallengeAttempts(env: Env, challengeId: str
     .run();
 }
 
+export async function deleteLoginChallenge(env: Env, challengeId: string): Promise<void> {
+  await env.DB.prepare("DELETE FROM login_challenges WHERE id = ?")
+    .bind(challengeId)
+    .run();
+}
+
 export async function consumeLoginChallenge(
   env: Env,
   challengeId: string,
