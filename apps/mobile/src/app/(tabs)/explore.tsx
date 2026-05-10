@@ -13,6 +13,7 @@ import {
   saveAccountSession,
   type AccountSession,
 } from "@/lib/account-session";
+import { haptics } from "@/lib/haptics";
 import { getOrCreateClientId } from "@/lib/player-identity";
 import { mobileSupportConfig } from "@/lib/support";
 
@@ -71,6 +72,7 @@ export default function AccountScreen() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -101,15 +103,25 @@ export default function AccountScreen() {
     })();
   }, [refreshAccount]);
 
-  async function openSupportPage() {
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timeout = setTimeout(() => {
+      setResendCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => clearTimeout(timeout);
+  }, [resendCooldown]);
+
+  async function openExternalPage(url: string, title = "Breview") {
     try {
-      await Linking.openURL(mobileSupportConfig.pageUrl);
+      await Linking.openURL(url);
     } catch {
-      Alert.alert("Support page", "Support page could not be opened.");
+      Alert.alert(title, "Sivua ei voitu avata. Yritä myöhemmin uudelleen.");
     }
   }
 
   async function requestCode() {
+    if (resendCooldown > 0) return;
+    haptics.light();
     setLoading(true);
     setMessage(null);
 
@@ -117,15 +129,19 @@ export default function AccountScreen() {
       const response = await apiClient.requestLoginCode({ email });
       setEmail(response.email);
       setCodeSent(true);
+      setResendCooldown(response.resendAvailableInSeconds);
       setMessage("Koodi lähetetty. Tarkista sähköposti.");
+      haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
+      haptics.error();
     } finally {
       setLoading(false);
     }
   }
 
   async function verifyCode() {
+    haptics.light();
     setLoading(true);
     setMessage(null);
 
@@ -141,9 +157,12 @@ export default function AccountScreen() {
       setHistory(response.history);
       setCode("");
       setCodeSent(false);
+      setResendCooldown(0);
       setMessage("Kirjautuminen onnistui.");
+      haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
+      haptics.error();
     } finally {
       setLoading(false);
     }
@@ -151,6 +170,7 @@ export default function AccountScreen() {
 
   async function logout() {
     if (!session) return;
+    haptics.selection();
     setLoading(true);
     setMessage(null);
 
@@ -168,6 +188,7 @@ export default function AccountScreen() {
 
   function confirmDeleteAccount() {
     if (!session) return;
+    haptics.selection();
     Alert.alert("Poista tili", "Poistetaanko tili ja siihen linkitetyt arvostelut?", [
       { text: "Peruuta", style: "cancel" },
       {
@@ -182,6 +203,7 @@ export default function AccountScreen() {
 
   async function deleteAccount() {
     if (!session) return;
+    haptics.light();
     setLoading(true);
     setMessage(null);
 
@@ -191,8 +213,10 @@ export default function AccountScreen() {
       setSession(null);
       setHistory([]);
       setMessage("Tili poistettu.");
+      haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
+      haptics.error();
     } finally {
       setLoading(false);
     }
@@ -232,9 +256,16 @@ export default function AccountScreen() {
                 autoCapitalize="none"
                 autoComplete="email"
               />
-              <Button loading={loading} onPress={requestCode}>
-                {codeSent ? "Lähetä uusi koodi" : "Lähetä koodi"}
+              <Button loading={loading} disabled={resendCooldown > 0} onPress={requestCode}>
+                {resendCooldown > 0
+                  ? `Uusi koodi ${resendCooldown} s`
+                  : codeSent
+                    ? "Lähetä uusi koodi"
+                    : "Lähetä koodi"}
               </Button>
+              {codeSent && resendCooldown > 0 ? (
+                <Text variant="muted">Voit pyytää uuden kirjautumiskoodin hetken kuluttua.</Text>
+              ) : null}
               {codeSent ? (
                 <>
                   <Input
@@ -262,11 +293,11 @@ export default function AccountScreen() {
       <Card className="gap-4 border-primary/40">
         <CardHeader>
           <CardTitle>Made by {mobileSupportConfig.makerName}</CardTitle>
-          <CardDescription>Want to support future beer science?</CardDescription>
+          <CardDescription>Tue Breviewin ylläpitoa ulkoisen web-sivun kautta.</CardDescription>
         </CardHeader>
         <CardContent className="gap-3">
-          <Text variant="muted">No pressure. The app works either way.</Text>
-          <Button variant="outline" onPress={() => void openSupportPage()}>
+          <Text variant="muted">Sovellus toimii samalla tavalla ilman maksua.</Text>
+          <Button variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.pageUrl, "Breview")}>
             {mobileSupportConfig.ctaLabel}
           </Button>
         </CardContent>
@@ -285,6 +316,12 @@ export default function AccountScreen() {
             <Button variant="destructive" loading={loading} onPress={confirmDeleteAccount}>
               Poista tili
             </Button>
+            <Button
+              variant="outline"
+              onPress={() => void openExternalPage(mobileSupportConfig.deleteAccountUrl, "Tilin poistaminen")}
+            >
+              Tilin poisto-ohjeet
+            </Button>
           </CardContent>
         </Card>
       ) : null}
@@ -295,6 +332,22 @@ export default function AccountScreen() {
             Tietosuoja
           </Button>
           {privacyOpen ? <PrivacyText /> : null}
+          <View className="gap-2">
+            <Button variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.privacyUrl, "Tietosuoja")}>
+              Tietosuojaseloste
+            </Button>
+            <Button variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.supportUrl, "Tuki")}>
+              Tuki
+            </Button>
+            {!session ? (
+              <Button
+                variant="outline"
+                onPress={() => void openExternalPage(mobileSupportConfig.deleteAccountUrl, "Tilin poistaminen")}
+              >
+                Tilin poistaminen
+              </Button>
+            ) : null}
+          </View>
         </CardContent>
       </Card>
     </ScrollView>

@@ -7,6 +7,7 @@ export const LOGIN_CODE_EXPIRES_IN_SECONDS = 10 * 60;
 export const LOGIN_CODE_MAX_ATTEMPTS = 5;
 export const LOGIN_CODE_RECENT_LIMIT = 5;
 export const LOGIN_CODE_RECENT_WINDOW_SECONDS = 15 * 60;
+export const LOGIN_CODE_RESEND_COOLDOWN_SECONDS = 45;
 export const SESSION_EXPIRES_IN_DAYS = 180;
 
 const textEncoder = new TextEncoder();
@@ -111,19 +112,78 @@ export function uniqueClientIds(input: unknown): string[] {
   return out;
 }
 
+type AuthEventLevel = "info" | "warn" | "error";
+
+function emailDomain(email: string): string {
+  const domain = email.split("@")[1]?.toLowerCase().trim();
+  return domain || "unknown";
+}
+
+function errorDiagnostics(error: unknown): Record<string, string> {
+  const errorLike = error as { code?: unknown; name?: unknown; message?: unknown; stack?: unknown };
+  const diagnostics: Record<string, string> = {};
+  const code = String(errorLike?.code ?? "").trim();
+  const name = String(errorLike?.name ?? "").trim();
+  const message = String(errorLike?.message ?? error ?? "").trim();
+  if (code) diagnostics.errorCode = code.slice(0, 120);
+  if (name) diagnostics.errorName = name.slice(0, 120);
+  if (message) diagnostics.errorMessage = message.slice(0, 360);
+  return diagnostics;
+}
+
+export async function logAuthEvent(
+  env: Env,
+  event: string,
+  fields: Record<string, unknown> = {},
+  level: AuthEventLevel = "info",
+): Promise<void> {
+  const email = typeof fields.email === "string" ? fields.email : "";
+  const rest: Record<string, unknown> = { ...fields };
+  const error = rest.error;
+  delete rest.email;
+  delete rest.error;
+  const payload: Record<string, unknown> = {
+    event,
+    at: new Date().toISOString(),
+    ...rest,
+  };
+
+  if (email) {
+    payload.emailHash = await sha256Hex(`auth-event-email:${email}:${env.AUTH_SECRET ?? ""}`);
+    payload.emailDomain = emailDomain(email);
+  }
+
+  if (error !== undefined) {
+    Object.assign(payload, errorDiagnostics(error));
+  }
+
+  const line = JSON.stringify(payload);
+  if (level === "error") {
+    console.error("breview.auth_event", line);
+    return;
+  }
+  if (level === "warn") {
+    console.warn("breview.auth_event", line);
+    return;
+  }
+  console.info("breview.auth_event", line);
+}
+
 export function describeEmailSendFailure(
   error: unknown,
   fromEmail: string,
-): { status: number; message: string } {
+): { status: number; message: string; diagnostic: string } {
   const errorLike = error as { code?: unknown; message?: unknown };
   const code = String(errorLike?.code ?? "");
   const rawMessage = String(errorLike?.message ?? error ?? "");
   const normalizedMessage = rawMessage.toLowerCase();
+  const diagnostic = [code, rawMessage, `from=${fromEmail}`].filter(Boolean).join(" | ");
 
   if (code === "E_RATE_LIMIT_EXCEEDED" || code === "E_DAILY_LIMIT_EXCEEDED") {
     return {
       status: 429,
-      message: "Sähköpostien lähetysraja tuli vastaan. Yritä hetken päästä uudelleen.",
+      message: "Kirjautumiskoodia ei voitu lähettää juuri nyt. Odota hetki ja yritä uudelleen.",
+      diagnostic,
     };
   }
 
@@ -136,20 +196,23 @@ export function describeEmailSendFailure(
   ) {
     return {
       status: 503,
-      message: `Sähköpostin lähetys ei ole vielä valmis. Tarkista Cloudflare Email Servicen Email Sending -domain ja sallittu lähettäjä ${fromEmail}.`,
+      message: "Kirjautumiskoodin lähetys ei ole juuri nyt käytössä. Yritä myöhemmin uudelleen.",
+      diagnostic,
     };
   }
 
   if (code === "E_INTERNAL_SERVER_ERROR" || normalizedMessage === "internal server error") {
     return {
       status: 503,
-      message: `Sähköpostin lähetys epäonnistui Cloudflare Email Servicessä. Tarkista Email Sending -domainin käyttöönotto ja sallittu lähettäjä ${fromEmail}.`,
+      message: "Kirjautumiskoodin lähetys epäonnistui. Yritä hetken päästä uudelleen.",
+      diagnostic,
     };
   }
 
   return {
     status: 503,
-    message: rawMessage || "Sähköpostin lähetys epäonnistui",
+    message: "Kirjautumiskoodin lähetys epäonnistui. Yritä hetken päästä uudelleen.",
+    diagnostic,
   };
 }
 

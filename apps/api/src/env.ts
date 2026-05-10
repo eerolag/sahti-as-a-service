@@ -90,4 +90,8 @@ export interface Env {
   AUTH_EMAIL_FROM?: string;
   AUTH_EMAIL_FROM_NAME?: string;
   AUTH_SECRET?: string;
+  IOS_APPLE_TEAM_ID?: string;
+  IOS_BUNDLE_IDENTIFIER?: string;
+  ANDROID_PACKAGE_NAME?: string;
+  ANDROID_SHA256_CERT_FINGERPRINTS?: string;
 }

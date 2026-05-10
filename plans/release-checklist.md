@@ -15,7 +15,7 @@ Official references checked on 2026-05-10:
 
 ## Production Readiness
 
-- [ ] Keep `plans/implementation-plan.md`, `plans/roadmap.md`, and this checklist current as release scope changes.
+- [x] Keep `plans/implementation-plan.md`, `plans/roadmap.md`, and this checklist current as release scope changes.
 - [ ] Confirm production API and web are deployed from the intended branch.
 - [ ] Confirm D1 migrations are applied remotely before each Worker deploy.
 - [ ] Confirm R2 image serving works from `https://breview.ing/api/images/:key`.
@@ -29,13 +29,13 @@ Official references checked on 2026-05-10:
 
 ## Public Web Pages
 
-- [ ] Add `/privacy` as a public page reachable without login.
-- [ ] Add `/support` as a public page reachable without login.
-- [ ] Add `/delete-account` as a public page reachable without login and suitable for Google Play's account deletion web-link requirement.
-- [ ] Make account deletion prominent on `/delete-account`; users who can log in should be able to complete deletion or receive exact instructions.
-- [ ] Explain what data is deleted, what may be retained for security/legal reasons, and expected timing.
-- [ ] Add links to `/privacy`, `/support`, and `/delete-account` from the app account UI and web footer/navigation where appropriate.
-- [ ] Ensure public pages reference Breview and the developer/store listing name consistently.
+- [x] Add `/privacy` as a public page reachable without login.
+- [x] Add `/support` as a public page reachable without login.
+- [x] Add `/delete-account` as a public page reachable without login and suitable for Google Play's account deletion web-link requirement.
+- [x] Make account deletion prominent on `/delete-account`; users who can log in should be able to complete deletion or receive exact instructions.
+- [x] Explain what data is deleted, what may be retained for security/legal reasons, and expected timing.
+- [x] Add links to `/privacy`, `/support`, and `/delete-account` from the app account UI and web footer/navigation where appropriate.
+- [x] Ensure public pages reference Breview and the developer/store listing name consistently.
 
 ## Privacy And Data Declarations
 
@@ -51,38 +51,38 @@ Official references checked on 2026-05-10:
 - [ ] Decide exact App Store privacy labels based on the final data inventory.
 - [ ] Complete Google Play Data safety based on the same inventory.
 - [ ] Confirm no third-party advertising/tracking SDKs are included.
-- [ ] Confirm AI/image processing and R2 storage are described plainly in the privacy policy.
-- [ ] Confirm account deletion deletes account-linked player rows/ratings as implemented, and document any retained operational data.
+- [x] Confirm AI/image processing and R2 storage are described plainly in the privacy policy.
+- [x] Confirm account deletion deletes account-linked player rows/ratings as implemented, and document any retained operational data.
 
 ## Auth Polish
 
-- [ ] Add auth/login-code event logging for request, send success/failure, verify success/failure, logout, and account deletion.
-- [ ] Add login-code resend cooldown UI; this means delaying "send code again" for a short period, not using the Resend service.
-- [ ] Improve Cloudflare Email Service diagnostics shown to users and logs when sending fails.
-- [ ] Keep user-facing auth errors concise and non-leaky.
+- [x] Add auth/login-code event logging for request, send success/failure, verify success/failure, logout, and account deletion.
+- [x] Add login-code resend cooldown UI; this means delaying "send code again" for a short period, not using the Resend service.
+- [x] Improve Cloudflare Email Service diagnostics shown to users and logs when sending fails.
+- [x] Keep user-facing auth errors concise and non-leaky.
 - [ ] Confirm email login works in production with a real mailbox.
 - [ ] Confirm account deletion is available only when logged in inside the app, while privacy basics remain visible when logged out.
 
 ## Deep Links And App Links
 
-- [ ] Keep `breview://` scheme working for game links.
-- [ ] Configure iOS associated domains for `https://breview.ing` when Apple Developer account is ready.
-- [ ] Add and serve `/.well-known/apple-app-site-association` with the final iOS app identifier.
-- [ ] Configure Android intent filters for `https://breview.ing` game links.
-- [ ] Add and serve `/.well-known/assetlinks.json` with the final Android package and signing certificate fingerprint.
+- [x] Keep `breview://` scheme working for game links.
+- [ ] Configure iOS associated domains for `https://breview.ing` when Apple Developer account is ready. App config now includes `applinks:breview.ing`; final verification still requires the Apple Developer account and Team ID.
+- [ ] Add and serve `/.well-known/apple-app-site-association` with the final iOS app identifier. The Worker serves this endpoint now, but it intentionally returns empty `details` until `IOS_APPLE_TEAM_ID` is provided.
+- [x] Configure Android intent filters for `https://breview.ing` game links.
+- [ ] Add and serve `/.well-known/assetlinks.json` with the final Android package and signing certificate fingerprint. The Worker serves this endpoint now, but it intentionally returns `[]` until `ANDROID_SHA256_CERT_FINGERPRINTS` is provided.
 - [ ] Test link behavior from Messages, Safari/Chrome, email, and QR code on iOS and Android.
 - [ ] Ensure fallback links still open the web app when the native app is not installed.
 
 ## Mobile UX Polish
 
-- [ ] Add release-grade loading, retry, and offline states for create/join/rate/results/edit/account flows.
-- [ ] Polish camera/photo permission copy and denial handling.
-- [ ] Polish image capture and image library states.
-- [ ] Polish edit/share flows and copy.
-- [ ] Add haptics where useful without making repeated workflows noisy.
-- [ ] Confirm local filenames are not rendered in mobile UI.
-- [ ] Confirm account settings are understandable and not hidden behind unclear labels.
-- [ ] Confirm the maker-support link opens externally and does not create a native payment flow.
+- [x] Add release-grade loading, retry, and offline states for create/join/rate/results/edit/account flows.
+- [x] Polish camera/photo permission copy and denial handling.
+- [x] Polish image capture and image library states.
+- [x] Polish edit/share flows and copy.
+- [x] Add haptics where useful without making repeated workflows noisy.
+- [x] Confirm local filenames are not rendered in mobile UI.
+- [x] Confirm account settings are understandable and not hidden behind unclear labels.
+- [x] Confirm the maker-support link opens externally and does not create a native payment flow.
 
 ## Untappd
 
@@ -108,6 +108,7 @@ Official references checked on 2026-05-10:
 ## Apple App Store
 
 - [ ] Enroll/confirm Apple Developer Program membership for the person or organization that should own Breview.
+- [ ] Provide Apple Developer Team ID for `IOS_APPLE_TEAM_ID` before final universal-link verification.
 - [ ] Keep the Apple Developer account holder, App Store Connect app owner, bundle ID owner, and EAS credentials aligned.
 - [ ] Create App Store Connect app record for Breview.
 - [ ] Configure bundle ID and signing credentials.
@@ -122,6 +123,7 @@ Official references checked on 2026-05-10:
 ## Google Play
 
 - [ ] Create/confirm the Google Play Console developer account for the person or organization that should own Breview.
+- [ ] Provide Android app signing certificate SHA-256 fingerprint for `ANDROID_SHA256_CERT_FINGERPRINTS` before final app-link verification.
 - [ ] Complete Play Console registration payment, identity verification, and any new-account testing requirements before planning production rollout dates.
 - [ ] Create Google Play Console app record for Breview.
 - [ ] Complete app content declarations.
@@ -134,6 +136,8 @@ Official references checked on 2026-05-10:
 - [ ] Promote from internal testing to closed/open/production only after smoke testing.
 
 ## Release Verification
+
+Local verification note from 2026-05-10: this Codex shell did not expose an `npm` binary, so the exact `npm run ...` commands could not execute here. Equivalent commands were run directly with the bundled Node runtime: all TypeScript project checks passed, Vitest passed, and the Vite web build passed. Run the exact npm commands again in the normal developer shell before release tagging.
 
 - [ ] Run `npm test`.
 - [ ] Run `npm run typecheck`.

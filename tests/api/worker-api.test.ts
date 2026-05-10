@@ -436,6 +436,7 @@ describe("worker api", () => {
       body: JSON.stringify({ email: "Tester@Example.COM" }),
     });
     expect(requestCode.status).toBe(200);
+    expect(await json(requestCode.clone())).toMatchObject({ resendAvailableInSeconds: 45 });
     expect(sentEmails).toHaveLength(1);
     expect(sentEmails[0].to).toBe("tester@example.com");
 
@@ -566,7 +567,7 @@ describe("worker api", () => {
       });
       expect(response.status).toBe(503);
       const payload = await json(response);
-      expect(payload.error).toContain("Cloudflare Email Servicessä");
+      expect(payload.error).toBe("Kirjautumiskoodin lähetys epäonnistui. Yritä hetken päästä uudelleen.");
     }
   });
 
@@ -630,6 +631,33 @@ describe("worker api", () => {
     expect(response.status).toBe(404);
     const payload = await json(response);
     expect(payload.error).toBe("Not found");
+  });
+
+  it("serves empty well-known app association files until owner values are configured", async () => {
+    const aasa = await call(env, "/.well-known/apple-app-site-association");
+    expect(aasa.status).toBe(200);
+    expect(aasa.headers.get("content-type")).toContain("application/json");
+    expect(await json(aasa)).toEqual({ applinks: { apps: [], details: [] } });
+
+    const assetLinks = await call(env, "/.well-known/assetlinks.json");
+    expect(assetLinks.status).toBe(200);
+    expect(await assetLinks.json()).toEqual([]);
+  });
+
+  it("serves configured iOS universal link and Android app link associations", async () => {
+    env.IOS_APPLE_TEAM_ID = "ABCDE12345";
+    env.ANDROID_SHA256_CERT_FINGERPRINTS =
+      "11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00";
+
+    const aasa = await json(await call(env, "/.well-known/apple-app-site-association"));
+    expect(aasa.applinks.details[0]).toMatchObject({
+      appID: "ABCDE12345.ing.breview.app",
+      paths: ["/*"],
+    });
+
+    const assetLinks = (await (await call(env, "/.well-known/assetlinks.json")).json()) as Array<Record<string, any>>;
+    expect(assetLinks[0].target.package_name).toBe("ing.breview.app");
+    expect(assetLinks[0].target.sha256_cert_fingerprints).toHaveLength(1);
   });
 
   it("uploads an image to R2 and returns proxy url", async () => {

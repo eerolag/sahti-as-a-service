@@ -64,6 +64,7 @@ export function AccountRoute() {
   const [email, setEmail] = useState(() => session?.user.email ?? "");
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -97,8 +98,17 @@ export function AccountRoute() {
     };
   }, [session?.sessionToken]);
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timeout = window.setTimeout(() => {
+      setResendCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearTimeout(timeout);
+  }, [resendCooldown]);
+
   async function requestCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (resendCooldown > 0) return;
     setLoading(true);
     setMessage(null);
 
@@ -106,6 +116,7 @@ export function AccountRoute() {
       const response = await apiClient.requestLoginCode({ email });
       setEmail(response.email);
       setCodeSent(true);
+      setResendCooldown(response.resendAvailableInSeconds);
       setMessage("Koodi lähetetty. Tarkista sähköposti ja syötä kuusinumeroinen koodi.");
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
@@ -131,6 +142,7 @@ export function AccountRoute() {
       setHistory(response.history);
       setCode("");
       setCodeSent(false);
+      setResendCooldown(0);
       setMessage("Kirjautuminen onnistui.");
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
@@ -220,9 +232,16 @@ export function AccountRoute() {
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="nimi@example.com"
               />
-              <button className="btn btn-primary" type="submit" disabled={loading}>
-                {codeSent ? "Lähetä uusi koodi" : "Lähetä koodi"}
+              <button className="btn btn-primary" type="submit" disabled={loading || resendCooldown > 0}>
+                {resendCooldown > 0
+                  ? `Uusi koodi ${resendCooldown} s`
+                  : codeSent
+                    ? "Lähetä uusi koodi"
+                    : "Lähetä koodi"}
               </button>
+              {codeSent && resendCooldown > 0 ? (
+                <div className="text-xs text-muted">Voit pyytää uuden kirjautumiskoodin hetken kuluttua.</div>
+              ) : null}
             </form>
 
             {codeSent ? (
@@ -261,6 +280,17 @@ export function AccountRoute() {
               Poista tili
             </button>
           </div>
+          <div className="mt-4 flex flex-wrap gap-3 text-sm">
+            <a className="inline-link" href="/privacy">
+              Tietosuoja
+            </a>
+            <a className="inline-link" href="/support">
+              Tuki
+            </a>
+            <a className="inline-link" href="/delete-account">
+              Tilin poistamisen ohjeet
+            </a>
+          </div>
         </div>
       ) : null}
 
@@ -271,6 +301,17 @@ export function AccountRoute() {
         {privacyOpen ? (
           <div className="mt-4 border-t border-line pt-4">
             <PrivacyDetails />
+            <div className="mt-4 flex flex-wrap gap-3 text-sm">
+              <a className="inline-link" href="/privacy">
+                Tietosuojaseloste
+              </a>
+              <a className="inline-link" href="/support">
+                Tuki
+              </a>
+              <a className="inline-link" href="/delete-account">
+                Tilin poistaminen
+              </a>
+            </div>
           </div>
         ) : null}
       </div>

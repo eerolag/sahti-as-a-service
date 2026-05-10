@@ -6,6 +6,7 @@ import { handleGetResults } from "./handlers/results";
 import { handleGetQr } from "./handlers/qr";
 import { handleGetImage, handleUploadImage } from "./handlers/images";
 import { handleIdentifyBeerNameFromImage } from "./handlers/image-identify";
+import { handleAndroidAssetLinks, handleAppleAppSiteAssociation } from "./handlers/app-links";
 import {
   handleDeleteAccount,
   handleGetAccount,
@@ -17,6 +18,20 @@ import {
 export async function routeApi(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
   const { pathname } = url;
+
+  if (pathname === "/.well-known/apple-app-site-association") {
+    if (request.method === "GET" || request.method === "HEAD") {
+      return handleAppleAppSiteAssociation(request, env);
+    }
+    return json({ error: "Not found" }, 404);
+  }
+
+  if (pathname === "/.well-known/assetlinks.json") {
+    if (request.method === "GET" || request.method === "HEAD") {
+      return handleAndroidAssetLinks(request, env);
+    }
+    return json({ error: "Not found" }, 404);
+  }
 
   if (pathname === "/api/create-game" && request.method === "POST") {
     return handleCreateGame(request, env);

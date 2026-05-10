@@ -204,6 +204,63 @@
   .makers-footer {
     @apply flex flex-col items-start justify-between gap-3 border-t border-line pb-6 pt-5 text-sm text-muted sm:flex-row sm:items-center;
   }
+
+  .public-page {
+    @apply mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-5 px-4 py-5 sm:px-6;
+  }
+
+  .public-nav {
+    @apply flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center;
+  }
+
+  .public-nav__links {
+    @apply flex flex-wrap gap-3 text-sm;
+  }
+
+  .public-hero {
+    @apply rounded-card border border-line bg-card p-5 shadow-card sm:p-6;
+  }
+
+  .public-kicker {
+    @apply mb-3 text-sm font-semibold uppercase tracking-wide text-amber-300;
+  }
+
+  .public-title {
+    @apply text-3xl font-extrabold leading-tight text-text sm:text-4xl;
+  }
+
+  .public-content {
+    @apply grid gap-4 pb-8;
+  }
+
+  .public-panel {
+    @apply rounded-card border border-line bg-[rgba(27,29,34,0.76)] p-5 shadow-card;
+  }
+
+  .public-panel--important {
+    @apply border-amber-500/40 bg-[rgba(58,39,19,0.36)];
+  }
+
+  .public-panel h2 {
+    @apply mb-3 text-xl font-bold text-text;
+  }
+
+  .public-panel p {
+    @apply mb-3 text-base leading-7 text-muted last:mb-0;
+  }
+
+  .public-list {
+    @apply mb-3 grid gap-2 pl-5 text-base leading-7 text-muted;
+    list-style: disc;
+  }
+
+  .public-list--ordered {
+    list-style: decimal;
+  }
+
+  .public-mail-cta {
+    @apply mt-2 inline-flex items-center gap-2;
+  }
 }
 
 .range {

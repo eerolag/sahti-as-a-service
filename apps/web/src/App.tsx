@@ -3,11 +3,13 @@ import { AccountRoute } from "./routes/AccountRoute";
 import { HomeRoute } from "./routes/HomeRoute";
 import { GameRoute, type GameSection } from "./routes/GameRoute";
 import { MakersRoute } from "./routes/MakersRoute";
+import { PublicInfoRoute, type PublicInfoPage } from "./routes/PublicInfoRoute";
 
 export type AppRoute =
   | { type: "home" }
   | { type: "account" }
   | { type: "makers" }
+  | { type: "public-info"; page: PublicInfoPage }
   | { type: "game"; gameId: number; section: GameSection }
   | { type: "not-found" };
 
@@ -22,6 +24,18 @@ export function parsePath(pathname: string): AppRoute {
 
   if (pathname === "/account" || pathname === "/account/") {
     return { type: "account" };
+  }
+
+  if (pathname === "/privacy" || pathname === "/privacy/") {
+    return { type: "public-info", page: "privacy" };
+  }
+
+  if (pathname === "/support" || pathname === "/support/") {
+    return { type: "public-info", page: "support" };
+  }
+
+  if (pathname === "/delete-account" || pathname === "/delete-account/") {
+    return { type: "public-info", page: "delete-account" };
   }
 
   const resultsMatch = pathname.match(/^\/(\d+)\/results\/?$/);
@@ -61,6 +75,10 @@ export function App() {
 
   if (route.type === "account") {
     return <AccountRoute />;
+  }
+
+  if (route.type === "public-info") {
+    return <PublicInfoRoute page={route.page} />;
   }
 
   if (route.type === "game") {

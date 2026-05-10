@@ -17,23 +17,24 @@
 - Keep local device image filenames hidden in mobile UI; selected image preview is enough feedback.
 - Keep AI recognition warnings visible as popup/alert feedback in web and mobile, not only inline status text.
 - Keep the `/makers` creator-support page provider-agnostic: web reads `SUPPORT_PAYMENT_URL`, mobile only opens `EXPO_PUBLIC_SUPPORT_PAGE_URL` externally, and no native payment flow is added.
-- Keep optional email-code accounts working across web and mobile: Cloudflare Email Service sends login codes, D1 sessions link device ratings to accounts, and account deletion is shown only after login.
-- Keep privacy basics available from the account UI before login; fuller public privacy/support pages are still required before store submission.
+- Keep optional email-code accounts working across web and mobile: Cloudflare Email Service sends login codes, resend cooldown UI prevents rapid repeat taps, D1 sessions link device ratings to accounts, and account deletion is shown only after login.
+- Keep structured auth logs in Worker logs for login-code requests, send success/failure, verify success/failure, logout, and account deletion; user-facing auth errors must remain concise and non-leaky.
+- Keep public `/privacy`, `/support`, and `/delete-account` pages reachable without login and linked from account/support surfaces.
+- Keep `breview://` plus prepared iOS universal links and Android app links for `https://breview.ing`; final production association still needs Apple Team ID and Android SHA-256 signing fingerprint.
+- Keep privacy basics available from the account UI before login and link to the fuller public reviewer pages.
 - Keep the mobile dark Breview visual direction aligned with the web UI while using AniUI/NativeWind components.
-- Grow the Expo shell from current native game editing, image upload, sharing, and account flows into deeper link handling and release-grade review states using AniUI components.
+- Keep the Expo shell's account, image upload, sharing, retry, permission-denied, and edit states release-grade while continuing to use SDK 54.
 
 ## Next
 
-- Add full `/privacy`, `/support`, and `/delete-account` web pages suitable for App Store and Google Play review.
-- Add email/auth event logging, login-code resend cooldown UI, and clearer delivery diagnostics for login-code failures.
+- Replace empty app-link association responses with final Apple Team ID and Android SHA-256 fingerprints once the release owner provides them.
+- Test universal/app link behavior from Messages, Safari/Chrome, email, QR codes, and web fallback on real iOS and Android builds.
 - Keep beer-name recognition on Cloudflare Workers AI, starting with Gemma 4 and escalating to Kimi K2.6 only if quality requires it.
 - Keep Untappd as outbound search links only; do not use scraping, private endpoints, API calls, or Untappd branding.
 
 ## Then
 
-- Implement native account settings and polish edit/share/image capture states for release.
-- Add deep links and app links for `breview://` and `https://breview.ing`.
-- Polish camera/photo permission copy, haptics, loading states, and offline-friendly retry states.
+- Continue smoke-testing native account settings, edit/share/image capture states, permission copy, haptics, loading states, and offline-friendly retry states on physical devices.
 - Upgrade Breview and the other active mobile project to Expo SDK 55 together, or move Breview to an SDK 55 development build when Apple Developer/TestFlight setup is ready.
 
 ## Release

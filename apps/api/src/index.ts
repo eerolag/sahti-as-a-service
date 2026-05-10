@@ -16,10 +16,8 @@ export default {
 
       return json({ error: "Not found" }, 404);
     } catch (err) {
-      return json(
-        { error: "Server error", details: String((err as Error)?.message ?? err) },
-        500,
-      );
+      console.error("breview.worker_error", String((err as Error)?.message ?? err));
+      return json({ error: "Server error" }, 500);
     }
   },
 };

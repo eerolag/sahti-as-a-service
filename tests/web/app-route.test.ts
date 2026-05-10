@@ -22,6 +22,12 @@ describe("web route parser", () => {
     expect(parsePath("/account/")).toEqual({ type: "account" });
   });
 
+  it("parses public reviewer pages", () => {
+    expect(parsePath("/privacy")).toEqual({ type: "public-info", page: "privacy" });
+    expect(parsePath("/support/")).toEqual({ type: "public-info", page: "support" });
+    expect(parsePath("/delete-account")).toEqual({ type: "public-info", page: "delete-account" });
+  });
+
   it("returns not-found for unknown routes", () => {
     expect(parsePath("/foo")).toEqual({ type: "not-found" });
     expect(parsePath("/123/other")).toEqual({ type: "not-found" });

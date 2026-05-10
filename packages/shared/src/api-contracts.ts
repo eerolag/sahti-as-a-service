@@ -124,6 +124,7 @@ export interface RequestLoginCodeResponse {
   ok: true;
   email: string;
   expiresInSeconds: number;
+  resendAvailableInSeconds: number;
 }
 
 export interface VerifyLoginCodeRequest {

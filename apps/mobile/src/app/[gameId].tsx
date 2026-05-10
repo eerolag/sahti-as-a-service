@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { loadAccountSession } from "@/lib/account-session";
 import { apiClient, identifyBeerNameAsset, uploadImageAsset, type MobileImageAsset } from "@/lib/api";
+import { haptics } from "@/lib/haptics";
 import {
   generateAnonymousNickname,
   getOrCreateClientId,
@@ -125,6 +126,23 @@ function asMobileImageAsset(asset: ImagePicker.ImagePickerAsset): MobileImageAss
     fileName: asset.fileName,
     mimeType: asset.mimeType,
   };
+}
+
+function showImagePermissionDenied(source: "camera" | "library") {
+  const label = source === "camera" ? "kamera" : "kuvakirjasto";
+  Alert.alert(
+    source === "camera" ? "Kamera ei ole käytössä" : "Kuvakirjasto ei ole käytössä",
+    `Salli ${label} laitteen asetuksista, jotta voit lisätä olutkuvan peliin.`,
+    [
+      { text: "Peruuta", style: "cancel" },
+      {
+        text: "Avaa asetukset",
+        onPress: () => {
+          void Linking.openSettings();
+        },
+      },
+    ],
+  );
 }
 
 export default function GameScreen() {
@@ -247,6 +265,7 @@ export default function GameScreen() {
     const normalized = normalizeNickname(nicknameDraft);
     if ("error" in normalized) {
       setMessage(normalized.error);
+      haptics.error();
       return;
     }
 
@@ -260,6 +279,7 @@ export default function GameScreen() {
     setNicknameDraft(next.nickname);
     setEditingNickname(false);
     setMessage(null);
+    haptics.success();
   }
 
   function setBeerScore(beerId: number, score: number) {
@@ -287,10 +307,12 @@ export default function GameScreen() {
   }
 
   function addEditBeer() {
+    haptics.selection();
     setEditBeers((current) => [...current, createEmptyBeerDraft()]);
   }
 
   function removeEditBeer(index: number) {
+    haptics.selection();
     setEditBeers((current) => {
       const next = current.filter((_, itemIndex) => itemIndex !== index);
       return next.length ? next : [createEmptyBeerDraft()];
@@ -312,6 +334,7 @@ export default function GameScreen() {
     setSaving(true);
     setSaveLabel("Tallennetaan...");
     setMessage(null);
+    haptics.light();
 
     try {
       const accountSession = await loadAccountSession();
@@ -328,9 +351,11 @@ export default function GameScreen() {
       setResults(null);
       setSaveLabel("Tallennettu");
       setTimeout(() => setSaveLabel("Tallenna"), 900);
+      haptics.success();
     } catch (error) {
       setSaveLabel("Tallenna");
       setMessage(String((error as Error)?.message ?? error));
+      haptics.error();
     } finally {
       setSaving(false);
     }
@@ -341,17 +366,21 @@ export default function GameScreen() {
 
     setResultsLoading(true);
     setMessage(null);
+    haptics.light();
 
     try {
       setResults(await apiClient.getResults(gameId));
+      haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
+      haptics.error();
     } finally {
       setResultsLoading(false);
     }
   }
 
   function openResults() {
+    haptics.selection();
     setSection("results");
     if (!results && !resultsLoading) {
       void loadResults();
@@ -359,16 +388,29 @@ export default function GameScreen() {
   }
 
   async function copyShareUrl() {
-    await Clipboard.setStringAsync(shareUrl);
-    setMessage("Pelin linkki kopioitu.");
+    try {
+      await Clipboard.setStringAsync(shareUrl);
+      setMessage("Pelin linkki kopioitu.");
+      haptics.success();
+    } catch (error) {
+      setMessage(String((error as Error)?.message ?? "Linkin kopiointi epäonnistui."));
+      haptics.error();
+    }
   }
 
   async function shareGame() {
-    await Share.share({
-      title,
-      message: `${title}\n${shareUrl}`,
-      url: shareUrl,
-    });
+    try {
+      haptics.light();
+      await Share.share({
+        title,
+        message: `${title}\n${shareUrl}`,
+        url: shareUrl,
+      });
+      haptics.success();
+    } catch (error) {
+      setMessage(String((error as Error)?.message ?? "Jakaminen epäonnistui."));
+      haptics.error();
+    }
   }
 
   async function pickEditBeerImage(index: number, source: "camera" | "library") {
@@ -380,7 +422,13 @@ export default function GameScreen() {
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
-      setMessage(source === "camera" ? "Kameran käyttöoikeus puuttuu." : "Kuvakirjaston käyttöoikeus puuttuu.");
+      const message =
+        source === "camera"
+          ? "Kameran käyttöoikeus puuttuu. Salli kamera asetuksista ja yritä uudelleen."
+          : "Kuvakirjaston käyttöoikeus puuttuu. Salli kuvat asetuksista ja yritä uudelleen.";
+      setMessage(message);
+      showImagePermissionDenied(source);
+      haptics.error();
       return;
     }
 
@@ -402,26 +450,32 @@ export default function GameScreen() {
       localAsset: asset,
       imageUrl: "",
     });
+    setMessage("Kuva valittu. Voit tunnistaa nimen tai tallentaa muutokset.");
+    haptics.success();
   }
 
   async function identifyEditBeer(index: number) {
     const row = editBeers[index];
     if (!row?.localAsset) {
       setMessage("Valitse ensin kuva kamerasta tai kuvista.");
+      haptics.error();
       return;
     }
 
     setMessage(null);
     setEditBeer(index, { identifying: true });
+    haptics.light();
 
     try {
       const identified = await identifyBeerNameAsset(asMobileImageAsset(row.localAsset), await getOrCreateClientId());
       setEditBeer(index, { name: identified.beerName, identifying: false });
+      haptics.success();
     } catch (error) {
       const message = String((error as Error)?.message ?? "Nimen tunnistus epäonnistui.");
       setEditBeer(index, { identifying: false });
       setMessage(message);
       Alert.alert("AI-tunnistus", message);
+      haptics.error();
     }
   }
 
@@ -429,12 +483,14 @@ export default function GameScreen() {
     const trimmedName = editGameName.trim();
     if (!trimmedName) {
       setMessage("Anna pelille nimi.");
+      haptics.error();
       return;
     }
 
     const payloadBeers: UpdateGameRequest["beers"] = [];
     setEditSaving(true);
     setMessage(null);
+    haptics.light();
 
     try {
       for (let index = 0; index < editBeers.length; index += 1) {
@@ -475,8 +531,10 @@ export default function GameScreen() {
       if (nextIdentity) {
         await loadRatings(nextIdentity, updated.beers);
       }
+      haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
+      haptics.error();
     } finally {
       setEditSaving(false);
     }
@@ -529,9 +587,23 @@ export default function GameScreen() {
         </View>
 
         <View className="flex-row rounded-lg bg-secondary p-1">
-          <SectionTab active={section === "rate"} label="Arvostele" onPress={() => setSection("rate")} />
+          <SectionTab
+            active={section === "rate"}
+            label="Arvostele"
+            onPress={() => {
+              haptics.selection();
+              setSection("rate");
+            }}
+          />
           <SectionTab active={section === "results"} label="Tulokset" onPress={openResults} />
-          <SectionTab active={section === "edit"} label="Muokkaa" onPress={() => setSection("edit")} />
+          <SectionTab
+            active={section === "edit"}
+            label="Muokkaa"
+            onPress={() => {
+              haptics.selection();
+              setSection("edit");
+            }}
+          />
         </View>
 
         {message ? (
@@ -545,6 +617,18 @@ export default function GameScreen() {
         {loading ? (
           <Card>
             <Text>Ladataan...</Text>
+          </Card>
+        ) : null}
+
+        {!loading && !payload ? (
+          <Card className="gap-3">
+            <Text variant="large">Peliä ei voitu ladata</Text>
+            <Text selectable variant="muted">
+              Tarkista verkkoyhteys ja pelilinkki. Jos yhteys pätkäisi, voit yrittää uudelleen.
+            </Text>
+            <Button variant="secondary" onPress={() => void loadGame()}>
+              Yritä uudelleen
+            </Button>
           </Card>
         ) : null}
 
@@ -579,7 +663,12 @@ export default function GameScreen() {
               ) : results?.beers.length ? (
                 results.beers.map((beer) => <ResultRow key={beer.id} beer={beer} />)
               ) : (
-                <Text variant="muted">Ei tuloksia vielä.</Text>
+                <View className="gap-3">
+                  <Text variant="muted">Ei tuloksia vielä.</Text>
+                  <Button variant="secondary" onPress={() => void loadResults()}>
+                    Päivitä tulokset
+                  </Button>
+                </View>
               )}
             </View>
           </Card>
@@ -766,7 +855,7 @@ function EditBeerCard({
         </View>
         <View className="flex-1 gap-1">
           <Text variant="large">{beer.name.trim() || "Nimeä olut"}</Text>
-          <Text variant="muted">Rivi {index + 1}</Text>
+          <Text variant="muted">{beer.localAsset ? "Kuva valittu" : `Rivi ${index + 1}`}</Text>
         </View>
         {canRemove ? (
           <Button variant="ghost" size="sm" onPress={onRemove}>

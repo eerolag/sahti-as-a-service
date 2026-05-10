@@ -14,5 +14,7 @@ export const mobileSupportConfig = {
   ctaLabel: SUPPORT_CTA_LABEL,
   // Public web page only. Mobile opens this URL externally; it does not handle payments natively.
   pageUrl: readExpoPublicEnv("EXPO_PUBLIC_SUPPORT_PAGE_URL") || SUPPORT_PAGE_DEFAULT_URL,
+  supportUrl: "https://breview.ing/support",
+  privacyUrl: "https://breview.ing/privacy",
+  deleteAccountUrl: "https://breview.ing/delete-account",
 };
-

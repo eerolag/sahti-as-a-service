@@ -45,11 +45,16 @@ function createRequest(options: ApiClientOptions = {}) {
       body = JSON.stringify(requestOptions.bodyJson);
     }
 
-    const res = await fetcher(resolveApiUrl(path, options.baseUrl), {
-      ...requestOptions,
-      headers,
-      body,
-    });
+    let res: Response;
+    try {
+      res = await fetcher(resolveApiUrl(path, options.baseUrl), {
+        ...requestOptions,
+        headers,
+        body,
+      });
+    } catch {
+      throw new Error("Yhteys Breview-palveluun epäonnistui. Tarkista verkkoyhteys ja yritä uudelleen.");
+    }
 
     if (res.headers.get("content-type")?.includes("application/json")) {
       const data = (await res.json().catch(() => ({}))) as Record<string, any>;

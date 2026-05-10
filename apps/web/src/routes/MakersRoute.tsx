@@ -90,9 +90,17 @@ export function MakersRoute() {
 
       <footer className="makers-footer">
         <span>Made by {supportConfig.makerName}</span>
-        <a className="inline-link" href="/">
-          Back to Breview
-        </a>
+        <div className="flex flex-wrap gap-3">
+          <a className="inline-link" href="/">
+            Back to Breview
+          </a>
+          <a className="inline-link" href="/support">
+            Support
+          </a>
+          <a className="inline-link" href="/privacy">
+            Privacy
+          </a>
+        </div>
       </footer>
     </main>
   );

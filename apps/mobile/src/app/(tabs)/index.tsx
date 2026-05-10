@@ -3,13 +3,14 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, View } from "react-native";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { apiClient, identifyBeerNameAsset, uploadImageAsset, type MobileImageAsset } from "@/lib/api";
+import { haptics } from "@/lib/haptics";
 import { getOrCreateClientId } from "@/lib/player-identity";
 import { loadRecentGames, recentGameFromPayload, saveRecentGame, type RecentGame } from "@/lib/recent-games";
 
@@ -66,6 +67,23 @@ function beerMeta(count: number): string {
   return count === 1 ? "1 olut" : `${count} olutta`;
 }
 
+function showImagePermissionDenied(source: "camera" | "library") {
+  const label = source === "camera" ? "kamera" : "kuvakirjasto";
+  Alert.alert(
+    source === "camera" ? "Kamera ei ole käytössä" : "Kuvakirjasto ei ole käytössä",
+    `Salli ${label} laitteen asetuksista, jotta voit lisätä olutkuvan peliin.`,
+    [
+      { text: "Peruuta", style: "cancel" },
+      {
+        text: "Avaa asetukset",
+        onPress: () => {
+          void Linking.openSettings();
+        },
+      },
+    ],
+  );
+}
+
 export default function GamesScreen() {
   const router = useRouter();
   const [gameName, setGameName] = useState("");
@@ -81,6 +99,7 @@ export default function GamesScreen() {
   }, []);
 
   function openGame(gameId: number) {
+    haptics.selection();
     router.push({ pathname: "/[gameId]", params: { gameId: String(gameId) } });
   }
 
@@ -94,16 +113,20 @@ export default function GamesScreen() {
     const gameId = parseGameIdInput(joinInput);
     if (!gameId) {
       setMessage("Syötä pelin numero tai Breview-linkki.");
+      haptics.error();
       return;
     }
 
+    haptics.light();
     setJoining(true);
     setMessage(null);
 
     try {
       await openRemoteGame(gameId);
+      haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
+      haptics.error();
     } finally {
       setJoining(false);
     }
@@ -115,9 +138,11 @@ export default function GamesScreen() {
 
     if (!name) {
       setMessage("Anna pelille nimi.");
+      haptics.error();
       return;
     }
 
+    haptics.light();
     setCreating(true);
     setMessage(null);
 
@@ -146,8 +171,10 @@ export default function GamesScreen() {
       await openRemoteGame(created.gameId);
       setGameName("");
       setBeers([createEmptyBeerDraft()]);
+      haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
+      haptics.error();
     } finally {
       setCreating(false);
     }
@@ -158,10 +185,12 @@ export default function GamesScreen() {
   }
 
   function addBeerRow() {
+    haptics.selection();
     setBeers((current) => [...current, createEmptyBeerDraft()]);
   }
 
   function removeBeerRow(index: number) {
+    haptics.selection();
     setBeers((current) => {
       const next = current.filter((_, itemIndex) => itemIndex !== index);
       return next.length ? next : [createEmptyBeerDraft()];
@@ -177,7 +206,13 @@ export default function GamesScreen() {
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
-      setMessage(source === "camera" ? "Kameran käyttöoikeus puuttuu." : "Kuvakirjaston käyttöoikeus puuttuu.");
+      const message =
+        source === "camera"
+          ? "Kameran käyttöoikeus puuttuu. Salli kamera asetuksista ja yritä uudelleen."
+          : "Kuvakirjaston käyttöoikeus puuttuu. Salli kuvat asetuksista ja yritä uudelleen.";
+      setMessage(message);
+      showImagePermissionDenied(source);
+      haptics.error();
       return;
     }
 
@@ -198,26 +233,32 @@ export default function GamesScreen() {
     updateBeer(index, {
       localAsset: asset,
     });
+    setMessage("Kuva valittu. Voit tunnistaa nimen tai jatkaa pelin luontia.");
+    haptics.success();
   }
 
   async function identifyBeer(index: number) {
     const row = beers[index];
     if (!row?.localAsset) {
       setMessage("Valitse ensin kuva kamerasta tai kuvista.");
+      haptics.error();
       return;
     }
 
+    haptics.light();
     setMessage(null);
     updateBeer(index, { identifying: true });
 
     try {
       const identified = await identifyBeerNameAsset(asMobileImageAsset(row.localAsset), await getOrCreateClientId());
       updateBeer(index, { name: identified.beerName, identifying: false });
+      haptics.success();
     } catch (error) {
       const message = String((error as Error)?.message ?? "Nimen tunnistus epäonnistui.");
       updateBeer(index, { identifying: false });
       setMessage(message);
       Alert.alert("AI-tunnistus", message);
+      haptics.error();
     }
   }
 
@@ -273,7 +314,9 @@ export default function GamesScreen() {
                   </View>
                   <View className="flex-1 gap-1">
                     <Text variant="large">{beer.name.trim() || `Olut ${index + 1}`}</Text>
-                    <Text variant="muted">Rivi {index + 1}</Text>
+                    <Text variant="muted">
+                      {beer.localAsset ? "Kuva valittu" : `Rivi ${index + 1}`}
+                    </Text>
                   </View>
                   {beers.length > 1 ? (
                     <Button variant="ghost" size="sm" onPress={() => removeBeerRow(index)}>

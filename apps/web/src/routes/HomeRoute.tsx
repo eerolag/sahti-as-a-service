@@ -133,6 +133,18 @@ export function HomeRoute() {
           addLabel="+ Lisää rivi"
         />
       ) : null}
+
+      <div className="mt-6 flex flex-wrap justify-center gap-4 text-sm text-muted">
+        <a className="inline-link" href="/privacy">
+          Tietosuoja
+        </a>
+        <a className="inline-link" href="/support">
+          Tuki
+        </a>
+        <a className="inline-link" href="/delete-account">
+          Poista tili
+        </a>
+      </div>
     </div>
   );
 }

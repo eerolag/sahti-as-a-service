@@ -83,6 +83,36 @@ Tuotannossa aseta lisäksi salaisuus:
 npx wrangler secret put AUTH_SECRET --config apps/api/wrangler.jsonc
 ```
 
+Kirjautumiskoodin pyyntö, lähetys, varmennus, uloskirjautuminen ja tilin poisto kirjoittavat rakenteiset `breview.auth_event` -lokit Worker-lokeihin. Käyttäjälle näytettävät sähköpostivirheet pidetään yleisinä, mutta lokit sisältävät Cloudflare Email Service -vianmääritykseen tarvittavan luokituksen ja diagnostiikan ilman kirjautumiskoodia tai sessiotunnusta.
+
+## Julkiset reviewer-sivut
+
+Store-reviewta ja käyttäjiä varten webissä on kirjautumatta avautuvat sivut:
+
+- `https://breview.ing/privacy`
+- `https://breview.ing/support`
+- `https://breview.ing/delete-account`
+
+`/delete-account` kertoo, miten tilin voi poistaa sovelluksessa, miten sähköpostipoistopyyntö tehdään, mitä tietoja poistetaan, mitä operatiivisia tietoja voidaan säilyttää ja mikä on odotettu käsittelyaika. Webin ja mobiilin tili-/tukipinnat linkittävät näihin sivuihin.
+
+## Deep links ja app links
+
+Mobiilisovelluksen oma scheme on edelleen `breview://`. Lisäksi Expo-konfiguraatio valmistaa iOS universal links- ja Android app links -polun domainille `https://breview.ing`.
+
+Worker palvelee:
+
+- `/.well-known/apple-app-site-association`
+- `/.well-known/assetlinks.json`
+
+Jos natiivijulkaisun omistajatietoja ei ole asetettu, nämä endpointit palauttavat validin tyhjän assosiaation eivätkä feikkaa tuotantoarvoja. Kun Apple Developer- ja Android-signing-arvot ovat saatavilla, aseta Workeriin:
+
+- `IOS_APPLE_TEAM_ID` - Apple Developer Team ID
+- `IOS_BUNDLE_IDENTIFIER` - oletus `ing.breview.app`, aseta vain jos bundle ID muuttuu
+- `ANDROID_PACKAGE_NAME` - oletus `ing.breview.app`, aseta vain jos package muuttuu
+- `ANDROID_SHA256_CERT_FINGERPRINTS` - pilkuilla erotetut Android signing certificate SHA-256 -sormenjäljet
+
+Samat `https://breview.ing/:gameId` -linkit toimivat web-fallbackina, jos natiivisovellusta ei ole asennettu.
+
 ## R2-kuvabucket (pakollinen kuvatiedostoille)
 
 Kuvatiedostot ladataan R2:een ja tarjoillaan Workerin kautta endpointista `/api/images/:key`.
@@ -173,7 +203,7 @@ npm --workspace @breview/mobile run android -- --clear
 
 Expo käyttää oletuksena `https://breview.ing` API-basea, eli simulaattori ja Expo Go osuvat oikeaan Cloudflare Workeriin ja sen D1/R2-resursseihin. Paikallisen Workerin voi antaa muuttujalla `EXPO_PUBLIC_API_BASE_URL`.
 
-Mobiilissa voi tällä hetkellä luoda pelin, liittyä peliin, arvostella oluet sliderilla, lisätä kommentit, tallentaa arviot, katsoa tulokset, jakaa pelin linkin sekä muokata peliä ja oluita. Muokkaus tukee kuvan lisäämistä kamerasta tai kuvakirjastosta, kuvan latausta R2:een ja nimen tunnistusta Workers AI:lla. Tili-välilehti tukee sähköpostiin lähetettävää kertakäyttökoodia, linkittää tämän laitteen aiemmat arviot tiliin ja näyttää tilille talletetut arvostelupelit. Mobiilin tumma Breview-ilme pidetään linjassa webin kanssa, vaikka komponenttipohja on eri.
+Mobiilissa voi tällä hetkellä luoda pelin, liittyä peliin, arvostella oluet sliderilla, lisätä kommentit, tallentaa arviot, katsoa tulokset, jakaa pelin linkin sekä muokata peliä ja oluita. Muokkaus tukee kuvan lisäämistä kamerasta tai kuvakirjastosta, kuvan latausta R2:een ja nimen tunnistusta Workers AI:lla. Tili-välilehti tukee sähköpostiin lähetettävää kertakäyttökoodia, näyttää resend-cooldownin, linkittää tämän laitteen aiemmat arviot tiliin ja näyttää tilille talletetut arvostelupelit. Mobiili linkittää julkisiin privacy/support/delete-account-sivuihin ja pitää valitun paikallisen kuvan tiedostonimen piilossa. Mobiilin tumma Breview-ilme pidetään linjassa webin kanssa, vaikka komponenttipohja on eri.
 
 iOS-simulaattori tai Expo web:
 

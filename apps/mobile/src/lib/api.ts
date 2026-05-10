@@ -38,10 +38,15 @@ function createImageFormData(asset: MobileImageAsset, clientId?: string): FormDa
 }
 
 async function requestMultipart<T>(path: string, formData: FormData): Promise<T> {
-  const response = await fetch(resolveApiUrl(path), {
-    method: "POST",
-    body: formData,
-  });
+  let response: Response;
+  try {
+    response = await fetch(resolveApiUrl(path), {
+      method: "POST",
+      body: formData,
+    });
+  } catch {
+    throw new Error("Yhteys Breview-palveluun epäonnistui. Tarkista verkkoyhteys ja yritä uudelleen.");
+  }
 
   const contentType = response.headers.get("content-type") ?? "";
   const payload = contentType.includes("application/json")

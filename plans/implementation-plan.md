@@ -18,12 +18,12 @@ Breview is a production web, iOS, and Android app for creating beer tasting game
 
 - Rebrand: update visible product copy, metadata, store copy, support/privacy pages, and share text to Breview with `breview.ing` as the canonical domain.
 - Authentication: maintain optional email-code login using Cloudflare Email Service, D1-backed users, hashed login challenges, sessions, and account-linked rating history.
-- Privacy and account deletion: keep in-app and web account deletion available only after login, keep privacy basics visible before login, and add full reviewer-ready policy/support pages before store submission.
+- Privacy and account deletion: keep in-app and web account deletion available only after login, keep privacy basics visible before login, and keep public reviewer-ready `/privacy`, `/support`, and `/delete-account` pages reachable without login.
 - Mobile app: build a native Expo app with create/join/rate/results/edit/share/account flows, deep links, app links, image upload, and history sync.
 - AI and image handling: use Workers AI via the `AI` binding for beer-name recognition, keep R2 for uploads, remove paid web image search from the production app and API surface, and keep provider failures graceful.
 - Untappd: do not use scraping, private APIs, or the Untappd API. Keep only user-visible outbound search links unless legal/product review decides to remove them; avoid implying any affiliation or endorsement.
 - Store release: use `plans/release-checklist.md` as the operational release checklist, then configure EAS builds, Apple Developer/App Store Connect ownership, Google Play Console ownership, TestFlight, Google Play testing tracks, store metadata, screenshots, review notes, versioning, and production rollout.
-- Observability: add structured API errors, deployment checks, email/auth event logging, and lightweight release verification.
+- Observability: keep structured API errors, deployment checks, email/auth event logging, and lightweight release verification.
 
 ## Current Slice
 
@@ -57,6 +57,12 @@ Acceptance criteria:
 - Web exposes `/account` with email-code login, account rating history, logout, deletion, and a privacy basics panel.
 - Mobile account UI sends email login codes, verifies sessions, links this device's existing ratings to the account, shows account rating history, hides account deletion until logged in, and keeps privacy basics visible when logged out.
 - Worker auth endpoints use Cloudflare Email Service binding `EMAIL`, D1 users/login challenges/sessions/user-player links, hashed login codes, and hashed bearer session tokens.
+- Web and mobile expose login-code resend cooldown UI after a successful code request.
+- Worker auth flows write structured `breview.auth_event` logs for code request, send success/failure, verify success/failure, logout, and account deletion while keeping user-facing auth errors non-leaky.
+- Web exposes public reviewer pages at `/privacy`, `/support`, and `/delete-account`; web and mobile account/support surfaces link to them.
+- Worker serves `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json`; without Apple Team ID or Android SHA-256 fingerprints it returns valid empty associations rather than placeholder production identifiers.
+- Expo config keeps `breview://` and prepares `https://breview.ing` iOS universal links and Android app links; final association requires Apple Team ID and Android signing certificate fingerprint from the release owner.
+- Mobile account, image-picking, sharing, retry, and edit flows have clearer loading, permission-denied, selected-image, and failure states, with local image filenames hidden.
 - Paid Brave image search is removed from the web UI, Worker route, shared API contracts, README, and runtime env.
 - Untappd API resolution is removed; stored beer metadata is kept to outbound search links only.
 - Tests, typecheck, and build pass.
