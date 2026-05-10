@@ -72,9 +72,16 @@ Agentin pitää päivittää plans-dokumentit samassa muutoksessa, jos työn aik
 
 Nykyinen Worker toimii ilman ulkoisia avaimia:
 - ilman Cloudflare Workers AI -bindingia kuvatunnistus palauttaa `503`
+- ilman Cloudflare Email Service -bindingia kirjautumiskoodin lähetys palauttaa `503`
 - Untappd toimii pelkkänä ulkoisena hakulinkkinä eikä tarvitse avaimia
 
-Kuvatunnistus käyttää Cloudflare Workers AI -bindingia `AI` ja aloittaa mallilla `@cf/google/gemma-4-26b-a4b-it`. Tuotantosuunnassa kirjautumissähköpostit siirretään Cloudflare Email Service -bindingiin. Untappd-integraatio on pelkkä käyttäjälle näkyvä ulkoinen hakulinkki, ei API-kutsu. Katso tarkempi vaiheistus plans-dokumenteista.
+Kuvatunnistus käyttää Cloudflare Workers AI -bindingia `AI` ja aloittaa mallilla `@cf/google/gemma-4-26b-a4b-it`. Kirjautuminen käyttää Cloudflare Email Service -bindingia `EMAIL`, D1:een tallennettuja kertakäyttöisiä kirjautumishaasteita ja hashattuja sessiotunnisteita. Untappd-integraatio on pelkkä käyttäjälle näkyvä ulkoinen hakulinkki, ei API-kutsu. Katso tarkempi vaiheistus plans-dokumenteista.
+
+Tuotannossa aseta lisäksi salaisuus:
+
+```bash
+npx wrangler secret put AUTH_SECRET --config apps/api/wrangler.jsonc
+```
 
 ## R2-kuvabucket (pakollinen kuvatiedostoille)
 
@@ -166,7 +173,7 @@ npm --workspace @breview/mobile run android -- --clear
 
 Expo käyttää oletuksena `https://breview.ing` API-basea, eli simulaattori ja Expo Go osuvat oikeaan Cloudflare Workeriin ja sen D1/R2-resursseihin. Paikallisen Workerin voi antaa muuttujalla `EXPO_PUBLIC_API_BASE_URL`.
 
-Mobiilissa voi tällä hetkellä luoda pelin, liittyä peliin, arvostella oluet sliderilla, lisätä kommentit, tallentaa arviot, katsoa tulokset, jakaa pelin linkin sekä muokata peliä ja oluita. Muokkaus tukee kuvan lisäämistä kamerasta tai kuvakirjastosta, kuvan latausta R2:een ja nimen tunnistusta Workers AI:lla. Mobiilin tumma Breview-ilme pidetään linjassa webin kanssa, vaikka komponenttipohja on eri.
+Mobiilissa voi tällä hetkellä luoda pelin, liittyä peliin, arvostella oluet sliderilla, lisätä kommentit, tallentaa arviot, katsoa tulokset, jakaa pelin linkin sekä muokata peliä ja oluita. Muokkaus tukee kuvan lisäämistä kamerasta tai kuvakirjastosta, kuvan latausta R2:een ja nimen tunnistusta Workers AI:lla. Tili-välilehti tukee sähköpostiin lähetettävää kertakäyttökoodia, linkittää tämän laitteen aiemmat arviot tiliin ja näyttää tilille talletetut arvostelupelit. Mobiilin tumma Breview-ilme pidetään linjassa webin kanssa, vaikka komponenttipohja on eri.
 
 iOS-simulaattori tai Expo web:
 
@@ -239,6 +246,11 @@ Jotta workflow voi deployata Cloudflareen, lisää GitHub-repoon `Settings -> Se
 - `POST /api/games/:id/ratings` (body: `clientId`, `ratings`, optional `nickname`; ratingissä valinnainen `comment`, max 255 merkkiä)
 - `GET /api/games/:id/ratings?clientId=...` (tekninen tunniste omien arvosanojen hakuun)
 - `GET /api/games/:id/results`
+- `POST /api/auth/request-code` (body: `email`; lähettää sähköpostin kertakäyttökoodilla)
+- `POST /api/auth/verify-code` (body: `email`, `code`, optional `clientId`/`clientIds`; palauttaa session ja linkittää laitteen aiemmat arviot)
+- `POST /api/auth/logout` (`Authorization: Bearer <sessionToken>`)
+- `GET /api/account/me` (`Authorization: Bearer <sessionToken>`)
+- `DELETE /api/account/me` (`Authorization: Bearer <sessionToken>`; poistaa tilin ja siihen linkitetyt pelaajarivit/arviot)
 - `POST /api/images/upload` (`multipart/form-data`, kenttä `file`, max 10 MB; UI validoi lisäksi max 6000x6000 px)
 - `POST /api/images/identify-beer-name` (`multipart/form-data`, kenttä `file`; palauttaa tunnistetun oluen nimen tai virheen)
 - `GET /api/images/:key`

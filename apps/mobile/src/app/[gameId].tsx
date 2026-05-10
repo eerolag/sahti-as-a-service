@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import { loadAccountSession } from "@/lib/account-session";
 import { apiClient, identifyBeerNameAsset, uploadImageAsset, type MobileImageAsset } from "@/lib/api";
 import {
   generateAnonymousNickname,
@@ -187,7 +188,8 @@ export default function GameScreen() {
       setRatingsLoading(true);
 
       try {
-        const response = await apiClient.getRatings(gameId, nextIdentity.clientId);
+        const accountSession = await loadAccountSession();
+        const response = await apiClient.getRatings(gameId, nextIdentity.clientId, accountSession?.sessionToken);
         const remoteDraft = toRatingDraft(response.ratings);
         const hydrated: RatingDraft = {};
 
@@ -312,11 +314,16 @@ export default function GameScreen() {
     setMessage(null);
 
     try {
-      await apiClient.saveRatings(gameId, {
-        clientId: nextIdentity.clientId,
-        nickname: nextIdentity.nickname,
-        ratings: ratingPayload,
-      });
+      const accountSession = await loadAccountSession();
+      await apiClient.saveRatings(
+        gameId,
+        {
+          clientId: nextIdentity.clientId,
+          nickname: nextIdentity.nickname,
+          ratings: ratingPayload,
+        },
+        accountSession?.sessionToken,
+      );
       setSavedRatings({ ...ratings });
       setResults(null);
       setSaveLabel("Tallennettu");

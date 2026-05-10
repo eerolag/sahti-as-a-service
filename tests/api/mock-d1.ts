@@ -47,6 +47,38 @@ type AiRecognitionUsageRow = {
   updated_at: string;
 };
 
+type UserRow = {
+  id: number;
+  email: string;
+  created_at: string;
+  last_login_at: string | null;
+};
+
+type LoginChallengeRow = {
+  id: string;
+  email: string;
+  code_hash: string;
+  salt: string;
+  expires_at: string;
+  consumed_at: string | null;
+  attempts: number;
+  created_at: string;
+};
+
+type SessionRow = {
+  token_hash: string;
+  user_id: number;
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+};
+
+type UserPlayerRow = {
+  user_id: number;
+  player_id: number;
+  linked_at: string;
+};
+
 function now(): string {
   return new Date().toISOString();
 }
@@ -89,10 +121,15 @@ export class MockD1Database implements D1Database {
   private players: PlayerRow[] = [];
   private ratings: RatingRow[] = [];
   private aiRecognitionUsage: AiRecognitionUsageRow[] = [];
+  private users: UserRow[] = [];
+  private loginChallenges: LoginChallengeRow[] = [];
+  private sessions: SessionRow[] = [];
+  private userPlayers: UserPlayerRow[] = [];
 
   private gameIdCounter = 1;
   private beerIdCounter = 1;
   private playerIdCounter = 1;
+  private userIdCounter = 1;
 
   prepare(query: string): D1PreparedStatement {
     return new MockPreparedStatement(this, query);
@@ -228,6 +265,126 @@ export class MockD1Database implements D1Database {
       return { success: true, meta: {} };
     }
 
+    if (sql.startsWith("insert into login_challenges (id, email, code_hash, salt, expires_at, created_at) values (?, ?, ?, ?, ?, ?)")) {
+      this.loginChallenges.push({
+        id: String(values[0] ?? ""),
+        email: String(values[1] ?? ""),
+        code_hash: String(values[2] ?? ""),
+        salt: String(values[3] ?? ""),
+        expires_at: String(values[4] ?? ""),
+        consumed_at: null,
+        attempts: 0,
+        created_at: String(values[5] ?? ""),
+      });
+      return { success: true, meta: {} };
+    }
+
+    if (sql.startsWith("update login_challenges set attempts = attempts + 1 where id = ?")) {
+      const id = String(values[0] ?? "");
+      const challenge = this.loginChallenges.find((row) => row.id === id);
+      if (challenge) challenge.attempts += 1;
+      return { success: true, meta: {} };
+    }
+
+    if (sql.startsWith("update login_challenges set consumed_at = ? where id = ?")) {
+      const consumedAt = String(values[0] ?? "");
+      const id = String(values[1] ?? "");
+      const challenge = this.loginChallenges.find((row) => row.id === id);
+      if (challenge) challenge.consumed_at = consumedAt;
+      return { success: true, meta: {} };
+    }
+
+    if (sql.startsWith("insert into users (email, created_at, last_login_at) values (?, ?, ?) on conflict(email) do update set last_login_at = excluded.last_login_at")) {
+      const email = String(values[0] ?? "");
+      const createdAt = String(values[1] ?? "");
+      const lastLoginAt = String(values[2] ?? "");
+      const existing = this.users.find((row) => row.email === email);
+      if (existing) {
+        existing.last_login_at = lastLoginAt;
+      } else {
+        this.users.push({
+          id: this.userIdCounter++,
+          email,
+          created_at: createdAt,
+          last_login_at: lastLoginAt,
+        });
+      }
+      return { success: true, meta: {} };
+    }
+
+    if (sql.startsWith("insert into sessions (token_hash, user_id, created_at, expires_at) values (?, ?, ?, ?)")) {
+      this.sessions.push({
+        token_hash: String(values[0] ?? ""),
+        user_id: Number(values[1]),
+        created_at: String(values[2] ?? ""),
+        expires_at: String(values[3] ?? ""),
+        revoked_at: null,
+      });
+      return { success: true, meta: {} };
+    }
+
+    if (sql.startsWith("update sessions set revoked_at = ? where token_hash = ?")) {
+      const revokedAt = String(values[0] ?? "");
+      const tokenHash = String(values[1] ?? "");
+      for (const session of this.sessions) {
+        if (session.token_hash === tokenHash) {
+          session.revoked_at = revokedAt;
+        }
+      }
+      return { success: true, meta: {} };
+    }
+
+    if (
+      sql.startsWith("insert or ignore into user_players (user_id, player_id, linked_at) select ?, p.id, ? from players p")
+    ) {
+      const userId = Number(values[0]);
+      const linkedAt = String(values[1] ?? "");
+      const clientId = String(values[2] ?? "");
+      for (const player of this.players.filter((row) => row.client_id === clientId)) {
+        const hasAccountPlayerForGame = this.userPlayers.some((link) => {
+          if (link.user_id !== userId) return false;
+          const existing = this.players.find((row) => row.id === link.player_id);
+          return existing?.game_id === player.game_id;
+        });
+        if (hasAccountPlayerForGame) continue;
+        const exists = this.userPlayers.some((link) => link.user_id === userId && link.player_id === player.id);
+        if (!exists) {
+          this.userPlayers.push({ user_id: userId, player_id: player.id, linked_at: linkedAt });
+        }
+      }
+      return { success: true, meta: {} };
+    }
+
+    if (sql.startsWith("insert or ignore into user_players (user_id, player_id, linked_at) values (?, ?, ?)")) {
+      const userId = Number(values[0]);
+      const playerId = Number(values[1]);
+      const linkedAt = String(values[2] ?? "");
+      const exists = this.userPlayers.some((link) => link.user_id === userId && link.player_id === playerId);
+      if (!exists) {
+        this.userPlayers.push({ user_id: userId, player_id: playerId, linked_at: linkedAt });
+      }
+      return { success: true, meta: {} };
+    }
+
+    if (sql.startsWith("delete from players where id in")) {
+      const userId = Number(values[0]);
+      const playerIds = new Set(
+        this.userPlayers.filter((link) => link.user_id === userId).map((link) => link.player_id),
+      );
+      this.players = this.players.filter((row) => !playerIds.has(row.id));
+      this.ratings = this.ratings.filter((row) => !playerIds.has(row.player_id));
+      this.userPlayers = this.userPlayers.filter((link) => !playerIds.has(link.player_id));
+      return { success: true, meta: {} };
+    }
+
+    if (sql.startsWith("delete from users where id = ?")) {
+      const userId = Number(values[0]);
+      this.users = this.users.filter((row) => row.id !== userId);
+      this.sessions = this.sessions.filter((row) => row.user_id !== userId);
+      this.userPlayers = this.userPlayers.filter((row) => row.user_id !== userId);
+      return { success: true, meta: {} };
+    }
+
     if (sql.startsWith("insert into ratings (game_id, beer_id, player_id, score, comment, updated_at) values (?, ?, ?, ?, ?, datetime('now')) on conflict(game_id, beer_id, player_id) do update set score = excluded.score, comment = excluded.comment, updated_at = datetime('now')")) {
       const gameId = Number(values[0]);
       const beerId = Number(values[1]);
@@ -349,6 +506,71 @@ export class MockD1Database implements D1Database {
       return { c: count };
     }
 
+    if (sql.startsWith("select count(*) as c from login_challenges where email = ? and created_at >= ?")) {
+      const email = String(values[0] ?? "");
+      const createdAfter = String(values[1] ?? "");
+      const count = this.loginChallenges.filter(
+        (row) => row.email === email && row.created_at >= createdAfter,
+      ).length;
+      return { c: count };
+    }
+
+    if (
+      sql.startsWith(
+        "select id, email, code_hash as codehash, salt, expires_at as expiresat, attempts from login_challenges",
+      )
+    ) {
+      const email = String(values[0] ?? "");
+      const nowIso = String(values[1] ?? "");
+      const row = this.loginChallenges
+        .filter((item) => item.email === email && item.consumed_at == null && item.expires_at > nowIso)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+      if (!row) return null;
+      return {
+        id: row.id,
+        email: row.email,
+        codeHash: row.code_hash,
+        salt: row.salt,
+        expiresAt: row.expires_at,
+        attempts: row.attempts,
+      };
+    }
+
+    if (sql.startsWith("select id, email from users where email = ?")) {
+      const email = String(values[0] ?? "");
+      const user = this.users.find((row) => row.email === email);
+      return user ? { id: user.id, email: user.email } : null;
+    }
+
+    if (
+      sql.startsWith("select u.id as id, u.email as email from sessions s inner join users u on u.id = s.user_id")
+    ) {
+      const tokenHash = String(values[0] ?? "");
+      const nowIso = String(values[1] ?? "");
+      const session = this.sessions.find(
+        (row) => row.token_hash === tokenHash && row.revoked_at == null && row.expires_at > nowIso,
+      );
+      if (!session) return null;
+      const user = this.users.find((row) => row.id === session.user_id);
+      return user ? { id: user.id, email: user.email } : null;
+    }
+
+    if (
+      sql.startsWith("select p.id as id from user_players up inner join players p on p.id = up.player_id")
+    ) {
+      const userId = Number(values[0]);
+      const gameId = Number(values[1]);
+      const linked = this.userPlayers
+        .filter((link) => link.user_id === userId)
+        .map((link) => ({
+          link,
+          player: this.players.find((player) => player.id === link.player_id) ?? null,
+        }))
+        .filter((item) => item.player?.game_id === gameId)
+        .sort((a, b) => a.link.linked_at.localeCompare(b.link.linked_at) || a.link.player_id - b.link.player_id)[0];
+      return linked?.player ? { id: linked.player.id } : null;
+    }
+
     if (
       sql.startsWith(
         "select attempts, violations, locked_until from ai_recognition_usage where identity_hash = ? and usage_day = ?",
@@ -411,6 +633,59 @@ export class MockD1Database implements D1Database {
             untappd_url: row.untappd_url,
             untappd_source: row.untappd_source,
             untappd_resolved_at: row.untappd_resolved_at,
+          })),
+      };
+    }
+
+    if (sql.includes("from ratings r") && sql.includes("inner join user_players up")) {
+      const userId = Number(values[0]);
+      const gameId = Number(values[1]);
+      const gameId2 = Number(values[2]);
+      if (gameId !== gameId2) return { results: [] };
+
+      const linkedPlayerIds = new Set(
+        this.userPlayers.filter((link) => link.user_id === userId).map((link) => link.player_id),
+      );
+      const ratings = this.ratings
+        .filter((r) => r.game_id === gameId && linkedPlayerIds.has(r.player_id))
+        .sort((a, b) => a.beer_id - b.beer_id)
+        .map((r) => ({ beerId: r.beer_id, score: r.score, comment: r.comment }));
+
+      return { results: ratings };
+    }
+
+    if (sql.includes("from user_players up") && sql.includes("count(r.beer_id) as ratingscount")) {
+      const userId = Number(values[0]);
+      const byGame = new Map<number, { game: GameRow; ratingsCount: number; updatedAt: string | null }>();
+
+      for (const link of this.userPlayers.filter((row) => row.user_id === userId)) {
+        const player = this.players.find((row) => row.id === link.player_id);
+        if (!player) continue;
+        const game = this.games.find((row) => row.id === player.game_id);
+        if (!game) continue;
+        const playerRatings = this.ratings.filter((row) => row.player_id === player.id && row.game_id === player.game_id);
+        const existing = byGame.get(game.id) ?? { game, ratingsCount: 0, updatedAt: null };
+        existing.ratingsCount += playerRatings.length;
+        for (const rating of playerRatings) {
+          if (!existing.updatedAt || rating.updated_at > existing.updatedAt) {
+            existing.updatedAt = rating.updated_at;
+          }
+        }
+        byGame.set(game.id, existing);
+      }
+
+      return {
+        results: Array.from(byGame.values())
+          .filter((row) => row.ratingsCount > 0)
+          .sort((a, b) => {
+            const dateCompare = String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""));
+            return dateCompare || b.game.id - a.game.id;
+          })
+          .map((row) => ({
+            gameId: row.game.id,
+            gameName: row.game.name,
+            ratingsCount: row.ratingsCount,
+            updatedAt: row.updatedAt,
           })),
       };
     }

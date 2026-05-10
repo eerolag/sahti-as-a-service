@@ -17,8 +17,8 @@ Breview is a production web, iOS, and Android app for creating beer tasting game
 ## Workstreams
 
 - Rebrand: update visible product copy, metadata, store copy, support/privacy pages, and share text to Breview with `breview.ing` as the canonical domain.
-- Authentication: add optional email-code login using Cloudflare Email Service, D1-backed users, hashed login challenges, sessions, and account-linked game history.
-- Privacy and account deletion: add in-app and web deletion paths, privacy policy, support contact, store data declarations, and reviewer-ready demo access.
+- Authentication: maintain optional email-code login using Cloudflare Email Service, D1-backed users, hashed login challenges, sessions, and account-linked rating history.
+- Privacy and account deletion: keep in-app and web account deletion available only after login, keep privacy basics visible before login, and add full reviewer-ready policy/support pages before store submission.
 - Mobile app: build a native Expo app with create/join/rate/results/edit/share/account flows, deep links, app links, image upload, and history sync.
 - AI and image handling: use Workers AI via the `AI` binding for beer-name recognition, keep R2 for uploads, remove paid web image search from the production app and API surface, and keep provider failures graceful.
 - Untappd: do not use scraping, private APIs, or the Untappd API. Keep only user-visible outbound search links unless legal/product review decides to remove them; avoid implying any affiliation or endorsement.
@@ -54,6 +54,9 @@ Acceptance criteria:
 - Web and mobile show AI recognition warnings in a clear popup/alert as well as inline status text.
 - Web exposes a public `/makers` page for `Breview by Five Pint Sauna`, using `SUPPORT_PAYMENT_URL` and optional `SUPPORT_PAYMENT_LABEL` for a provider-agnostic external support CTA.
 - Mobile account UI links to the public support page through `EXPO_PUBLIC_SUPPORT_PAGE_URL` and does not implement native payments.
+- Web exposes `/account` with email-code login, account rating history, logout, deletion, and a privacy basics panel.
+- Mobile account UI sends email login codes, verifies sessions, links this device's existing ratings to the account, shows account rating history, hides account deletion until logged in, and keeps privacy basics visible when logged out.
+- Worker auth endpoints use Cloudflare Email Service binding `EMAIL`, D1 users/login challenges/sessions/user-player links, hashed login codes, and hashed bearer session tokens.
 - Paid Brave image search is removed from the web UI, Worker route, shared API contracts, README, and runtime env.
 - Untappd API resolution is removed; stored beer metadata is kept to outbound search links only.
 - Tests, typecheck, and build pass.

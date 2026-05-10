@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
+import { AccountRoute } from "./routes/AccountRoute";
 import { HomeRoute } from "./routes/HomeRoute";
 import { GameRoute, type GameSection } from "./routes/GameRoute";
 import { MakersRoute } from "./routes/MakersRoute";
 
 export type AppRoute =
   | { type: "home" }
+  | { type: "account" }
   | { type: "makers" }
   | { type: "game"; gameId: number; section: GameSection }
   | { type: "not-found" };
@@ -16,6 +18,10 @@ export function parsePath(pathname: string): AppRoute {
 
   if (pathname === "/makers" || pathname === "/makers/") {
     return { type: "makers" };
+  }
+
+  if (pathname === "/account" || pathname === "/account/") {
+    return { type: "account" };
   }
 
   const resultsMatch = pathname.match(/^\/(\d+)\/results\/?$/);
@@ -51,6 +57,10 @@ export function App() {
 
   if (route.type === "makers") {
     return <MakersRoute />;
+  }
+
+  if (route.type === "account") {
+    return <AccountRoute />;
   }
 
   if (route.type === "game") {

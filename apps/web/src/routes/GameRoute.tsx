@@ -14,6 +14,7 @@ import { useHaptics } from "../hooks/useHaptics";
 import { validateImageFileBeforeUpload } from "../utils/image-upload";
 import { prepareImageForManagedUpload } from "../utils/beer-name-image";
 import { isWebShareSupported, shareUrl } from "../utils/web-share";
+import { loadAccountSession } from "../utils/account-session";
 import {
   type PlayerIdentity,
   generateAnonymousNickname,
@@ -97,6 +98,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
   const fallbackClientId = useMemo(() => getOrCreateClientId(), []);
   const { game, beers, loading, error, loadGame, setGameAndBeers } = useGameState(gameId);
   const [playerIdentity, setPlayerIdentity] = useState<PlayerIdentity | null>(null);
+  const [accountSession] = useState(() => loadAccountSession());
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [nicknameModalOpen, setNicknameModalOpen] = useState(false);
   const [playersAccordionOpen, setPlayersAccordionOpen] = useState(false);
@@ -166,7 +168,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
     let cancelled = false;
     void (async () => {
       try {
-        const data = await apiClient.getRatings(gameId, playerIdentity.clientId);
+        const data = await apiClient.getRatings(gameId, playerIdentity.clientId, accountSession?.sessionToken);
         if (cancelled) return;
 
         const backendRatings: Record<number, { score: number; comment: string }> = {};
@@ -197,7 +199,7 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
     return () => {
       cancelled = true;
     };
-  }, [beers, gameId, hydrate, playerIdentity]);
+  }, [accountSession?.sessionToken, beers, gameId, hydrate, playerIdentity]);
 
   useEffect(() => {
     if (section !== "results") {
@@ -256,11 +258,15 @@ export function GameRoute({ gameId, section, onSectionChange }: GameRouteProps) 
     setSaveButtonText("Tallennetaan...");
 
     try {
-      await apiClient.saveRatings(gameId, {
-        clientId: playerIdentity.clientId,
-        nickname: playerIdentity.nickname,
-        ratings: changed,
-      });
+      await apiClient.saveRatings(
+        gameId,
+        {
+          clientId: playerIdentity.clientId,
+          nickname: playerIdentity.nickname,
+          ratings: changed,
+        },
+        accountSession?.sessionToken,
+      );
       markSaved(changed);
       haptics.success();
       setSaveButtonText("Tallennettu");

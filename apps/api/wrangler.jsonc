@@ -13,6 +13,18 @@
 	"ai": {
 		"binding": "AI"
 	},
+	"send_email": [
+		{
+			"name": "EMAIL",
+			"allowed_sender_addresses": [
+				"login@breview.ing"
+			]
+		}
+	],
+	"vars": {
+		"AUTH_EMAIL_FROM": "login@breview.ing",
+		"AUTH_EMAIL_FROM_NAME": "Breview"
+	},
 	"d1_databases": [
 		{
 			"binding": "DB",

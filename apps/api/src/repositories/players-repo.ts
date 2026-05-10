@@ -49,6 +49,16 @@ export async function countPlayersByGameId(env: Env, gameId: number): Promise<nu
   return Number(res?.c ?? 0);
 }
 
+export async function updatePlayerNickname(
+  env: Env,
+  playerId: number,
+  nickname: string | null,
+): Promise<void> {
+  await env.DB.prepare("UPDATE players SET nickname = ? WHERE id = ?")
+    .bind(nickname, playerId)
+    .run();
+}
+
 export async function getPlayersByGameId(
   env: Env,
   gameId: number,

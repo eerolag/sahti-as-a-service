@@ -64,8 +64,15 @@ export function HomeRoute() {
 
   return (
     <div className="app-wrap">
-      <div className="mb-1 text-2xl font-extrabold">Breview</div>
-      <div className="mb-4 text-sm text-muted">Arvosanat oluille, mobiili edellä</div>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <div className="mb-1 text-2xl font-extrabold">Breview</div>
+          <div className="text-sm text-muted">Arvosanat oluille, mobiili edellä</div>
+        </div>
+        <a className="btn btn-pill no-underline" href="/account">
+          Tili
+        </a>
+      </div>
 
       <div className="card">
         <div className="flex flex-col gap-3">

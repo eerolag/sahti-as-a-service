@@ -6,6 +6,13 @@ import { handleGetResults } from "./handlers/results";
 import { handleGetQr } from "./handlers/qr";
 import { handleGetImage, handleUploadImage } from "./handlers/images";
 import { handleIdentifyBeerNameFromImage } from "./handlers/image-identify";
+import {
+  handleDeleteAccount,
+  handleGetAccount,
+  handleLogout,
+  handleRequestLoginCode,
+  handleVerifyLoginCode,
+} from "./handlers/auth";
 
 export async function routeApi(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
@@ -13,6 +20,37 @@ export async function routeApi(request: Request, env: Env): Promise<Response | n
 
   if (pathname === "/api/create-game" && request.method === "POST") {
     return handleCreateGame(request, env);
+  }
+
+  if (pathname === "/api/auth/request-code") {
+    if (request.method === "POST") {
+      return handleRequestLoginCode(request, env);
+    }
+    return json({ error: "Not found" }, 404);
+  }
+
+  if (pathname === "/api/auth/verify-code") {
+    if (request.method === "POST") {
+      return handleVerifyLoginCode(request, env);
+    }
+    return json({ error: "Not found" }, 404);
+  }
+
+  if (pathname === "/api/auth/logout") {
+    if (request.method === "POST") {
+      return handleLogout(request, env);
+    }
+    return json({ error: "Not found" }, 404);
+  }
+
+  if (pathname === "/api/account/me") {
+    if (request.method === "GET") {
+      return handleGetAccount(request, env);
+    }
+    if (request.method === "DELETE") {
+      return handleDeleteAccount(request, env);
+    }
+    return json({ error: "Not found" }, 404);
   }
 
   const gameMatch = pathname.match(/^\/api\/games\/(\d+)$/);

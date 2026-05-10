@@ -8,6 +8,7 @@ import { MockR2Bucket } from "./mock-r2";
 function createEnv() {
   const db = new MockD1Database();
   const images = new MockR2Bucket();
+  const sentEmails: Array<Record<string, any>> = [];
   const assetsFetch = vi.fn(async () => {
     return new Response("<!doctype html><div id=\"root\"></div>", {
       headers: { "content-type": "text/html; charset=utf-8" },
@@ -20,9 +21,18 @@ function createEnv() {
     ASSETS: {
       fetch: assetsFetch,
     },
+    EMAIL: {
+      send: vi.fn(async (message) => {
+        sentEmails.push(message);
+        return { messageId: `message-${sentEmails.length}` };
+      }),
+    },
+    AUTH_EMAIL_FROM: "login@breview.ing",
+    AUTH_EMAIL_FROM_NAME: "Breview",
+    AUTH_SECRET: "test-secret",
   };
 
-  return { env, assetsFetch, images };
+  return { env, assetsFetch, images, sentEmails };
 }
 
 async function call(env: Env, path: string, init?: RequestInit): Promise<Response> {
@@ -34,11 +44,19 @@ async function json(response: Response): Promise<Record<string, any>> {
   return (await response.json()) as Record<string, any>;
 }
 
+function latestLoginCode(sentEmails: Array<Record<string, any>>): string {
+  const text = String(sentEmails.at(-1)?.text ?? "");
+  const match = text.match(/\b(\d{6})\b/);
+  if (!match) throw new Error(`Login code not found in email: ${text}`);
+  return match[1];
+}
+
 describe("worker api", () => {
   let env: Env;
   let assetsFetch: ReturnType<typeof vi.fn>;
   let db: MockD1Database;
   let images: MockR2Bucket;
+  let sentEmails: Array<Record<string, any>>;
 
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -48,6 +66,7 @@ describe("worker api", () => {
     env = setup.env;
     assetsFetch = setup.assetsFetch;
     images = setup.images;
+    sentEmails = setup.sentEmails;
     db = setup.env.DB as MockD1Database;
   });
 
@@ -386,6 +405,209 @@ describe("worker api", () => {
     const results = await json(resultsRes);
     expect(results.summary.players).toBe(1);
     expect(results.players).toEqual([{ nickname: "Uusin nimi" }]);
+  });
+
+  it("sends login code, verifies session, and links existing ratings to account history", async () => {
+    await call(env, "/api/create-game", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Account History",
+        beers: [{ name: "Beer A", image_url: null }],
+      }),
+    });
+
+    const game = await json(await call(env, "/api/games/1"));
+    const beerId = game.beers[0].id;
+
+    await call(env, "/api/games/1/ratings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: "account-client",
+        nickname: "Tilillinen",
+        ratings: [{ beerId, score: 9, comment: "Muistiin" }],
+      }),
+    });
+
+    const requestCode = await call(env, "/api/auth/request-code", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "Tester@Example.COM" }),
+    });
+    expect(requestCode.status).toBe(200);
+    expect(sentEmails).toHaveLength(1);
+    expect(sentEmails[0].to).toBe("tester@example.com");
+
+    const verify = await call(env, "/api/auth/verify-code", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "tester@example.com",
+        code: latestLoginCode(sentEmails),
+        clientId: "account-client",
+      }),
+    });
+    expect(verify.status).toBe(200);
+    const verified = await json(verify);
+    expect(verified.user.email).toBe("tester@example.com");
+    expect(verified.sessionToken).toEqual(expect.any(String));
+    expect(verified.history).toEqual([
+      expect.objectContaining({
+        gameId: 1,
+        gameName: "Account History",
+        ratingsCount: 1,
+      }),
+    ]);
+
+    const me = await call(env, "/api/account/me", {
+      headers: { authorization: `Bearer ${verified.sessionToken}` },
+    });
+    expect(me.status).toBe(200);
+    const account = await json(me);
+    expect(account.history).toHaveLength(1);
+  });
+
+  it("uses authenticated account ratings on another client id", async () => {
+    await call(env, "/api/create-game", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Cross Device",
+        beers: [{ name: "Beer A", image_url: null }],
+      }),
+    });
+
+    const game = await json(await call(env, "/api/games/1"));
+    const beerId = game.beers[0].id;
+
+    await call(env, "/api/games/1/ratings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: "old-device",
+        nickname: "Old",
+        ratings: [{ beerId, score: 8.25 }],
+      }),
+    });
+
+    await call(env, "/api/auth/request-code", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "sync@example.com" }),
+    });
+    const verify = await call(env, "/api/auth/verify-code", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "sync@example.com",
+        code: latestLoginCode(sentEmails),
+        clientId: "old-device",
+      }),
+    });
+    const sessionToken = String((await json(verify)).sessionToken);
+
+    const ratings = await call(env, "/api/games/1/ratings?clientId=new-device", {
+      headers: { authorization: `Bearer ${sessionToken}` },
+    });
+    expect(ratings.status).toBe(200);
+    const payload = await json(ratings);
+    expect(payload.ratings).toEqual([{ beerId, score: 8.25, comment: null }]);
+
+    const update = await call(env, "/api/games/1/ratings", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${sessionToken}`,
+      },
+      body: JSON.stringify({
+        clientId: "new-device",
+        nickname: "New name",
+        ratings: [{ beerId, score: 9.5 }],
+      }),
+    });
+    expect(update.status).toBe(200);
+
+    const results = await json(await call(env, "/api/games/1/results"));
+    expect(results.summary.players).toBe(1);
+    expect(results.beers[0].avg_score).toBe(9.5);
+    expect(results.players).toEqual([{ nickname: "New name" }]);
+  });
+
+  it("rejects invalid login codes", async () => {
+    const requestCode = await call(env, "/api/auth/request-code", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "wrong-code@example.com" }),
+    });
+    expect(requestCode.status).toBe(200);
+
+    const verify = await call(env, "/api/auth/verify-code", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "wrong-code@example.com",
+        code: "000000",
+      }),
+    });
+    expect(verify.status).toBe(400);
+    const payload = await json(verify);
+    expect(payload.error).toBe("Koodi ei täsmää");
+  });
+
+  it("deletes an authenticated account and linked ratings", async () => {
+    await call(env, "/api/create-game", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Delete Account",
+        beers: [{ name: "Beer A", image_url: null }],
+      }),
+    });
+
+    const game = await json(await call(env, "/api/games/1"));
+    const beerId = game.beers[0].id;
+
+    await call(env, "/api/games/1/ratings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: "delete-client",
+        nickname: "Delete Me",
+        ratings: [{ beerId, score: 6 }],
+      }),
+    });
+
+    await call(env, "/api/auth/request-code", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "delete@example.com" }),
+    });
+    const verify = await call(env, "/api/auth/verify-code", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "delete@example.com",
+        code: latestLoginCode(sentEmails),
+        clientId: "delete-client",
+      }),
+    });
+    const sessionToken = String((await json(verify)).sessionToken);
+
+    const deleteResponse = await call(env, "/api/account/me", {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${sessionToken}` },
+    });
+    expect(deleteResponse.status).toBe(200);
+
+    const results = await json(await call(env, "/api/games/1/results"));
+    expect(results.summary.players).toBe(0);
+    expect(results.beers[0].rating_count).toBe(0);
+
+    const me = await call(env, "/api/account/me", {
+      headers: { authorization: `Bearer ${sessionToken}` },
+    });
+    expect(me.status).toBe(401);
   });
 
   it("does not expose the paid image search endpoint", async () => {

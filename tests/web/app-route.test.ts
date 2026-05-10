@@ -17,6 +17,11 @@ describe("web route parser", () => {
     expect(parsePath("/makers/")).toEqual({ type: "makers" });
   });
 
+  it("parses account route", () => {
+    expect(parsePath("/account")).toEqual({ type: "account" });
+    expect(parsePath("/account/")).toEqual({ type: "account" });
+  });
+
   it("returns not-found for unknown routes", () => {
     expect(parsePath("/foo")).toEqual({ type: "not-found" });
     expect(parsePath("/123/other")).toEqual({ type: "not-found" });

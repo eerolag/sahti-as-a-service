@@ -32,6 +32,24 @@ export interface WorkersAiBinding {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
 }
 
+export interface EmailMessageBuilder {
+  to: string | string[];
+  from: string | { email: string; name: string };
+  subject: string;
+  html?: string;
+  text?: string;
+  replyTo?: string | { email: string; name: string };
+  headers?: Record<string, string>;
+}
+
+export interface EmailSendResult {
+  messageId: string;
+}
+
+export interface SendEmailBinding {
+  send(message: EmailMessageBuilder): Promise<EmailSendResult>;
+}
+
 export interface R2HttpMetadata {
   contentType?: string;
   contentLanguage?: string;
@@ -68,4 +86,8 @@ export interface Env {
   ASSETS: AssetBinding;
   IMAGES_BUCKET: R2Bucket;
   AI?: WorkersAiBinding;
+  EMAIL?: SendEmailBinding;
+  AUTH_EMAIL_FROM?: string;
+  AUTH_EMAIL_FROM_NAME?: string;
+  AUTH_SECRET?: string;
 }

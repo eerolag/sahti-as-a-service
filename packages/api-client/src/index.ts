@@ -1,15 +1,22 @@
 import type {
+  AccountMeResponse,
   CreateGameRequest,
   CreateGameResponse,
+  DeleteAccountResponse,
   GetGameResponse,
   GetRatingsResponse,
   GetResultsResponse,
   IdentifyBeerNameResponse,
+  LogoutResponse,
+  RequestLoginCodeRequest,
+  RequestLoginCodeResponse,
   SaveRatingsRequest,
   SaveRatingsResponse,
   UploadImageResponse,
   UpdateGameRequest,
   UpdateGameResponse,
+  VerifyLoginCodeRequest,
+  VerifyLoginCodeResponse,
 } from "@breview/shared/api-contracts";
 
 type ApiOptions = RequestInit & {
@@ -60,6 +67,10 @@ function createRequest(options: ApiClientOptions = {}) {
   };
 }
 
+function authHeaders(sessionToken?: string): HeadersInit | undefined {
+  return sessionToken ? { authorization: `Bearer ${sessionToken}` } : undefined;
+}
+
 export function createApiClient(options: ApiClientOptions = {}) {
   const request = createRequest(options);
   const fetcher = options.fetchImpl ?? fetch;
@@ -83,16 +94,19 @@ export function createApiClient(options: ApiClientOptions = {}) {
       });
     },
 
-    saveRatings(gameId: number, payload: SaveRatingsRequest) {
+    saveRatings(gameId: number, payload: SaveRatingsRequest, sessionToken?: string) {
       return request<SaveRatingsResponse>(`/api/games/${gameId}/ratings`, {
         method: "POST",
+        headers: authHeaders(sessionToken),
         bodyJson: payload,
       });
     },
 
-    getRatings(gameId: number, clientId: string) {
+    getRatings(gameId: number, clientId: string, sessionToken?: string) {
       const q = encodeURIComponent(clientId);
-      return request<GetRatingsResponse>(`/api/games/${gameId}/ratings?clientId=${q}`);
+      return request<GetRatingsResponse>(`/api/games/${gameId}/ratings?clientId=${q}`, {
+        headers: authHeaders(sessionToken),
+      });
     },
 
     getResults(gameId: number) {
@@ -115,6 +129,40 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return request<IdentifyBeerNameResponse>("/api/images/identify-beer-name", {
         method: "POST",
         body: formData,
+      });
+    },
+
+    requestLoginCode(payload: RequestLoginCodeRequest) {
+      return request<RequestLoginCodeResponse>("/api/auth/request-code", {
+        method: "POST",
+        bodyJson: payload,
+      });
+    },
+
+    verifyLoginCode(payload: VerifyLoginCodeRequest) {
+      return request<VerifyLoginCodeResponse>("/api/auth/verify-code", {
+        method: "POST",
+        bodyJson: payload,
+      });
+    },
+
+    getAccount(sessionToken: string) {
+      return request<AccountMeResponse>("/api/account/me", {
+        headers: authHeaders(sessionToken),
+      });
+    },
+
+    logout(sessionToken: string) {
+      return request<LogoutResponse>("/api/auth/logout", {
+        method: "POST",
+        headers: authHeaders(sessionToken),
+      });
+    },
+
+    deleteAccount(sessionToken: string) {
+      return request<DeleteAccountResponse>("/api/account/me", {
+        method: "DELETE",
+        headers: authHeaders(sessionToken),
       });
     },
 

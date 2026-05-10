@@ -103,3 +103,53 @@ export interface IdentifyBeerNameResponse {
   beerName: string;
   model: string;
 }
+
+export interface AccountUserDto {
+  id: number;
+  email: string;
+}
+
+export interface AccountHistoryItemDto {
+  gameId: number;
+  gameName: string;
+  ratingsCount: number;
+  updatedAt: string | null;
+}
+
+export interface RequestLoginCodeRequest {
+  email: string;
+}
+
+export interface RequestLoginCodeResponse {
+  ok: true;
+  email: string;
+  expiresInSeconds: number;
+}
+
+export interface VerifyLoginCodeRequest {
+  email: string;
+  code: string;
+  clientId?: string;
+  clientIds?: string[];
+}
+
+export interface VerifyLoginCodeResponse {
+  ok: true;
+  sessionToken: string;
+  user: AccountUserDto;
+  history: AccountHistoryItemDto[];
+}
+
+export interface AccountMeResponse {
+  ok: true;
+  user: AccountUserDto;
+  history: AccountHistoryItemDto[];
+}
+
+export interface LogoutResponse {
+  ok: true;
+}
+
+export interface DeleteAccountResponse {
+  ok: true;
+}

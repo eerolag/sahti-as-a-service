@@ -1,6 +1,7 @@
 export const MAX_GAME_NAME_LENGTH = 120;
 export const MAX_NICKNAME_LENGTH = 40;
 export const MAX_RATING_COMMENT_LENGTH = 255;
+export const MAX_EMAIL_LENGTH = 254;
 
 export function normalizeGameName(raw: unknown): { value: string } | { error: string } {
   const name = String(raw ?? "").trim();
@@ -37,6 +38,18 @@ export function normalizeClientId(clientId: unknown): string | null {
   const cleanClientId = String(clientId ?? "").trim();
   if (!cleanClientId || cleanClientId.length > 200) return null;
   return cleanClientId;
+}
+
+export function normalizeEmail(raw: unknown): { value: string } | { error: string } {
+  const value = String(raw ?? "").trim().toLowerCase();
+  if (!value) return { error: "Anna sähköpostiosoite" };
+  if (value.length > MAX_EMAIL_LENGTH) {
+    return { error: `Sähköpostiosoite on liian pitkä (max ${MAX_EMAIL_LENGTH} merkkiä)` };
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    return { error: "Anna toimiva sähköpostiosoite" };
+  }
+  return { value };
 }
 
 export function normalizeNickname(raw: unknown): { value: string | null } | { error: string } {
