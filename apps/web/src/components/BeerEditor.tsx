@@ -4,6 +4,7 @@ import { apiClient } from "../api/client";
 import { useBeerReorder } from "../hooks/useBeerReorder";
 import { useHaptics } from "../hooks/useHaptics";
 import { prepareImageForBeerNameRecognition } from "../utils/beer-name-image";
+import { getOrCreateClientId } from "../utils/player-identity";
 
 export interface BeerEditorRow {
   id?: number;
@@ -197,15 +198,7 @@ export function BeerEditor({
                   placeholder="esim. Mallaski IPA"
                 />
 
-                <label className="text-sm text-muted">Kuva URL (optional)</label>
-                <input
-                  className="input"
-                  value={beer.imageUrl}
-                  onChange={(event) => setBeerField(idx, { imageUrl: event.target.value })}
-                  placeholder="https://..."
-                />
-
-                <label className="text-sm text-muted">Tai kuva tiedostona (optional)</label>
+                <label className="text-sm text-muted">Kuva (valinnainen)</label>
                 <input
                   className="input"
                   type="file"
@@ -219,45 +212,43 @@ export function BeerEditor({
                   Tiedosto ladataan palvelimelle (max 10 MB, suositus enintään 6000x6000 px).
                 </div>
 
-                {beer.file ? (
-                  <div className="flex flex-col gap-2">
-                    <button
-                      className="btn"
-                      type="button"
-                      disabled={identifyStatus.state === "loading" || submitting}
-                      onClick={async () => {
-                        if (!beer.file) return;
+                <div className="flex flex-col gap-2">
+                  <button
+                    className="btn"
+                    type="button"
+                    disabled={!beer.file || identifyStatus.state === "loading" || submitting}
+                    onClick={async () => {
+                      if (!beer.file) return;
 
-                        haptics.light();
-                        setRowIdentifyStatus(key, { state: "loading", message: "Tunnistetaan nimea kuvasta..." });
+                      haptics.light();
+                      setRowIdentifyStatus(key, { state: "loading", message: "Tunnistetaan nimea kuvasta..." });
 
-                        try {
-                          const preparedFile = await prepareImageForBeerNameRecognition(beer.file);
-                          const identified = await apiClient.identifyBeerName(preparedFile);
-                          setBeerField(idx, { name: identified.beerName, file: preparedFile });
-                          setRowIdentifyStatus(key, {
-                            state: "success",
-                            message: `Tunnistettu nimi: ${identified.beerName}`,
-                          });
-                          haptics.success();
-                        } catch (error) {
-                          setRowIdentifyStatus(key, {
-                            state: "error",
-                            message: String((error as Error)?.message ?? "Nimen tunnistus epaonnistui."),
-                          });
-                          haptics.error();
-                        }
-                      }}
-                    >
-                      {identifyStatus.state === "loading" ? "Tunnistetaan..." : "Tunnista nimi kuvasta"}
-                    </button>
-                    {identifyStatus.message ? (
-                      <div className={identifyStatus.state === "error" ? "text-sm text-red-300" : "text-sm text-muted"}>
-                        {identifyStatus.message}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
+                      try {
+                        const preparedFile = await prepareImageForBeerNameRecognition(beer.file);
+                        const identified = await apiClient.identifyBeerName(preparedFile, getOrCreateClientId());
+                        setBeerField(idx, { name: identified.beerName, file: preparedFile });
+                        setRowIdentifyStatus(key, {
+                          state: "success",
+                          message: `Tunnistettu nimi: ${identified.beerName}`,
+                        });
+                        haptics.success();
+                      } catch (error) {
+                        setRowIdentifyStatus(key, {
+                          state: "error",
+                          message: String((error as Error)?.message ?? "Nimen tunnistus epaonnistui."),
+                        });
+                        haptics.error();
+                      }
+                    }}
+                  >
+                    {identifyStatus.state === "loading" ? "Tunnistetaan..." : "Tunnista nimi AI:lla"}
+                  </button>
+                  {identifyStatus.message ? (
+                    <div className={identifyStatus.state === "error" ? "text-sm text-red-300" : "text-sm text-muted"}>
+                      {identifyStatus.message}
+                    </div>
+                  ) : null}
+                </div>
 
                 <div className="text-sm text-muted">
                   Untappd:{" "}

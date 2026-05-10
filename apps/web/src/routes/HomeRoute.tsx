@@ -31,7 +31,7 @@ export function HomeRoute() {
         }
 
         let image_url = row.imageUrl.trim() || null;
-        if (!image_url && row.file) {
+        if (row.file) {
           const uploadFile = await prepareImageForManagedUpload(row.file);
           await validateImageFileBeforeUpload(uploadFile);
           const upload = await apiClient.uploadImage(uploadFile);

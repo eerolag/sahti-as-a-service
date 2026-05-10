@@ -38,6 +38,15 @@ type RatingRow = {
   updated_at: string;
 };
 
+type AiRecognitionUsageRow = {
+  identity_hash: string;
+  usage_day: string;
+  attempts: number;
+  violations: number;
+  locked_until: string | null;
+  updated_at: string;
+};
+
 function now(): string {
   return new Date().toISOString();
 }
@@ -79,6 +88,7 @@ export class MockD1Database implements D1Database {
   private beers: BeerRow[] = [];
   private players: PlayerRow[] = [];
   private ratings: RatingRow[] = [];
+  private aiRecognitionUsage: AiRecognitionUsageRow[] = [];
 
   private gameIdCounter = 1;
   private beerIdCounter = 1;
@@ -246,6 +256,63 @@ export class MockD1Database implements D1Database {
       return { success: true, meta: {} };
     }
 
+    if (
+      sql.startsWith("insert into ai_recognition_usage") &&
+      sql.includes("violations = ai_recognition_usage.violations + 1")
+    ) {
+      const [identityHash, usageDay, threshold, lockedUntil] = values;
+      const hash = String(identityHash ?? "");
+      const day = String(usageDay ?? "");
+      let row = this.aiRecognitionUsage.find((item) => item.identity_hash === hash && item.usage_day === day);
+
+      if (!row) {
+        row = {
+          identity_hash: hash,
+          usage_day: day,
+          attempts: 0,
+          violations: 1,
+          locked_until: null,
+          updated_at: now(),
+        };
+        this.aiRecognitionUsage.push(row);
+      } else {
+        row.violations += 1;
+        row.updated_at = now();
+      }
+
+      if (row.violations >= Number(threshold)) {
+        row.locked_until = String(lockedUntil ?? "");
+      }
+
+      return { success: true, meta: {} };
+    }
+
+    if (
+      sql.startsWith("insert into ai_recognition_usage") &&
+      sql.includes("attempts = ai_recognition_usage.attempts + 1")
+    ) {
+      const [identityHash, usageDay] = values;
+      const hash = String(identityHash ?? "");
+      const day = String(usageDay ?? "");
+      const row = this.aiRecognitionUsage.find((item) => item.identity_hash === hash && item.usage_day === day);
+
+      if (row) {
+        row.attempts += 1;
+        row.updated_at = now();
+      } else {
+        this.aiRecognitionUsage.push({
+          identity_hash: hash,
+          usage_day: day,
+          attempts: 1,
+          violations: 0,
+          locked_until: null,
+          updated_at: now(),
+        });
+      }
+
+      return { success: true, meta: {} };
+    }
+
     throw new Error(`Unsupported run SQL: ${sqlRaw}`);
   }
 
@@ -280,6 +347,22 @@ export class MockD1Database implements D1Database {
       const gameId = Number(values[0]);
       const count = this.players.filter((row) => row.game_id === gameId).length;
       return { c: count };
+    }
+
+    if (
+      sql.startsWith(
+        "select attempts, violations, locked_until from ai_recognition_usage where identity_hash = ? and usage_day = ?",
+      )
+    ) {
+      const hash = String(values[0] ?? "");
+      const day = String(values[1] ?? "");
+      const row = this.aiRecognitionUsage.find((item) => item.identity_hash === hash && item.usage_day === day);
+      if (!row) return null;
+      return {
+        attempts: row.attempts,
+        violations: row.violations,
+        locked_until: row.locked_until,
+      };
     }
 
     throw new Error(`Unsupported first SQL: ${sqlRaw}`);

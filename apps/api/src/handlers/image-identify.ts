@@ -2,6 +2,11 @@ import type { IdentifyBeerNameResponse } from "@breview/shared/api-contracts";
 import { MAX_IMAGE_UPLOAD_BYTES } from "@breview/shared/image-upload";
 import type { Env } from "../env";
 import { json } from "../http";
+import {
+  assertImageRecognitionAllowed,
+  recordInappropriateImage,
+  resolveImageRecognitionIdentity,
+} from "../services/ai-recognition-usage-service";
 import { identifyBeerNameFromImage } from "../services/beer-name-recognition-service";
 
 function asImageFile(value: FormDataEntryValue | null): File | null {
@@ -28,12 +33,19 @@ export async function handleIdentifyBeerNameFromImage(request: Request, env: Env
     return json({ error: `Kuvatiedosto on liian suuri (max ${MAX_IMAGE_UPLOAD_BYTES} tavua)` }, 413);
   }
 
+  const identity = await resolveImageRecognitionIdentity(request, formData);
+
   try {
+    await assertImageRecognitionAllowed(env, identity);
     const payload: IdentifyBeerNameResponse = await identifyBeerNameFromImage(env, file);
     return json(payload);
   } catch (error) {
-    const status = Number((error as any)?.statusCode) || 502;
-    const message = String((error as Error)?.message ?? "Nimen tunnistus epaonnistui");
+    const resolvedError =
+      (error as any)?.code === "BEVERAGE_IMAGE_REQUIRED"
+        ? await recordInappropriateImage(env, identity)
+        : (error as Error);
+    const status = Number((resolvedError as any)?.statusCode) || 502;
+    const message = String((resolvedError as Error)?.message ?? "Nimen tunnistus epaonnistui");
     return json({ error: message }, status);
   }
 }

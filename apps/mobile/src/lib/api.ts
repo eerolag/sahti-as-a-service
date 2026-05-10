@@ -26,13 +26,14 @@ function imageAssetType(asset: MobileImageAsset): string {
   return asset.mimeType || "image/jpeg";
 }
 
-function createImageFormData(asset: MobileImageAsset): FormData {
+function createImageFormData(asset: MobileImageAsset, clientId?: string): FormData {
   const formData = new FormData();
   formData.append("file", {
     uri: asset.uri,
     name: imageAssetName(asset),
     type: imageAssetType(asset),
   } as any);
+  if (clientId) formData.append("clientId", clientId);
   return formData;
 }
 
@@ -58,6 +59,9 @@ export function uploadImageAsset(asset: MobileImageAsset): Promise<UploadImageRe
   return requestMultipart<UploadImageResponse>("/api/images/upload", createImageFormData(asset));
 }
 
-export function identifyBeerNameAsset(asset: MobileImageAsset): Promise<IdentifyBeerNameResponse> {
-  return requestMultipart<IdentifyBeerNameResponse>("/api/images/identify-beer-name", createImageFormData(asset));
+export function identifyBeerNameAsset(asset: MobileImageAsset, clientId?: string): Promise<IdentifyBeerNameResponse> {
+  return requestMultipart<IdentifyBeerNameResponse>(
+    "/api/images/identify-beer-name",
+    createImageFormData(asset, clientId),
+  );
 }

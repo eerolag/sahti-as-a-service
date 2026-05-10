@@ -416,7 +416,7 @@ export default function GameScreen() {
     setEditBeer(index, { identifying: true });
 
     try {
-      const identified = await identifyBeerNameAsset(asMobileImageAsset(row.localAsset));
+      const identified = await identifyBeerNameAsset(asMobileImageAsset(row.localAsset), await getOrCreateClientId());
       setEditBeer(index, { name: identified.beerName, identifying: false });
     } catch (error) {
       setEditBeer(index, { identifying: false });
@@ -780,19 +780,7 @@ function EditBeerCard({
       </View>
 
       <View className="gap-2">
-        <Text variant="muted">Kuva URL</Text>
-        <Input
-          value={beer.imageUrl}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          onChangeText={(imageUrl) => onChange({ imageUrl, localAsset: null, localAssetLabel: "" })}
-          placeholder="https://..."
-        />
-      </View>
-
-      <View className="gap-2">
-        <Text variant="muted">Tai lisää kuva</Text>
+        <Text variant="muted">Kuva (valinnainen)</Text>
         <View className="flex-row gap-2">
           <Button className="flex-1" variant="secondary" onPress={onPickCamera}>
             Kamera
@@ -802,11 +790,9 @@ function EditBeerCard({
           </Button>
         </View>
         {beer.localAssetLabel ? <Text variant="muted">{beer.localAssetLabel}</Text> : null}
-        {beer.localAsset ? (
-          <Button variant="outline" loading={beer.identifying} onPress={onIdentify}>
-            Tunnista nimi kuvasta
-          </Button>
-        ) : null}
+        <Button variant="outline" loading={beer.identifying} disabled={!beer.localAsset} onPress={onIdentify}>
+          Tunnista nimi AI:lla
+        </Button>
       </View>
 
       <Text className="text-accent underline" onPress={() => void Linking.openURL(untappdUrl(beer))}>

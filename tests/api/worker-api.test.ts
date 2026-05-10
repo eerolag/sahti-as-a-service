@@ -533,6 +533,101 @@ describe("worker api", () => {
     expect(payload.beerName).toBe("Karhu");
   });
 
+  it("limits image recognition to 10 requests per client per day", async () => {
+    const aiRun = vi.fn(async () => {
+      return {
+        choices: [
+          {
+            message: {
+              content: "{\"beerName\":\"Karhu\"}",
+            },
+          },
+        ],
+      };
+    });
+    env.AI = { run: aiRun };
+
+    for (let index = 0; index < 10; index += 1) {
+      const form = new FormData();
+      form.set("file", new Blob([new Uint8Array([index + 1])], { type: "image/jpeg" }), `beer-${index}.jpg`);
+      form.set("clientId", "daily-limit-client");
+
+      const response = await call(env, "/api/images/identify-beer-name", {
+        method: "POST",
+        body: form,
+      });
+
+      expect(response.status).toBe(200);
+    }
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([11])], { type: "image/jpeg" }), "beer-11.jpg");
+    form.set("clientId", "daily-limit-client");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(429);
+    const payload = await json(response);
+    expect(String(payload.error)).toContain("10 kuvaa");
+    expect(aiRun).toHaveBeenCalledTimes(10);
+  });
+
+  it("warns once and then locks image recognition for inappropriate or non-beverage images", async () => {
+    const aiRun = vi.fn(async () => {
+      return {
+        choices: [
+          {
+            message: {
+              content: "{\"beerName\":null,\"isBeverageImage\":false,\"isAppropriate\":true}",
+            },
+          },
+        ],
+      };
+    });
+    env.AI = { run: aiRun };
+
+    const firstForm = new FormData();
+    firstForm.set("file", new Blob([new Uint8Array([1, 2])], { type: "image/jpeg" }), "random.jpg");
+    firstForm.set("clientId", "non-beverage-client");
+
+    const firstResponse = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: firstForm,
+    });
+
+    expect(firstResponse.status).toBe(422);
+    const firstPayload = await json(firstResponse);
+    expect(String(firstPayload.error)).toContain("Seuraavasta asiattomasta kuvasta");
+
+    const secondForm = new FormData();
+    secondForm.set("file", new Blob([new Uint8Array([3, 4])], { type: "image/jpeg" }), "random-2.jpg");
+    secondForm.set("clientId", "non-beverage-client");
+
+    const secondResponse = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: secondForm,
+    });
+
+    expect(secondResponse.status).toBe(423);
+    const secondPayload = await json(secondResponse);
+    expect(String(secondPayload.error)).toContain("lukittu");
+
+    const thirdForm = new FormData();
+    thirdForm.set("file", new Blob([new Uint8Array([5, 6])], { type: "image/jpeg" }), "random-3.jpg");
+    thirdForm.set("clientId", "non-beverage-client");
+
+    const thirdResponse = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: thirdForm,
+    });
+
+    expect(thirdResponse.status).toBe(423);
+    expect(aiRun).toHaveBeenCalledTimes(4);
+  });
+
   it("reads Kimi reasoning field and disables Kimi thinking in fallback request", async () => {
     const aiRun = vi.fn(async (model: string, _input: Record<string, unknown>) => {
       if (model === "@cf/google/gemma-4-26b-a4b-it") {

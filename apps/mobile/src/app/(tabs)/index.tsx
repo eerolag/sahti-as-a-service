@@ -1,5 +1,6 @@
 import type { CreateGameRequest } from "@breview/shared/api-contracts";
 import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
@@ -8,8 +9,39 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
-import { apiClient } from "@/lib/api";
+import { apiClient, identifyBeerNameAsset, uploadImageAsset, type MobileImageAsset } from "@/lib/api";
+import { getOrCreateClientId } from "@/lib/player-identity";
 import { loadRecentGames, recentGameFromPayload, saveRecentGame, type RecentGame } from "@/lib/recent-games";
+
+interface CreateBeerDraft {
+  clientKey: string;
+  name: string;
+  localAsset: ImagePicker.ImagePickerAsset | null;
+  localAssetLabel: string;
+  identifying: boolean;
+}
+
+function createEmptyBeerDraft(): CreateBeerDraft {
+  return {
+    clientKey: `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    name: "",
+    localAsset: null,
+    localAssetLabel: "",
+    identifying: false,
+  };
+}
+
+function asMobileImageAsset(asset: ImagePicker.ImagePickerAsset): MobileImageAsset {
+  return {
+    uri: asset.uri,
+    fileName: asset.fileName,
+    mimeType: asset.mimeType,
+  };
+}
+
+function localAssetLabel(asset: ImagePicker.ImagePickerAsset): string {
+  return asset.fileName || asset.uri.split("/").pop() || "Valittu kuva";
+}
 
 function parseGameIdInput(value: string): number | null {
   const trimmed = value.trim();
@@ -43,7 +75,7 @@ function beerMeta(count: number): string {
 export default function GamesScreen() {
   const router = useRouter();
   const [gameName, setGameName] = useState("");
-  const [beerNames, setBeerNames] = useState([""]);
+  const [beers, setBeers] = useState<CreateBeerDraft[]>([createEmptyBeerDraft()]);
   const [joinInput, setJoinInput] = useState("");
   const [recentGames, setRecentGames] = useState<RecentGame[]>([]);
   const [creating, setCreating] = useState(false);
@@ -85,18 +117,10 @@ export default function GamesScreen() {
 
   async function handleCreateGame() {
     const name = gameName.trim();
-    const beers = beerNames
-      .map((beerName) => beerName.trim())
-      .filter(Boolean)
-      .map<CreateGameRequest["beers"][number]>((beerName) => ({ name: beerName, image_url: null }));
+    const payloadBeers: CreateGameRequest["beers"] = [];
 
     if (!name) {
       setMessage("Anna pelille nimi.");
-      return;
-    }
-
-    if (!beers.length) {
-      setMessage("Lisää vähintään yksi olut.");
       return;
     }
 
@@ -104,10 +128,30 @@ export default function GamesScreen() {
     setMessage(null);
 
     try {
-      const created = await apiClient.createGame({ name, beers });
+      for (let index = 0; index < beers.length; index += 1) {
+        const beer = beers[index];
+        const beerName = beer.name.trim();
+        if (!beerName) {
+          throw new Error(`Anna nimi kaikille oluille tai poista tyhjä rivi (rivi ${index + 1}).`);
+        }
+
+        let image_url: string | null = null;
+        if (beer.localAsset) {
+          const upload = await uploadImageAsset(asMobileImageAsset(beer.localAsset));
+          image_url = upload.imageUrl;
+        }
+
+        payloadBeers.push({ name: beerName, image_url });
+      }
+
+      if (!payloadBeers.length) {
+        throw new Error("Lisää vähintään yksi olut.");
+      }
+
+      const created = await apiClient.createGame({ name, beers: payloadBeers });
       await openRemoteGame(created.gameId);
       setGameName("");
-      setBeerNames([""]);
+      setBeers([createEmptyBeerDraft()]);
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
     } finally {
@@ -115,19 +159,71 @@ export default function GamesScreen() {
     }
   }
 
-  function updateBeerName(index: number, value: string) {
-    setBeerNames((current) => current.map((beerName, itemIndex) => (itemIndex === index ? value : beerName)));
+  function updateBeer(index: number, patch: Partial<CreateBeerDraft>) {
+    setBeers((current) => current.map((beer, itemIndex) => (itemIndex === index ? { ...beer, ...patch } : beer)));
   }
 
   function addBeerRow() {
-    setBeerNames((current) => [...current, ""]);
+    setBeers((current) => [...current, createEmptyBeerDraft()]);
   }
 
   function removeBeerRow(index: number) {
-    setBeerNames((current) => {
+    setBeers((current) => {
       const next = current.filter((_, itemIndex) => itemIndex !== index);
-      return next.length ? next : [""];
+      return next.length ? next : [createEmptyBeerDraft()];
     });
+  }
+
+  async function pickBeerImage(index: number, source: "camera" | "library") {
+    setMessage(null);
+
+    const permission =
+      source === "camera"
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      setMessage(source === "camera" ? "Kameran käyttöoikeus puuttuu." : "Kuvakirjaston käyttöoikeus puuttuu.");
+      return;
+    }
+
+    const result =
+      source === "camera"
+        ? await ImagePicker.launchCameraAsync({
+            mediaTypes: ["images"],
+            quality: 0.9,
+          })
+        : await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            quality: 0.9,
+          });
+
+    if (result.canceled || !result.assets[0]) return;
+
+    const asset = result.assets[0];
+    updateBeer(index, {
+      localAsset: asset,
+      localAssetLabel: localAssetLabel(asset),
+    });
+  }
+
+  async function identifyBeer(index: number) {
+    const row = beers[index];
+    if (!row?.localAsset) {
+      setMessage("Valitse ensin kuva kamerasta tai kuvista.");
+      return;
+    }
+
+    setMessage(null);
+    updateBeer(index, { identifying: true });
+
+    try {
+      const identified = await identifyBeerNameAsset(asMobileImageAsset(row.localAsset), await getOrCreateClientId());
+      updateBeer(index, { name: identified.beerName, identifying: false });
+    } catch (error) {
+      updateBeer(index, { identifying: false });
+      setMessage(String((error as Error)?.message ?? "Nimen tunnistus epäonnistui."));
+    }
   }
 
   return (
@@ -168,19 +264,56 @@ export default function GamesScreen() {
           <Input placeholder="Pelin nimi" value={gameName} onChangeText={setGameName} returnKeyType="next" />
 
           <View className="gap-2">
-            {beerNames.map((beerName, index) => (
-              <View key={index} className="gap-2">
+            {beers.map((beer, index) => (
+              <View key={beer.clientKey} className="gap-3 rounded-lg border border-border bg-background p-4">
+                <View className="flex-row items-start gap-3">
+                  <View className="h-[64px] w-[64px] items-center justify-center overflow-hidden rounded-xl border border-border bg-card">
+                    {beer.localAsset ? (
+                      <Image source={{ uri: beer.localAsset.uri }} style={{ width: 64, height: 64 }} contentFit="cover" />
+                    ) : (
+                      <Text variant="muted" className="text-center text-xs">
+                        Ei kuvaa
+                      </Text>
+                    )}
+                  </View>
+                  <View className="flex-1 gap-1">
+                    <Text variant="large">{beer.name.trim() || `Olut ${index + 1}`}</Text>
+                    <Text variant="muted">Rivi {index + 1}</Text>
+                  </View>
+                  {beers.length > 1 ? (
+                    <Button variant="ghost" size="sm" onPress={() => removeBeerRow(index)}>
+                      Poista
+                    </Button>
+                  ) : null}
+                </View>
+
                 <Input
                   placeholder={`Olut ${index + 1}`}
-                  value={beerName}
-                  onChangeText={(value) => updateBeerName(index, value)}
+                  value={beer.name}
+                  onChangeText={(value) => updateBeer(index, { name: value })}
                   returnKeyType="next"
                 />
-                {beerNames.length > 1 ? (
-                  <Button variant="ghost" size="sm" onPress={() => removeBeerRow(index)}>
-                    Poista olut
+
+                <View className="gap-2">
+                  <Text variant="muted">Kuva (valinnainen)</Text>
+                  <View className="flex-row gap-2">
+                    <Button className="flex-1" variant="secondary" onPress={() => void pickBeerImage(index, "camera")}>
+                      Kamera
+                    </Button>
+                    <Button className="flex-1" variant="secondary" onPress={() => void pickBeerImage(index, "library")}>
+                      Kuvat
+                    </Button>
+                  </View>
+                  {beer.localAssetLabel ? <Text variant="muted">{beer.localAssetLabel}</Text> : null}
+                  <Button
+                    variant="outline"
+                    loading={beer.identifying}
+                    disabled={!beer.localAsset || creating}
+                    onPress={() => void identifyBeer(index)}
+                  >
+                    Tunnista nimi AI:lla
                   </Button>
-                ) : null}
+                </View>
               </View>
             ))}
           </View>

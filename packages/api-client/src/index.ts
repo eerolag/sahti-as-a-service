@@ -108,9 +108,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
       });
     },
 
-    identifyBeerName(file: File) {
+    identifyBeerName(file: File, clientId?: string) {
       const formData = new FormData();
       formData.set("file", file);
+      if (clientId) formData.set("clientId", clientId);
       return request<IdentifyBeerNameResponse>("/api/images/identify-beer-name", {
         method: "POST",
         body: formData,
