@@ -26,6 +26,7 @@ Official references checked on 2026-05-10:
   - `SUPPORT_PAYMENT_LABEL`
   - `EXPO_PUBLIC_SUPPORT_PAGE_URL`
   - `EXPO_PUBLIC_API_BASE_URL`
+- [x] Keep Worker deploy resilient to transient Cloudflare Workers Assets upload-session failures; `npm --workspace @breview/api run deploy` now retries `wrangler deploy` up to three times.
 
 ## Public Web Pages
 

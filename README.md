@@ -254,6 +254,8 @@ npm run build:web
 npm run deploy:worker
 ```
 
+Deploy-komento ajaa `wrangler deploy` -vaiheen pienellä uusintayrityksellä, koska Cloudflare Workers Assets -upload voi joskus palauttaa transientin `assets-upload-session` / `code: 10013` -virheen, vaikka build ja konfiguraatio ovat kunnossa.
+
 ## Auto deploy GitHub pushista
 
 Repoon on lisätty GitHub Actions workflow:
