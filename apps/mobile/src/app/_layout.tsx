@@ -28,6 +28,8 @@ export default function RootLayout() {
           name="[gameId]"
           options={{
             title: "Peli",
+            headerBackTitle: "",
+            headerBackButtonDisplayMode: "minimal",
             headerStyle: { backgroundColor: "#101318" },
             headerTintColor: "#f4f4f5",
             headerShadowVisible: false,

@@ -1,17 +1,26 @@
 import Slider from "@react-native-community/slider";
-import type { BeerDto, GetGameResponse, GetResultsResponse, RatingDto, ResultBeerDto } from "@breview/shared/api-contracts";
+import type {
+  BeerDto,
+  GetGameResponse,
+  GetResultsResponse,
+  RatingDto,
+  ResultBeerDto,
+  UpdateGameRequest,
+} from "@breview/shared/api-contracts";
 import { normalizeScore } from "@breview/shared/scoring";
 import { MAX_RATING_COMMENT_LENGTH, normalizeNickname } from "@breview/shared/validation";
+import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { Stack, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Linking, Pressable, ScrollView, TextInput, View } from "react-native";
+import { Linking, Pressable, ScrollView, Share, TextInput, View } from "react-native";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
-import { apiClient } from "@/lib/api";
+import { apiClient, identifyBeerNameAsset, uploadImageAsset, type MobileImageAsset } from "@/lib/api";
 import {
   generateAnonymousNickname,
   getOrCreateClientId,
@@ -21,12 +30,23 @@ import {
 } from "@/lib/player-identity";
 import { recentGameFromPayload, saveRecentGame } from "@/lib/recent-games";
 
-type Section = "rate" | "results";
+type Section = "rate" | "results" | "edit";
 type RatingDraft = Record<number, { score: number; comment: string }>;
+
+interface EditBeerDraft {
+  clientKey: string;
+  id?: number;
+  name: string;
+  imageUrl: string;
+  localAsset: ImagePicker.ImagePickerAsset | null;
+  localAssetLabel: string;
+  identifying: boolean;
+}
 
 const SCORE_MIN = 0;
 const SCORE_MAX = 10;
 const SCORE_STEP = 0.25;
+const BREVIEW_ORIGIN = "https://breview.ing";
 
 function readParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -36,9 +56,13 @@ function formatScore(value: unknown): string {
   return (normalizeScore(value) ?? 0).toFixed(2);
 }
 
-function untappdUrl(beer: BeerDto | ResultBeerDto): string {
-  const explicit = String(beer.untappd_url ?? "").trim();
+function untappdUrl(beer: BeerDto | ResultBeerDto | EditBeerDraft): string {
+  const explicit = "untappd_url" in beer ? String(beer.untappd_url ?? "").trim() : "";
   return explicit || `https://untappd.com/search?q=${encodeURIComponent(beer.name)}`;
+}
+
+function gameUrl(gameId: number): string {
+  return `${BREVIEW_ORIGIN}/${gameId}`;
 }
 
 function toRatingDraft(ratings: RatingDto[]): RatingDraft {
@@ -71,6 +95,44 @@ function resultSubtitle(results: GetResultsResponse | null): string {
   return `${results.summary.players} ${results.summary.players === 1 ? "pelaaja" : "pelaajaa"}`;
 }
 
+function createEditDraft(payload: GetGameResponse): { gameName: string; beers: EditBeerDraft[] } {
+  return {
+    gameName: payload.game.name,
+    beers: payload.beers.map((beer) => ({
+      clientKey: `beer-${beer.id}`,
+      id: beer.id,
+      name: beer.name,
+      imageUrl: beer.image_url ?? "",
+      localAsset: null,
+      localAssetLabel: "",
+      identifying: false,
+    })),
+  };
+}
+
+function createEmptyBeerDraft(): EditBeerDraft {
+  return {
+    clientKey: `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    name: "",
+    imageUrl: "",
+    localAsset: null,
+    localAssetLabel: "",
+    identifying: false,
+  };
+}
+
+function asMobileImageAsset(asset: ImagePicker.ImagePickerAsset): MobileImageAsset {
+  return {
+    uri: asset.uri,
+    fileName: asset.fileName,
+    mimeType: asset.mimeType,
+  };
+}
+
+function localAssetLabel(asset: ImagePicker.ImagePickerAsset): string {
+  return asset.fileName || asset.uri.split("/").pop() || "Valittu kuva";
+}
+
 export default function GameScreen() {
   const params = useLocalSearchParams<{ gameId?: string | string[] }>();
   const gameId = useMemo(() => Number(readParam(params.gameId)), [params.gameId]);
@@ -88,11 +150,24 @@ export default function GameScreen() {
   const [ratingsLoading, setRatingsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [resultsLoading, setResultsLoading] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editGameName, setEditGameName] = useState("");
+  const [editBeers, setEditBeers] = useState<EditBeerDraft[]>([]);
   const [saveLabel, setSaveLabel] = useState("Tallenna");
   const [message, setMessage] = useState<string | null>(null);
 
   const title = payload?.game.name ?? (validGameId ? `Peli #${gameId}` : "Peli");
   const hasDirtyRatings = useMemo(() => hasDraftChanges(ratings, savedRatings), [ratings, savedRatings]);
+  const shareUrl = validGameId ? gameUrl(gameId) : BREVIEW_ORIGIN;
+
+  function applyPayload(nextPayload: GetGameResponse) {
+    setPayload(nextPayload);
+    saveRecentGame(recentGameFromPayload(nextPayload));
+
+    const draft = createEditDraft(nextPayload);
+    setEditGameName(draft.gameName);
+    setEditBeers(draft.beers);
+  }
 
   const ensureIdentity = useCallback(async (): Promise<PlayerIdentity | null> => {
     if (!validGameId) return null;
@@ -155,9 +230,8 @@ export default function GameScreen() {
 
     try {
       const nextPayload = await apiClient.getGame(gameId);
-      setPayload(nextPayload);
+      applyPayload(nextPayload);
       setResults(null);
-      saveRecentGame(recentGameFromPayload(nextPayload));
 
       const nextIdentity = await ensureIdentity();
       if (nextIdentity) {
@@ -211,6 +285,21 @@ export default function GameScreen() {
         comment,
       },
     }));
+  }
+
+  function setEditBeer(index: number, patch: Partial<EditBeerDraft>) {
+    setEditBeers((current) => current.map((beer, itemIndex) => (itemIndex === index ? { ...beer, ...patch } : beer)));
+  }
+
+  function addEditBeer() {
+    setEditBeers((current) => [...current, createEmptyBeerDraft()]);
+  }
+
+  function removeEditBeer(index: number) {
+    setEditBeers((current) => {
+      const next = current.filter((_, itemIndex) => itemIndex !== index);
+      return next.length ? next : [createEmptyBeerDraft()];
+    });
   }
 
   async function saveRatings() {
@@ -269,9 +358,138 @@ export default function GameScreen() {
     }
   }
 
+  async function copyShareUrl() {
+    await Clipboard.setStringAsync(shareUrl);
+    setMessage("Pelin linkki kopioitu.");
+  }
+
+  async function shareGame() {
+    await Share.share({
+      title,
+      message: `${title}\n${shareUrl}`,
+      url: shareUrl,
+    });
+  }
+
+  async function pickEditBeerImage(index: number, source: "camera" | "library") {
+    setMessage(null);
+
+    const permission =
+      source === "camera"
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      setMessage(source === "camera" ? "Kameran käyttöoikeus puuttuu." : "Kuvakirjaston käyttöoikeus puuttuu.");
+      return;
+    }
+
+    const result =
+      source === "camera"
+        ? await ImagePicker.launchCameraAsync({
+            mediaTypes: ["images"],
+            quality: 0.9,
+          })
+        : await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            quality: 0.9,
+          });
+
+    if (result.canceled || !result.assets[0]) return;
+
+    const asset = result.assets[0];
+    setEditBeer(index, {
+      localAsset: asset,
+      localAssetLabel: localAssetLabel(asset),
+      imageUrl: "",
+    });
+  }
+
+  async function identifyEditBeer(index: number) {
+    const row = editBeers[index];
+    if (!row?.localAsset) {
+      setMessage("Valitse ensin kuva kamerasta tai kuvista.");
+      return;
+    }
+
+    setMessage(null);
+    setEditBeer(index, { identifying: true });
+
+    try {
+      const identified = await identifyBeerNameAsset(asMobileImageAsset(row.localAsset));
+      setEditBeer(index, { name: identified.beerName, identifying: false });
+    } catch (error) {
+      setEditBeer(index, { identifying: false });
+      setMessage(String((error as Error)?.message ?? "Nimen tunnistus epäonnistui."));
+    }
+  }
+
+  async function saveGameEdits() {
+    const trimmedName = editGameName.trim();
+    if (!trimmedName) {
+      setMessage("Anna pelille nimi.");
+      return;
+    }
+
+    const payloadBeers: UpdateGameRequest["beers"] = [];
+    setEditSaving(true);
+    setMessage(null);
+
+    try {
+      for (let index = 0; index < editBeers.length; index += 1) {
+        const row = editBeers[index];
+        const name = row.name.trim();
+        if (!name) {
+          throw new Error(`Anna nimi kaikille oluille tai poista tyhjä rivi (rivi ${index + 1}).`);
+        }
+
+        let image_url = row.imageUrl.trim() || null;
+        if (row.localAsset) {
+          const upload = await uploadImageAsset(asMobileImageAsset(row.localAsset));
+          image_url = upload.imageUrl;
+        }
+
+        payloadBeers.push({
+          id: row.id,
+          name,
+          image_url,
+        });
+      }
+
+      if (!payloadBeers.length) {
+        throw new Error("Lisää vähintään yksi olut.");
+      }
+
+      const updated = await apiClient.updateGame(gameId, {
+        name: trimmedName,
+        beers: payloadBeers,
+      });
+
+      const nextPayload = { game: updated.game, beers: updated.beers };
+      applyPayload(nextPayload);
+      setResults(null);
+      setSection("rate");
+
+      const nextIdentity = identity ?? (await ensureIdentity());
+      if (nextIdentity) {
+        await loadRatings(nextIdentity, updated.beers);
+      }
+    } catch (error) {
+      setMessage(String((error as Error)?.message ?? error));
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   return (
     <>
-      <Stack.Screen options={{ title }} />
+      <Stack.Screen
+        options={{
+          title,
+          headerBackTitle: "",
+          headerBackButtonDisplayMode: "minimal",
+        }}
+      />
       <ScrollView
         className="flex-1 bg-background"
         contentInsetAdjustmentBehavior="automatic"
@@ -310,35 +528,24 @@ export default function GameScreen() {
         </View>
 
         <View className="flex-row rounded-lg bg-secondary p-1">
-          <Pressable
-            accessibilityRole="button"
-            className={`min-h-12 flex-1 items-center justify-center rounded-md ${section === "rate" ? "bg-primary" : ""}`}
-            onPress={() => setSection("rate")}
-          >
-            <Text variant="small" className={section === "rate" ? "text-primary-foreground" : "text-accent"}>
-              Arvostele
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            className={`min-h-12 flex-1 items-center justify-center rounded-md ${section === "results" ? "bg-primary" : ""}`}
-            onPress={openResults}
-          >
-            <Text variant="small" className={section === "results" ? "text-primary-foreground" : "text-accent"}>
-              Tulokset
-            </Text>
-          </Pressable>
+          <SectionTab active={section === "rate"} label="Arvostele" onPress={() => setSection("rate")} />
+          <SectionTab active={section === "results"} label="Tulokset" onPress={openResults} />
+          <SectionTab active={section === "edit"} label="Muokkaa" onPress={() => setSection("edit")} />
         </View>
 
         {message ? (
-          <Card className="border-destructive bg-background p-4">
-            <Text selectable variant="small" className="text-destructive">
+          <Card className="border-border bg-background p-4">
+            <Text selectable variant="small" className="text-accent">
               {message}
             </Text>
           </Card>
         ) : null}
 
-        {loading ? <Card><Text>Ladataan...</Text></Card> : null}
+        {loading ? (
+          <Card>
+            <Text>Ladataan...</Text>
+          </Card>
+        ) : null}
 
         {payload && section === "rate" ? (
           <View className="gap-4">
@@ -376,8 +583,79 @@ export default function GameScreen() {
             </View>
           </Card>
         ) : null}
+
+        {payload && section === "edit" ? (
+          <View className="gap-5">
+            <Card className="gap-4">
+              <View className="gap-1">
+                <Text variant="h3">Kutsu pelaajia</Text>
+                <Text selectable variant="muted">
+                  Peli-ID: {gameId}
+                </Text>
+              </View>
+              <View className="gap-2">
+                <Button variant="secondary" onPress={copyShareUrl}>
+                  Kopioi linkki
+                </Button>
+                <Button variant="secondary" onPress={shareGame}>
+                  Jaa peli
+                </Button>
+              </View>
+            </Card>
+
+            <Card className="gap-4">
+              <View className="gap-1">
+                <Text variant="h3">Muokkaa peliä</Text>
+                <Text variant="muted">Pelin nimi ja oluen nimi ovat pakollisia.</Text>
+              </View>
+              <View className="gap-2">
+                <Text variant="muted">Pelin nimi</Text>
+                <Input value={editGameName} onChangeText={setEditGameName} placeholder="Pelin nimi" />
+              </View>
+            </Card>
+
+            <View className="gap-4">
+              {editBeers.map((beer, index) => (
+                <EditBeerCard
+                  key={beer.clientKey}
+                  beer={beer}
+                  index={index}
+                  canRemove={editBeers.length > 1}
+                  onRemove={() => removeEditBeer(index)}
+                  onChange={(patch) => setEditBeer(index, patch)}
+                  onPickCamera={() => void pickEditBeerImage(index, "camera")}
+                  onPickLibrary={() => void pickEditBeerImage(index, "library")}
+                  onIdentify={() => void identifyEditBeer(index)}
+                />
+              ))}
+            </View>
+
+            <Card className="gap-2">
+              <Button variant="secondary" onPress={addEditBeer}>
+                Lisää olut
+              </Button>
+              <Button loading={editSaving} onPress={saveGameEdits}>
+                Tallenna muutokset
+              </Button>
+            </Card>
+          </View>
+        ) : null}
       </ScrollView>
     </>
+  );
+}
+
+function SectionTab({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      className={`min-h-12 flex-1 items-center justify-center rounded-md ${active ? "bg-primary" : ""}`}
+      onPress={onPress}
+    >
+      <Text variant="small" className={active ? "text-primary-foreground" : "text-accent"}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -446,6 +724,94 @@ function BeerRatingCard({ beer, score, comment, onScoreChange, onCommentChange }
           {comment.length}/{MAX_RATING_COMMENT_LENGTH}
         </Text>
       </View>
+    </Card>
+  );
+}
+
+interface EditBeerCardProps {
+  beer: EditBeerDraft;
+  index: number;
+  canRemove: boolean;
+  onRemove: () => void;
+  onChange: (patch: Partial<EditBeerDraft>) => void;
+  onPickCamera: () => void;
+  onPickLibrary: () => void;
+  onIdentify: () => void;
+}
+
+function EditBeerCard({
+  beer,
+  index,
+  canRemove,
+  onRemove,
+  onChange,
+  onPickCamera,
+  onPickLibrary,
+  onIdentify,
+}: EditBeerCardProps) {
+  const previewUri = beer.localAsset?.uri || beer.imageUrl || "";
+
+  return (
+    <Card className="gap-4">
+      <View className="flex-row items-start gap-3">
+        <View className="h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-xl border border-border bg-background">
+          {previewUri ? (
+            <Image source={{ uri: previewUri }} style={{ width: 72, height: 72 }} contentFit="cover" />
+          ) : (
+            <Text variant="muted" className="text-center text-xs">
+              Ei kuvaa
+            </Text>
+          )}
+        </View>
+        <View className="flex-1 gap-1">
+          <Text variant="large">{beer.name.trim() || "Nimeä olut"}</Text>
+          <Text variant="muted">Rivi {index + 1}</Text>
+        </View>
+        {canRemove ? (
+          <Button variant="ghost" size="sm" onPress={onRemove}>
+            Poista
+          </Button>
+        ) : null}
+      </View>
+
+      <View className="gap-2">
+        <Text variant="muted">Nimi</Text>
+        <Input value={beer.name} onChangeText={(name) => onChange({ name })} placeholder="Olut" />
+      </View>
+
+      <View className="gap-2">
+        <Text variant="muted">Kuva URL</Text>
+        <Input
+          value={beer.imageUrl}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          onChangeText={(imageUrl) => onChange({ imageUrl, localAsset: null, localAssetLabel: "" })}
+          placeholder="https://..."
+        />
+      </View>
+
+      <View className="gap-2">
+        <Text variant="muted">Tai lisää kuva</Text>
+        <View className="flex-row gap-2">
+          <Button className="flex-1" variant="secondary" onPress={onPickCamera}>
+            Kamera
+          </Button>
+          <Button className="flex-1" variant="secondary" onPress={onPickLibrary}>
+            Kuvat
+          </Button>
+        </View>
+        {beer.localAssetLabel ? <Text variant="muted">{beer.localAssetLabel}</Text> : null}
+        {beer.localAsset ? (
+          <Button variant="outline" loading={beer.identifying} onPress={onIdentify}>
+            Tunnista nimi kuvasta
+          </Button>
+        ) : null}
+      </View>
+
+      <Text className="text-accent underline" onPress={() => void Linking.openURL(untappdUrl(beer))}>
+        Untappd
+      </Text>
     </Card>
   );
 }

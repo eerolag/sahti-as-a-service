@@ -38,6 +38,13 @@
         }
       ],
       "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Breview käyttää kameraa olutkuvien lisäämiseen peleihin.",
+          "photosPermission": "Breview käyttää kuvia olutkuvien lisäämiseen peleihin."
+        }
+      ],
       "expo-web-browser"
     ],
     "experiments": {

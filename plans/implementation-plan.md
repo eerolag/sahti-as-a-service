@@ -37,7 +37,7 @@ Acceptance criteria:
 - Shared contracts and domain logic run from `packages/shared`.
 - Web and mobile can use the shared typed client from `packages/api-client`.
 - Expo SDK 54 mobile shell exists in `apps/mobile` with Expo Router, AniUI, NativeWind, `breview://`, and `ing.breview.app`.
-- Mobile create, join, recent-games, rating, comments, save, and results screens call the shared API client and default to `https://breview.ing`.
+- Mobile create, join, recent-games, rating, comments, save, results, share, game-editing, beer-editing, image-picking, R2 upload, and Workers AI recognition flows call the shared API client or native mobile API helpers and default to `https://breview.ing`.
 - Mobile and web share the same Breview dark visual direction while using shadcn/ui on web and AniUI/NativeWind components on mobile.
 - Mobile uses `breview-logo.png` for in-app brand presentation and app icon configuration.
 - Cloudflare D1/R2/Worker resource names are left unchanged.

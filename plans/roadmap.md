@@ -10,9 +10,9 @@
 - Keep Workers AI beer-name recognition observable and robust: JSON-only name extraction, high-detail image input, Kimi reasoning handling, and clear distinction between uncertain images and upstream empty responses.
 - Keep browser uploads stable on mobile by converting selected images to managed JPEG blobs before R2 upload and by reusing the prepared recognition image for game creation.
 - Keep the mobile app on Expo SDK 54 during the current Expo Go transition so local testing does not fight the other active SDK 54 project.
-- Keep the Expo create, join, recent-games, rating, comments, save, and results flows connected to the shared API client and production Cloudflare API by default.
+- Keep the Expo create, join, recent-games, rating, comments, save, results, share, edit, native image-pick, R2 upload, and Workers AI recognition flows connected to the production Cloudflare API by default.
 - Keep the mobile dark Breview visual direction aligned with the web UI while using AniUI/NativeWind components.
-- Grow the Expo shell into full native game editing, image upload, sharing, and account flows using AniUI components.
+- Grow the Expo shell from current native game editing, image upload, and sharing into account flows, deeper link handling, and release-grade review states using AniUI components.
 
 ## Next
 
@@ -24,7 +24,7 @@
 
 ## Then
 
-- Implement native screens for game editing, sharing, image capture/upload, and account settings.
+- Implement native account settings and polish edit/share/image capture states for release.
 - Add deep links and app links for `breview://` and `https://breview.ing`.
 - Add mobile image picking/upload, camera/photo permission copy, haptics, loading states, and offline-friendly retry states.
 - In mobile beer creation, ask after camera/photo capture whether the user wants AI recognition or manual name entry.
