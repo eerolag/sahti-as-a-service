@@ -115,7 +115,10 @@ function inferRecognitionFlagsFromText(raw: string): RecognitionFlags {
   if (!normalized) return { isBeverageImage: null, isAppropriate: null };
 
   const looksNonBeverage =
-    /\b(check for beverage|check beverage|classify beverage|beverage check|not a beverage|not beverage|non[-\s]?beverage|no beverage|not a drink|not drink|not alcohol|not beer|no beer|not a beer)\b/i.test(
+    /\b(check for beverage|check beverage|classify beverage|beverage check|is it a beer|is this a beer|is it a drink|is this a drink|could be a beer|might be a beer|not a beverage|not beverage|non[-\s]?beverage|no beverage|not a drink|not drink|not alcohol|not beer|no beer|not a beer)\b/i.test(
+      normalized,
+    ) ||
+    /^(is|are|was|were|could|would|should|do|does|did|can)\b.+\b(beer|beverage|drink|can|bottle|label)\b/i.test(
       normalized,
     );
 
@@ -230,6 +233,7 @@ function isInvalidCandidateShape(value: string): boolean {
   if (!/[a-zåäö0-9]/i.test(normalized)) return true;
   if (/[{}[\]`*]/.test(normalized)) return true;
   if (/:\s*$/.test(normalized) || /\*\*\s*$/.test(normalized)) return true;
+  if (/^(is|are|was|were|could|would|should|do|does|did|can)\b/i.test(lower)) return true;
   if (
     /^(scan|analy[sz]e|read|look|inspect|identify|extract|ocr|check|classify|detect|decide|verify|assess|text visible|visible text|the text|text is)\b/i.test(
       lower,
@@ -239,6 +243,9 @@ function isInvalidCandidateShape(value: string): boolean {
   }
   if (/^(the image|image shows|i can see|there is|there are|the user|user wants|i need|we need)\b/i.test(lower)) return true;
   if (/\b(text is|text appears|in finnish|in english|screenshot|form|button|field|label|beverage image|check for beverage)\b/i.test(lower)) return true;
+  if (/^(beer can|beer bottle|beer label|bottle|can|label|tap handle|tap list|drink|beverage)$/i.test(lower)) {
+    return true;
+  }
   if (/\b(pelin nimi|oluen nimi|pakollisia|kuva tiedostona|choose file|tunnista nimi|tallenna ja luo peli)\b/i.test(lower)) {
     return true;
   }
@@ -506,7 +513,7 @@ async function runModelAttempt(env: Env, model: string, imageDataUrl: string): P
     "Use the clearest visible beer brand or product name.",
     "Beer, cider, wine, spirits, hard seltzer, soft drink, and non-alcoholic drink brands count as beverage images.",
     "Ignore app UI, browser UI, form labels, buttons, filenames, and screenshot instructions.",
-    "Never use checklist or status text such as 'Check for beverage' as beerName.",
+    "Never use checklist, question, category, or status text such as 'Check for beverage', 'Is it a beer can', 'beer can', or 'bottle' as beerName.",
     "If the image is not clearly a beverage label, package, tap handle badge, tap list, drink menu, or drink brand, set beerName to null and isBeverageImage to false.",
     "If the image contains explicit sexual content, nudity, hateful content, graphic violence, or gore, set beerName to null and isAppropriate to false.",
     "If the exact beer style/version is unclear, the visible brand name alone is acceptable.",

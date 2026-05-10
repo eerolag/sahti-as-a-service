@@ -17,7 +17,6 @@ interface CreateBeerDraft {
   clientKey: string;
   name: string;
   localAsset: ImagePicker.ImagePickerAsset | null;
-  localAssetLabel: string;
   identifying: boolean;
 }
 
@@ -26,7 +25,6 @@ function createEmptyBeerDraft(): CreateBeerDraft {
     clientKey: `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     name: "",
     localAsset: null,
-    localAssetLabel: "",
     identifying: false,
   };
 }
@@ -37,10 +35,6 @@ function asMobileImageAsset(asset: ImagePicker.ImagePickerAsset): MobileImageAss
     fileName: asset.fileName,
     mimeType: asset.mimeType,
   };
-}
-
-function localAssetLabel(asset: ImagePicker.ImagePickerAsset): string {
-  return asset.fileName || asset.uri.split("/").pop() || "Valittu kuva";
 }
 
 function parseGameIdInput(value: string): number | null {
@@ -203,7 +197,6 @@ export default function GamesScreen() {
     const asset = result.assets[0];
     updateBeer(index, {
       localAsset: asset,
-      localAssetLabel: localAssetLabel(asset),
     });
   }
 
@@ -306,7 +299,6 @@ export default function GamesScreen() {
                       Kuvat
                     </Button>
                   </View>
-                  {beer.localAssetLabel ? <Text variant="muted">{beer.localAssetLabel}</Text> : null}
                   <Button
                     variant="outline"
                     loading={beer.identifying}

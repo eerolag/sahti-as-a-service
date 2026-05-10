@@ -39,7 +39,6 @@ interface EditBeerDraft {
   name: string;
   imageUrl: string;
   localAsset: ImagePicker.ImagePickerAsset | null;
-  localAssetLabel: string;
   identifying: boolean;
 }
 
@@ -104,7 +103,6 @@ function createEditDraft(payload: GetGameResponse): { gameName: string; beers: E
       name: beer.name,
       imageUrl: beer.image_url ?? "",
       localAsset: null,
-      localAssetLabel: "",
       identifying: false,
     })),
   };
@@ -116,7 +114,6 @@ function createEmptyBeerDraft(): EditBeerDraft {
     name: "",
     imageUrl: "",
     localAsset: null,
-    localAssetLabel: "",
     identifying: false,
   };
 }
@@ -127,10 +124,6 @@ function asMobileImageAsset(asset: ImagePicker.ImagePickerAsset): MobileImageAss
     fileName: asset.fileName,
     mimeType: asset.mimeType,
   };
-}
-
-function localAssetLabel(asset: ImagePicker.ImagePickerAsset): string {
-  return asset.fileName || asset.uri.split("/").pop() || "Valittu kuva";
 }
 
 export default function GameScreen() {
@@ -400,7 +393,6 @@ export default function GameScreen() {
     const asset = result.assets[0];
     setEditBeer(index, {
       localAsset: asset,
-      localAssetLabel: localAssetLabel(asset),
       imageUrl: "",
     });
   }
@@ -791,7 +783,6 @@ function EditBeerCard({
             Kuvat
           </Button>
         </View>
-        {beer.localAssetLabel ? <Text variant="muted">{beer.localAssetLabel}</Text> : null}
         <Button variant="outline" loading={beer.identifying} disabled={!beer.localAsset} onPress={onIdentify}>
           Tunnista nimi AI:lla
         </Button>

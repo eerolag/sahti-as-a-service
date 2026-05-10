@@ -657,6 +657,35 @@ describe("worker api", () => {
     expect(aiRun).toHaveBeenCalledTimes(2);
   });
 
+  it("does not accept model question text as a beer name", async () => {
+    const aiRun = vi.fn(async () => {
+      return {
+        choices: [
+          {
+            message: {
+              content: "Is it a beer can",
+            },
+          },
+        ],
+      };
+    });
+    env.AI = { run: aiRun };
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([8, 9])], { type: "image/jpeg" }), "mouse.jpg");
+    form.set("clientId", "question-text-client");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(422);
+    const payload = await json(response);
+    expect(String(payload.error)).toContain("AI tunnistaa vain");
+    expect(aiRun).toHaveBeenCalledTimes(2);
+  });
+
   it("reads Kimi reasoning field and disables Kimi thinking in fallback request", async () => {
     const aiRun = vi.fn(async (model: string, _input: Record<string, unknown>) => {
       if (model === "@cf/google/gemma-4-26b-a4b-it") {
