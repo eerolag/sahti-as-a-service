@@ -110,6 +110,24 @@ function flagsMarkInappropriateOrNonBeverage(flags: RecognitionFlags): boolean {
   return flags.isAppropriate === false || flags.isBeverageImage === false;
 }
 
+function inferRecognitionFlagsFromText(raw: string): RecognitionFlags {
+  const normalized = sanitizeCandidate(raw).toLowerCase();
+  if (!normalized) return { isBeverageImage: null, isAppropriate: null };
+
+  const looksNonBeverage =
+    /\b(check for beverage|check beverage|classify beverage|beverage check|not a beverage|not beverage|non[-\s]?beverage|no beverage|not a drink|not drink|not alcohol|not beer|no beer|not a beer)\b/i.test(
+      normalized,
+    );
+
+  const looksInappropriate =
+    /\b(explicit sexual|nudity|nude|hateful|hate speech|graphic violence|gore|nsfw)\b/i.test(normalized);
+
+  return {
+    isBeverageImage: looksNonBeverage ? false : null,
+    isAppropriate: looksInappropriate ? false : null,
+  };
+}
+
 function extractRecognitionFlagsFromObject(value: unknown): RecognitionFlags {
   const empty: RecognitionFlags = { isBeverageImage: null, isAppropriate: null };
   if (!value || typeof value !== "object" || Array.isArray(value)) return empty;
@@ -212,11 +230,15 @@ function isInvalidCandidateShape(value: string): boolean {
   if (!/[a-zåäö0-9]/i.test(normalized)) return true;
   if (/[{}[\]`*]/.test(normalized)) return true;
   if (/:\s*$/.test(normalized) || /\*\*\s*$/.test(normalized)) return true;
-  if (/^(scan|analy[sz]e|read|look|inspect|identify|extract|ocr|text visible|visible text|the text|text is)\b/i.test(lower)) {
+  if (
+    /^(scan|analy[sz]e|read|look|inspect|identify|extract|ocr|check|classify|detect|decide|verify|assess|text visible|visible text|the text|text is)\b/i.test(
+      lower,
+    )
+  ) {
     return true;
   }
   if (/^(the image|image shows|i can see|there is|there are|the user|user wants|i need|we need)\b/i.test(lower)) return true;
-  if (/\b(text is|text appears|in finnish|in english|screenshot|form|button|field|label)\b/i.test(lower)) return true;
+  if (/\b(text is|text appears|in finnish|in english|screenshot|form|button|field|label|beverage image|check for beverage)\b/i.test(lower)) return true;
   if (/\b(pelin nimi|oluen nimi|pakollisia|kuva tiedostona|choose file|tunnista nimi|tallenna ja luo peli)\b/i.test(lower)) {
     return true;
   }
@@ -484,6 +506,7 @@ async function runModelAttempt(env: Env, model: string, imageDataUrl: string): P
     "Use the clearest visible beer brand or product name.",
     "Beer, cider, wine, spirits, hard seltzer, soft drink, and non-alcoholic drink brands count as beverage images.",
     "Ignore app UI, browser UI, form labels, buttons, filenames, and screenshot instructions.",
+    "Never use checklist or status text such as 'Check for beverage' as beerName.",
     "If the image is not clearly a beverage label, package, tap handle badge, tap list, drink menu, or drink brand, set beerName to null and isBeverageImage to false.",
     "If the image contains explicit sexual content, nudity, hateful content, graphic violence, or gore, set beerName to null and isAppropriate to false.",
     "If the exact beer style/version is unclear, the visible brand name alone is acceptable.",
@@ -533,7 +556,10 @@ async function runModelAttempt(env: Env, model: string, imageDataUrl: string): P
   }
 
   const rawContent = parseModelContent(payload ?? {});
-  const flags = mergeFlags(extractRecognitionFlagsFromObject(payload ?? {}), extractRecognitionFlagsFromJson(rawContent));
+  const flags = mergeFlags(
+    mergeFlags(extractRecognitionFlagsFromObject(payload ?? {}), extractRecognitionFlagsFromJson(rawContent)),
+    inferRecognitionFlagsFromText(rawContent),
+  );
   const beerName = extractCandidateBeerName(rawContent);
 
   if (!rawContent.trim()) {

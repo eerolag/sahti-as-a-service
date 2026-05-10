@@ -44,10 +44,12 @@ Acceptance criteria:
 - Kilo Gateway is replaced by Cloudflare Workers AI for beer-name recognition.
 - Workers AI beer-name recognition requests use high-detail image input, JSON-only extraction, and Kimi reasoning handling so empty model responses are treated as service failures instead of user image failures.
 - Workers AI beer-name recognition accepts beverage labels, tap-handle badges, tap lists, drink menus, bottles, cans, and packages; it rejects clearly non-beverage or inappropriate images with a user warning.
+- Workers AI beer-name recognition must never accept model checklist/status text such as `Check for beverage` as a beer name.
 - Image recognition is rate-limited to 10 attempts per client per day and locks for the day after the second clearly non-beverage or inappropriate image.
 - Web image upload normalizes selected files into managed JPEG blobs before R2 upload, and reuses the prepared file after AI recognition to avoid mobile browser file-picker fetch failures.
 - Web and mobile no longer expose manual image URL entry; users add images through file input, camera, or photo library while existing saved image URLs remain preserved internally.
 - Web and mobile show `Tunnista nimi AI:lla` as a separate action that becomes usable only after an image is selected.
+- Web and mobile show AI recognition warnings in a clear popup/alert as well as inline status text.
 - Paid Brave image search is removed from the web UI, Worker route, shared API contracts, README, and runtime env.
 - Untappd API resolution is removed; stored beer metadata is kept to outbound search links only.
 - Tests, typecheck, and build pass.

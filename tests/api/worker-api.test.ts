@@ -628,6 +628,35 @@ describe("worker api", () => {
     expect(aiRun).toHaveBeenCalledTimes(4);
   });
 
+  it("does not accept model checklist text as a beer name", async () => {
+    const aiRun = vi.fn(async () => {
+      return {
+        choices: [
+          {
+            message: {
+              content: "Check for beverage",
+            },
+          },
+        ],
+      };
+    });
+    env.AI = { run: aiRun };
+
+    const form = new FormData();
+    form.set("file", new Blob([new Uint8Array([7, 8])], { type: "image/jpeg" }), "mouse.jpg");
+    form.set("clientId", "checklist-text-client");
+
+    const response = await call(env, "/api/images/identify-beer-name", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(422);
+    const payload = await json(response);
+    expect(String(payload.error)).toContain("AI tunnistaa vain");
+    expect(aiRun).toHaveBeenCalledTimes(2);
+  });
+
   it("reads Kimi reasoning field and disables Kimi thinking in fallback request", async () => {
     const aiRun = vi.fn(async (model: string, _input: Record<string, unknown>) => {
       if (model === "@cf/google/gemma-4-26b-a4b-it") {

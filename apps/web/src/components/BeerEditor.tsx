@@ -233,10 +233,12 @@ export function BeerEditor({
                         });
                         haptics.success();
                       } catch (error) {
+                        const message = String((error as Error)?.message ?? "Nimen tunnistus epaonnistui.");
                         setRowIdentifyStatus(key, {
                           state: "error",
-                          message: String((error as Error)?.message ?? "Nimen tunnistus epaonnistui."),
+                          message,
                         });
+                        alert(message);
                         haptics.error();
                       }
                     }}

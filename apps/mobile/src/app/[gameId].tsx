@@ -14,7 +14,7 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { Stack, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Linking, Pressable, ScrollView, Share, TextInput, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, Share, TextInput, View } from "react-native";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -419,8 +419,10 @@ export default function GameScreen() {
       const identified = await identifyBeerNameAsset(asMobileImageAsset(row.localAsset), await getOrCreateClientId());
       setEditBeer(index, { name: identified.beerName, identifying: false });
     } catch (error) {
+      const message = String((error as Error)?.message ?? "Nimen tunnistus epäonnistui.");
       setEditBeer(index, { identifying: false });
-      setMessage(String((error as Error)?.message ?? "Nimen tunnistus epäonnistui."));
+      setMessage(message);
+      Alert.alert("AI-tunnistus", message);
     }
   }
 
