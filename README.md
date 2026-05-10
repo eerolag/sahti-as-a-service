@@ -119,6 +119,22 @@ Tämä käynnistää:
 http://127.0.0.1:8787
 ```
 
+### AI-tunnistuksen testilukon vapautus
+
+AI-kuvatunnistus käyttää D1:ssä päiväkohtaista testattavaa käyttörajaa ja lukkoa. Jos ei-juomakuvien testaus lukitsee tunnistuksen, nollaa tämän päivän yritykset, varoitukset ja lukot:
+
+```bash
+npm --workspace @breview/api run ai:unlock:local
+```
+
+Tuotantokantaan sama testiapukomento on:
+
+```bash
+npm --workspace @breview/api run ai:unlock:remote
+```
+
+Tämä vapauttaa tämän päivän AI-tunnistuksen kaikilta teknisiltä client-tunnisteilta kyseisessä kannassa, joten käytä remote-komentoa vain testauksen aikana.
+
 ## Mobiili
 
 Breviewin mobiili on tällä hetkellä tarkoituksella Expo SDK 54 -projektina, jotta se toimii saman App Store Expo Go -version kanssa kuin muut aktiiviset SDK 54 -projektit. Päivitä SDK 55:een vasta, kun myös rinnakkainen projekti siirtyy SDK 55:een tai Breviewille tehdään oma development build/TestFlight-polku.

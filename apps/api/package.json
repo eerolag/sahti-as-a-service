@@ -7,6 +7,8 @@
     "deploy": "wrangler deploy --config wrangler.jsonc",
     "migrate:local": "wrangler d1 migrations apply sahti-as-a-service-db --local --config wrangler.jsonc",
     "migrate:remote": "wrangler d1 migrations apply sahti-as-a-service-db --remote --config wrangler.jsonc",
+    "ai:unlock:local": "wrangler d1 execute sahti-as-a-service-db --local --config wrangler.jsonc --yes --command \"UPDATE ai_recognition_usage SET attempts = 0, violations = 0, locked_until = NULL, updated_at = datetime('now') WHERE usage_day = date('now')\"",
+    "ai:unlock:remote": "wrangler d1 execute sahti-as-a-service-db --remote --config wrangler.jsonc --yes --command \"UPDATE ai_recognition_usage SET attempts = 0, violations = 0, locked_until = NULL, updated_at = datetime('now') WHERE usage_day = date('now')\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

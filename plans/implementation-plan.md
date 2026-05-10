@@ -46,6 +46,7 @@ Acceptance criteria:
 - Workers AI beer-name recognition accepts beverage labels, tap-handle badges, tap lists, drink menus, bottles, cans, and packages; it rejects clearly non-beverage or inappropriate images with a user warning.
 - Workers AI beer-name recognition must never accept model checklist/status text such as `Check for beverage` as a beer name.
 - Image recognition is rate-limited to 10 attempts per client per day and locks for the day after the second clearly non-beverage or inappropriate image.
+- Testers can reset the current day's AI recognition attempts, warnings, and locks with `npm --workspace @breview/api run ai:unlock:local` or `npm --workspace @breview/api run ai:unlock:remote`.
 - Web image upload normalizes selected files into managed JPEG blobs before R2 upload, and reuses the prepared file after AI recognition to avoid mobile browser file-picker fetch failures.
 - Web and mobile no longer expose manual image URL entry; users add images through file input, camera, or photo library while existing saved image URLs remain preserved internally.
 - Web and mobile show `Tunnista nimi AI:lla` as a separate action that becomes usable only after an image is selected.
