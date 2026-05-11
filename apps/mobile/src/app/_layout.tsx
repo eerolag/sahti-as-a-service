@@ -21,8 +21,8 @@ const breviewTheme = {
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    Figtree: require("@/assets/fonts/Figtree-wght.ttf"),
-    JetBrainsMono: require("@/assets/fonts/JetBrainsMono-wght.ttf"),
+    Figtree: require("../../assets/fonts/Figtree-wght.ttf"),
+    JetBrainsMono: require("../../assets/fonts/JetBrainsMono-wght.ttf"),
   });
 
   if (!fontsLoaded) return null;

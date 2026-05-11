@@ -1,4 +1,5 @@
 import type { AccountHistoryItemDto } from "@breview/shared/api-contracts";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Linking, ScrollView, View } from "react-native";
 
@@ -67,6 +68,7 @@ function HistoryList({ history }: { history: AccountHistoryItemDto[] }) {
 }
 
 export default function AccountScreen() {
+  const router = useRouter();
   const [session, setSession] = useState<AccountSession | null>(null);
   const [history, setHistory] = useState<AccountHistoryItemDto[]>([]);
   const [email, setEmail] = useState("");
@@ -229,9 +231,23 @@ export default function AccountScreen() {
       contentContainerClassName="gap-5 px-5 pb-10 pt-6"
       keyboardShouldPersistTaps="handled"
     >
-      <View className="gap-1">
-        <Text variant="h1">Tili</Text>
-        <Text variant="muted">{session ? session.user.email : "Ei kirjautunut"}</Text>
+      <View className="flex-row items-start justify-between gap-3">
+        <View className="min-w-0 flex-1 gap-1">
+          <Text variant="h1">Tili</Text>
+          <Text variant="muted" numberOfLines={1}>
+            {session ? session.user.email : "Ei kirjautunut"}
+          </Text>
+        </View>
+        <Button
+          variant="outline"
+          size="sm"
+          onPress={() => {
+            haptics.selection();
+            router.replace("/");
+          }}
+        >
+          Sessiot
+        </Button>
       </View>
 
       <Card className="gap-4">

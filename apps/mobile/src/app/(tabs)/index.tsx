@@ -15,6 +15,7 @@ import { haptics } from "@/lib/haptics";
 import { saveHostToken } from "@/lib/creator-session";
 import { getOrCreateClientId } from "@/lib/player-identity";
 import { loadRecentGames, recentGameFromPayload, saveRecentGame, type RecentGame } from "@/lib/recent-games";
+import { mobileSupportConfig } from "@/lib/support";
 
 interface CreateBeerDraft {
   clientKey: string;
@@ -91,7 +92,7 @@ function showImagePermissionDenied(source: "camera" | "library") {
 
 export default function GamesScreen() {
   const router = useRouter();
-  const welcomeCopy = useMemo(() => getWelcomeCopy([Intl.DateTimeFormat().resolvedOptions().locale]), []);
+  const welcomeCopy = useMemo(() => getWelcomeCopy(["fi", Intl.DateTimeFormat().resolvedOptions().locale]), []);
   const [gameName, setGameName] = useState("");
   const [beers, setBeers] = useState<CreateBeerDraft[]>([createEmptyBeerDraft()]);
   const [joinInput, setJoinInput] = useState("");
@@ -100,6 +101,7 @@ export default function GamesScreen() {
   const [joining, setJoining] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [safetyAccepted, setSafetyAccepted] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     setRecentGames(loadRecentGames());
@@ -152,6 +154,20 @@ export default function GamesScreen() {
     } finally {
       setJoining(false);
     }
+  }
+
+  async function openExternalPage(url: string) {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Breview", "Sivua ei voitu avata. Yritä myöhemmin uudelleen.");
+    }
+  }
+
+  function openAccount() {
+    haptics.selection();
+    setMenuOpen(false);
+    router.push("/explore");
   }
 
   async function handleCreateGame() {
@@ -302,20 +318,49 @@ export default function GamesScreen() {
       contentContainerClassName="gap-5 px-5 pb-10 pt-6"
       keyboardShouldPersistTaps="handled"
     >
-      <View className="flex-row items-center gap-3">
+      <View className="flex-row items-start gap-3">
         <Image
           source={require("@/assets/images/breview-logo.png")}
           style={{ width: 64, height: 64, borderRadius: 16 }}
           contentFit="cover"
         />
-        <View className="gap-1">
+        <View className="min-w-0 flex-1 gap-1">
           <Text variant="h1" className="text-foreground">
             Breview
           </Text>
           <Text variant="muted">Sessio</Text>
-          <Text variant="muted">{welcomeCopy.welcomeSubtitle}</Text>
+          <Text variant="muted" numberOfLines={3} className="leading-5">
+            {welcomeCopy.welcomeSubtitle}
+          </Text>
         </View>
+        <Pressable
+          accessibilityLabel="Avaa valikko"
+          accessibilityRole="button"
+          className="h-11 w-11 items-center justify-center rounded-full border border-border bg-card active:opacity-80"
+          onPress={() => {
+            haptics.selection();
+            setMenuOpen((open) => !open);
+          }}
+        >
+          <Text className="text-3xl leading-none text-foreground">⋯</Text>
+        </Pressable>
       </View>
+
+      {menuOpen ? (
+        <Card className="gap-2 p-3">
+          <Button variant="secondary" onPress={openAccount}>
+            Tili
+          </Button>
+          <View className="flex-row gap-2">
+            <Button className="flex-1" variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.supportUrl)}>
+              Tuki
+            </Button>
+            <Button className="flex-1" variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.privacyUrl)}>
+              Tietosuoja
+            </Button>
+          </View>
+        </Card>
+      ) : null}
 
       {message ? (
         <Card className="border-destructive bg-background p-4">
