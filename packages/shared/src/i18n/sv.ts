@@ -30,6 +30,7 @@ export const sv: Translations = {
     multipleDrinks: "{count} drycker",
     openMenu: "Öppna meny",
     createSession: "Skapa session",
+    joinSession: "Gå med i session",
     createSessionSubtitle: "Namnge sessionen, lägg till drycker och dela länken.",
     openSharedLink: "Öppna delad sessionslänk",
     openSessionLink: "Öppna sessionslänk",

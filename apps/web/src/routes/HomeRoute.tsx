@@ -16,6 +16,7 @@ const WELCOME_STORAGE_KEY = "breview_welcome_dismissed_v1";
 const BATCH_RECOGNITION_CONCURRENCY = 3;
 
 type BatchStatus = "queued" | "loading" | "success" | "error";
+type HomeAction = "create" | "join" | null;
 
 function createBeerRow(file?: File): BeerEditorRow {
   return {
@@ -36,7 +37,7 @@ export function HomeRoute() {
       return true;
     }
   });
-  const [showCreate, setShowCreate] = useState(true);
+  const [homeAction, setHomeAction] = useState<HomeAction>(null);
   const [joinLink, setJoinLink] = useState("");
   const [gameName, setGameName] = useState("");
   const [beers, setBeers] = useState<BeerEditorRow[]>([createBeerRow()]);
@@ -256,44 +257,54 @@ export function HomeRoute() {
       ) : null}
 
       <div className="card">
-        <div className="flex flex-col gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <button
-            className="btn btn-primary"
+            className="btn btn-primary min-h-16 text-lg"
             type="button"
             onClick={() => {
               haptics.selection();
-              setShowCreate((prev) => !prev);
+              setHomeAction("create");
             }}
           >
             {t.home.createSession}
           </button>
-
-          <div className="h-px bg-line" />
-
-          <label className="text-sm text-muted" htmlFor="join-link">
-            {t.home.openSharedLink}
-          </label>
-          <div className="flex gap-2">
-            <input
-              id="join-link"
-              className="input"
-              value={joinLink}
-              onChange={(event) => setJoinLink(event.target.value)}
-              placeholder="https://breview.ing/s/..."
-              inputMode="url"
-            />
-            <button
-              className="btn"
-              type="button"
-              onClick={openSharedLink}
-            >
-              {t.home.open}
-            </button>
-          </div>
+          <button
+            className="btn min-h-16 text-lg"
+            type="button"
+            onClick={() => {
+              haptics.selection();
+              setHomeAction("join");
+            }}
+          >
+            {t.home.joinSession}
+          </button>
         </div>
       </div>
 
-      {showCreate ? (
+      {homeAction === "join" ? (
+        <div className="card">
+          <div className="flex flex-col gap-3">
+            <label className="text-sm text-muted" htmlFor="join-link">
+              {t.home.openSharedLink}
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="join-link"
+                className="input"
+                value={joinLink}
+                onChange={(event) => setJoinLink(event.target.value)}
+                placeholder="https://breview.ing/s/..."
+                inputMode="url"
+              />
+              <button className="btn" type="button" onClick={openSharedLink}>
+                {t.home.open}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {homeAction === "create" ? (
         <>
           <div className="card">
             <div className="grid gap-3">
@@ -301,6 +312,15 @@ export function HomeRoute() {
                 <div className="font-semibold">{t.home.sessionSettings}</div>
                 <div className="muted">{t.home.settingsDescription}</div>
               </div>
+              <label className="grid gap-1 text-sm text-muted">
+                {t.editor.sessionNameLabel}
+                <input
+                  className="input"
+                  value={gameName}
+                  onChange={(event) => setGameName(event.target.value)}
+                  placeholder={t.editor.sessionNamePlaceholder}
+                />
+              </label>
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="grid gap-1 text-sm text-muted">
                   {t.home.ratingMode}
@@ -385,6 +405,7 @@ export function HomeRoute() {
             submitting={submitting}
             submitLabel={t.editor.saveAndCreate}
             addLabel={t.editor.addDrink}
+            showSessionDetails={false}
           />
         </>
       ) : null}

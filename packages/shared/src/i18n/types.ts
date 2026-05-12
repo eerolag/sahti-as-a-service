@@ -32,6 +32,7 @@ export interface Translations {
     multipleDrinks: string;
     openMenu: string;
     createSession: string;
+    joinSession: string;
     createSessionSubtitle: string;
     openSharedLink: string;
     openSessionLink: string;
