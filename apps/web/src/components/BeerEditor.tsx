@@ -3,6 +3,7 @@ import { createUntappdSearchUrl } from "@breview/shared/untappd";
 import { apiClient } from "../api/client";
 import { useBeerReorder } from "../hooks/useBeerReorder";
 import { useHaptics } from "../hooks/useHaptics";
+import { useT } from "../i18n/i18nContext";
 import { prepareImageForBeerNameRecognition } from "../utils/beer-name-image";
 import { getOrCreateClientId } from "../utils/player-identity";
 
@@ -48,10 +49,12 @@ export function BeerEditor({
   submitLabel,
   addLabel,
   onCancel,
-  cancelLabel = "Peruuta",
+  cancelLabel,
   surface = "card",
 }: BeerEditorProps) {
   const haptics = useHaptics();
+  const t = useT();
+  const resolvedCancelLabel = cancelLabel ?? t.editor.cancelLabel;
   const [identifyStatusByRow, setIdentifyStatusByRow] = useState<Record<string, IdentifyStatus>>({});
   const { dragIndex, overIndex, handlers } = useBeerReorder(beers, onBeersChange);
 
@@ -103,15 +106,15 @@ export function BeerEditor({
       <div className={surfaceClass}>
         <div className="flex flex-col gap-2">
           <div className="font-semibold">{title}</div>
-          <div className="muted">Session nimi ja juoman nimi ovat pakollisia.</div>
-          <div className="muted hidden md:block">Raahaa juomia kahvasta (⋮⋮) vaihtaaksesi järjestystä.</div>
-          <div className="muted md:hidden">Vaihda juoman järjestys Rivi-valikosta.</div>
-          <label className="text-sm text-muted">Session nimi</label>
+          <div className="muted">{t.editor.sessionNameRequired}</div>
+          <div className="muted hidden md:block">{t.editor.dragDesktop}</div>
+          <div className="muted md:hidden">{t.editor.dragMobile}</div>
+          <label className="text-sm text-muted">{t.editor.sessionNameLabel}</label>
           <input
             className="input"
             value={gameName}
             onChange={(event) => onGameNameChange(event.target.value)}
-            placeholder="esim. Breview-ilta"
+            placeholder={t.editor.sessionNamePlaceholder}
           />
         </div>
       </div>
@@ -149,13 +152,13 @@ export function BeerEditor({
                     type="button"
                     className="btn hidden min-h-9 w-9 items-center justify-center p-0 text-base md:flex"
                     disabled={beers.length < 2}
-                    title="Raahaa tästä järjestyksen vaihtamiseksi"
+                    title={t.editor.dragHandle}
                   >
                     ⋮⋮
                   </button>
                   <div className="grow">
-                    <div className="font-semibold">{beer.name.trim() || "Nimeä juoma"}</div>
-                    <div className="text-xs text-muted hidden md:block">Rivi {idx + 1}</div>
+                    <div className="font-semibold">{beer.name.trim() || t.editor.nameDrink}</div>
+                    <div className="text-xs text-muted hidden md:block">{t.editor.rowLabel} {idx + 1}</div>
                     <div className="mt-1 inline-flex md:hidden">
                       <div className="relative inline-block">
                         <select
@@ -167,11 +170,11 @@ export function BeerEditor({
                             if (Number.isNaN(nextIndex)) return;
                             moveBeer(idx, nextIndex);
                           }}
-                          aria-label={`Vaihda rivin ${idx + 1} järjestystä`}
+                          aria-label={`${t.editor.changeRowOrder} ${idx + 1}`}
                         >
                           {beers.map((_, rowIdx) => (
                             <option key={rowIdx} value={rowIdx}>
-                              Rivi {rowIdx + 1}
+                              {t.editor.rowLabel} {rowIdx + 1}
                             </option>
                           ))}
                         </select>
@@ -187,21 +190,21 @@ export function BeerEditor({
                     disabled={beers.length === 1}
                     onClick={() => removeBeer(idx)}
                   >
-                    Poista
+                    {t.editor.remove}
                   </button>
                 </div>
 
-                <label className="text-sm text-muted">Nimi</label>
+                <label className="text-sm text-muted">{t.editor.nameLabel}</label>
                 <input
                   className="input"
                   value={beer.name}
                   onChange={(event) => setBeerField(idx, { name: event.target.value })}
-                  placeholder="esim. Mallaski IPA"
+                  placeholder={t.editor.namePlaceholder}
                 />
 
-                <label className="text-sm text-muted">Kuva (valinnainen)</label>
+                <label className="text-sm text-muted">{t.editor.imageOptional}</label>
                 <label className="btn inline-flex cursor-pointer justify-center">
-                  {beer.file ? "Vaihda kuva" : "Valitse kuva"}
+                  {beer.file ? t.editor.changeImage : t.editor.selectImage}
                   <input
                     className="sr-only"
                     type="file"
@@ -213,7 +216,7 @@ export function BeerEditor({
                   />
                 </label>
                 <div className="text-xs text-muted">
-                  Tiedosto ladataan palvelimelle (max 10 MB, suositus enintään 6000x6000 px).
+                  {t.editor.fileUploadNote}
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -225,7 +228,7 @@ export function BeerEditor({
                       if (!beer.file) return;
 
                       haptics.light();
-                      setRowIdentifyStatus(key, { state: "loading", message: "Tunnistetaan nimeä kuvasta..." });
+                      setRowIdentifyStatus(key, { state: "loading", message: `${t.editor.identifyingName}` });
 
                       try {
                         const preparedFile = await prepareImageForBeerNameRecognition(beer.file);
@@ -233,11 +236,11 @@ export function BeerEditor({
                         setBeerField(idx, { name: identified.beerName, file: preparedFile });
                         setRowIdentifyStatus(key, {
                           state: "success",
-                          message: `Tunnistettu nimi: ${identified.beerName}`,
+                          message: `${t.editor.identifiedName}: ${identified.beerName}`,
                         });
                         haptics.success();
                       } catch (error) {
-                        const message = String((error as Error)?.message ?? "Nimen tunnistus epäonnistui.");
+                        const message = String((error as Error)?.message ?? t.editor.identificationFailed);
                         setRowIdentifyStatus(key, {
                           state: "error",
                           message,
@@ -247,7 +250,7 @@ export function BeerEditor({
                       }
                     }}
                   >
-                    {identifyStatus.state === "loading" ? "Tunnistetaan..." : "Tunnista nimi AI:lla"}
+                    {identifyStatus.state === "loading" ? t.editor.identifying : t.editor.identifyWithAI}
                   </button>
                   {identifyStatus.message ? (
                     <div className={identifyStatus.state === "error" ? "text-sm text-red-300" : "text-sm text-muted"}>
@@ -257,9 +260,9 @@ export function BeerEditor({
                 </div>
 
                 <div className="text-sm text-muted">
-                  Ulkoinen haku:{" "}
+                  {t.editor.externalSearch}:{" "}
                   <a className="text-amber-300 underline" href={untappdUrl} target="_blank" rel="noreferrer">
-                    Avaa haku
+                    {t.editor.openSearch}
                   </a>
                 </div>
               </div>
@@ -274,7 +277,7 @@ export function BeerEditor({
             {addLabel}
           </button>
           <button className="btn btn-primary" type="button" disabled={submitting} onClick={() => void onSubmit()}>
-            {submitting ? "Tallennetaan..." : submitLabel}
+            {submitting ? t.editor.savingEllipsis : submitLabel}
           </button>
           {onCancel ? (
             <button
@@ -286,7 +289,7 @@ export function BeerEditor({
                 onCancel();
               }}
             >
-              {cancelLabel}
+              {resolvedCancelLabel}
             </button>
           ) : null}
         </div>

@@ -17,49 +17,51 @@ import {
 import { haptics } from "@/lib/haptics";
 import { getOrCreateClientId } from "@/lib/player-identity";
 import { mobileSupportConfig } from "@/lib/support";
-
-function formatHistoryDate(value: string | null): string {
-  if (!value) return "Ei päivämäärää";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("fi-FI", {
-    day: "numeric",
-    month: "numeric",
-    year: "numeric",
-  });
-}
+import { useI18n, useT } from "@/lib/i18nContext";
 
 function PrivacyText() {
+  const t = useT();
   return (
     <View className="gap-3">
-      <Text selectable variant="muted">
-        Breview käyttää sähköpostiosoitetta vain kirjautumiseen ja omien arvostelujen löytämiseen.
-        Arvosteluissa tallentuvat nimimerkki, arvosanat, kommentit, session tiedot ja mahdolliset ladatut kuvat.
-      </Text>
-      <Text selectable variant="muted">
-        Laitteeseen tallennetaan tekninen tunniste, jolla aiemmat arvostelut voidaan liittää tiliin. Kertakäyttökoodi
-        vanhenee 10 minuutissa.
-      </Text>
-      <Text selectable variant="muted">
-        Tietoja käytetään sessioiden luomiseen, arvostelujen tallentamiseen, tulosten näyttämiseen ja väärinkäytön
-        rajoittamiseen. Kirjautunut käyttäjä voi poistaa tilinsä tästä näkymästä.
-      </Text>
+      {t.publicInfo.privacySections.map((section, idx) => (
+        <View key={idx} className="gap-2">
+          {section.paragraphs.map((p, pIdx) => (
+            <Text key={pIdx} selectable variant="muted">
+              {p}
+            </Text>
+          ))}
+        </View>
+      ))}
     </View>
   );
 }
 
 function HistoryList({ history }: { history: AccountHistoryItemDto[] }) {
+  const t = useT();
+  const { lang } = useI18n();
+  
+  function formatHistoryDate(value: string | null): string {
+    if (!value) return t.account.noDate;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString(lang, {
+      day: "numeric",
+      month: "numeric",
+      year: "numeric",
+    });
+  }
+
   if (!history.length) {
-    return <Text variant="muted">Ei tilille linkitettyjä arvosteluja vielä.</Text>;
+    return <Text variant="muted">{t.account.noReviewsYet}</Text>;
   }
 
   return (
     <View className="gap-2">
       {history.map((item) => (
         <View key={item.gameId} className="gap-1 rounded-md border border-border bg-background p-3">
-          <Text variant="large">{item.gameName || `Sessio #${item.gameId}`}</Text>
+          <Text variant="large">{item.gameName || `${t.home.session} #${item.gameId}`}</Text>
           <Text variant="muted">
-            {item.ratingsCount} arviota · {formatHistoryDate(item.updatedAt)}
+            {item.ratingsCount} {t.account.reviewsCount} · {formatHistoryDate(item.updatedAt)}
           </Text>
         </View>
       ))}
@@ -69,6 +71,7 @@ function HistoryList({ history }: { history: AccountHistoryItemDto[] }) {
 
 export default function AccountScreen() {
   const router = useRouter();
+  const t = useT();
   const [session, setSession] = useState<AccountSession | null>(null);
   const [history, setHistory] = useState<AccountHistoryItemDto[]>([]);
   const [email, setEmail] = useState("");
@@ -117,7 +120,7 @@ export default function AccountScreen() {
     try {
       await Linking.openURL(url);
     } catch {
-      Alert.alert(title, "Sivua ei voitu avata. Yritä myöhemmin uudelleen.");
+      Alert.alert(title, t.errors.pageNotOpened);
     }
   }
 
@@ -132,7 +135,7 @@ export default function AccountScreen() {
       setEmail(response.email);
       setCodeSent(true);
       setResendCooldown(response.resendAvailableInSeconds);
-      setMessage("Koodi lähetetty. Tarkista sähköposti.");
+      setMessage(t.account.codeSentMessage);
       haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
@@ -160,7 +163,7 @@ export default function AccountScreen() {
       setCode("");
       setCodeSent(false);
       setResendCooldown(0);
-      setMessage("Kirjautuminen onnistui.");
+      setMessage(t.account.loginSuccess);
       haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
@@ -191,10 +194,10 @@ export default function AccountScreen() {
   function confirmDeleteAccount() {
     if (!session) return;
     haptics.selection();
-    Alert.alert("Poista tili", "Poistetaanko tili ja siihen linkitetyt arvostelut?", [
-      { text: "Peruuta", style: "cancel" },
+    Alert.alert(t.nav.deleteAccount, t.account.deleteConfirm, [
+      { text: t.game.cancel, style: "cancel" },
       {
-        text: "Poista",
+        text: t.account.deleteAccountAction,
         style: "destructive",
         onPress: () => {
           void deleteAccount();
@@ -214,7 +217,7 @@ export default function AccountScreen() {
       await clearAccountSession();
       setSession(null);
       setHistory([]);
-      setMessage("Tili poistettu.");
+      setMessage(t.account.deleteSuccess);
       haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
@@ -233,9 +236,9 @@ export default function AccountScreen() {
     >
       <View className="flex-row items-start justify-between gap-3">
         <View className="min-w-0 flex-1 gap-1">
-          <Text variant="h1">Tili</Text>
+          <Text variant="h1">{t.nav.account}</Text>
           <Text variant="muted" numberOfLines={1}>
-            {session ? session.user.email : "Ei kirjautunut"}
+            {session ? session.user.email : t.account.notLoggedIn}
           </Text>
         </View>
         <Button
@@ -246,17 +249,17 @@ export default function AccountScreen() {
             router.replace("/");
           }}
         >
-          Sessiot
+          {t.nav.home}
         </Button>
       </View>
 
       <Card className="gap-4">
         <CardHeader>
-          <CardTitle>{session ? "Omat arvostelut" : "Historia talteen"}</CardTitle>
+          <CardTitle>{session ? t.account.myReviews : t.account.historyTitle}</CardTitle>
           <CardDescription>
             {session
-              ? "Tilille linkitetyt arvostelusessiot löytyvät tästä."
-              : "Kirjautuminen yhdistää tämän laitteen arvostelut sähköpostiin."}
+              ? t.account.myReviewsSubtitle
+              : t.account.historySubtitle}
           </CardDescription>
         </CardHeader>
         <CardContent className="gap-3">
@@ -274,13 +277,13 @@ export default function AccountScreen() {
               />
               <Button loading={loading} disabled={resendCooldown > 0} onPress={requestCode}>
                 {resendCooldown > 0
-                  ? `Uusi koodi ${resendCooldown} s`
+                  ? t.account.newCodeWait.replace("{seconds}", String(resendCooldown))
                   : codeSent
-                    ? "Lähetä uusi koodi"
-                    : "Lähetä koodi"}
+                    ? t.account.sendNewCode
+                    : t.account.sendCode}
               </Button>
               {codeSent && resendCooldown > 0 ? (
-                <Text variant="muted">Voit pyytää uuden kirjautumiskoodin hetken kuluttua.</Text>
+                <Text variant="muted">{t.account.codeCooldown}</Text>
               ) : null}
               {codeSent ? (
                 <>
@@ -292,7 +295,7 @@ export default function AccountScreen() {
                     autoComplete="one-time-code"
                   />
                   <Button variant="success" loading={loading} onPress={verifyCode}>
-                    Kirjaudu
+                    {t.account.login}
                   </Button>
                 </>
               ) : null}
@@ -309,10 +312,10 @@ export default function AccountScreen() {
       <Card className="gap-4 border-primary/40">
         <CardHeader>
           <CardTitle>Made by {mobileSupportConfig.makerName}</CardTitle>
-          <CardDescription>Tue Breviewin ylläpitoa ulkoisen web-sivun kautta. Tuki ei avaa lisäominaisuuksia.</CardDescription>
+          <CardDescription>Support Breview via the external web page. Support does not unlock additional features.</CardDescription>
         </CardHeader>
         <CardContent className="gap-3">
-          <Text variant="muted">Sovellus toimii samalla tavalla ilman maksua.</Text>
+          <Text variant="muted">The app works the same without payment.</Text>
           <Button variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.pageUrl, "Breview")}>
             {mobileSupportConfig.ctaLabel}
           </Button>
@@ -322,21 +325,21 @@ export default function AccountScreen() {
       {session ? (
         <Card className="gap-4">
           <CardHeader>
-            <CardTitle>Data ja tuki</CardTitle>
-            <CardDescription>Tilin hallinta koskee vain kirjautunutta tiliä.</CardDescription>
+            <CardTitle>{t.account.dataAndSupport}</CardTitle>
+            <CardDescription>{t.account.manageAccountOnlyForLoggedIn}</CardDescription>
           </CardHeader>
           <CardContent className="gap-3">
             <Button variant="secondary" loading={loading} onPress={() => void logout()}>
-              Kirjaudu ulos
+              {t.account.logout}
             </Button>
             <Button variant="destructive" loading={loading} onPress={confirmDeleteAccount}>
-              Poista tili
+              {t.account.deleteAccountAction}
             </Button>
             <Button
               variant="outline"
-              onPress={() => void openExternalPage(mobileSupportConfig.deleteAccountUrl, "Tilin poistaminen")}
+              onPress={() => void openExternalPage(mobileSupportConfig.deleteAccountUrl, t.nav.deleteAccount)}
             >
-              Tilin poisto-ohjeet
+              {t.nav.deleteAccount}
             </Button>
           </CardContent>
         </Card>
@@ -345,22 +348,22 @@ export default function AccountScreen() {
       <Card className="gap-4">
         <CardContent className="gap-3">
           <Button variant="secondary" onPress={() => setPrivacyOpen((open) => !open)}>
-            Tietosuoja
+            {t.nav.privacy}
           </Button>
           {privacyOpen ? <PrivacyText /> : null}
           <View className="gap-2">
-            <Button variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.privacyUrl, "Tietosuoja")}>
-              Tietosuojaseloste
+            <Button variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.privacyUrl, t.nav.privacy)}>
+              {t.nav.privacy}
             </Button>
-            <Button variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.supportUrl, "Tuki")}>
-              Tuki
+            <Button variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.supportUrl, t.nav.support)}>
+              {t.nav.support}
             </Button>
             {!session ? (
               <Button
                 variant="outline"
-                onPress={() => void openExternalPage(mobileSupportConfig.deleteAccountUrl, "Tilin poistaminen")}
+                onPress={() => void openExternalPage(mobileSupportConfig.deleteAccountUrl, t.nav.deleteAccount)}
               >
-                Tilin poistaminen
+                {t.nav.deleteAccount}
               </Button>
             ) : null}
           </View>

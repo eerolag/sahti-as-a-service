@@ -28,10 +28,10 @@ describe("session settings", () => {
     expect(normalizeScore(0, { mode: "slider", scoreMin: 1, scoreMax: 10, scoreStep: 0.25 })).toBe(1);
   });
 
-  it("resolves supported locales with a stable English fallback", () => {
+  it("resolves supported locales with a stable Finnish fallback", () => {
     expect(resolveLocale(["fi-FI", "en-US"])).toBe("fi");
-    expect(resolveLocale(["pt-PT"])).toBe("pt-BR");
-    expect(resolveLocale(["zh-CN"])).toBe("zh-Hans");
-    expect(resolveLocale(["xx-YY"])).toBe("en");
+    expect(resolveLocale(["sv-SE"])).toBe("sv");
+    expect(resolveLocale(["nl-BE"])).toBe("nl");
+    expect(resolveLocale(["xx-YY"])).toBe("fi");
   });
 });

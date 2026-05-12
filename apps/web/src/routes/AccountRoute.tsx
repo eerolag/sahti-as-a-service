@@ -1,42 +1,44 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { AccountHistoryItemDto } from "@breview/shared/api-contracts";
 import { apiClient } from "../api/client";
+import { useI18n } from "../i18n/i18nContext";
 import { clearAccountSession, loadAccountSession, saveAccountSession, type AccountSession } from "../utils/account-session";
 import { getOrCreateClientId } from "../utils/player-identity";
 
-function formatHistoryDate(value: string | null): string {
-  if (!value) return "Ei päivämäärää";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("fi-FI", {
-    day: "numeric",
-    month: "numeric",
-    year: "numeric",
-  });
-}
-
-function PrivacyDetails() {
+function PrivacyDetails({ descriptions }: { descriptions: readonly string[] }) {
   return (
     <div className="grid gap-3 text-sm leading-6 text-muted">
-      <p>
-        Breview käyttää sähköpostiosoitetta vain tilin kirjautumiseen ja omien arvostelujen löytämiseen.
-        Arvosteluissa tallentuvat nimimerkki, arvosanat, kommentit, session tiedot ja mahdolliset ladatut kuvat.
-      </p>
-      <p>
-        Selaimeen tai sovellukseen tallennetaan tekninen tunniste, jolla aiemmat arvostelut voidaan liittää tiliin
-        kirjautumisen jälkeen. Kertakäyttökoodi vanhenee 10 minuutissa.
-      </p>
-      <p>
-        Tietoja käytetään sessioiden luomiseen, arvostelujen tallentamiseen, tulosten näyttämiseen ja väärinkäytön
-        rajoittamiseen. Kirjautunut käyttäjä voi poistaa tilinsä tältä sivulta.
-      </p>
+      {descriptions.map((text, idx) => (
+        <p key={idx}>{text}</p>
+      ))}
     </div>
   );
 }
 
-function HistoryList({ history }: { history: AccountHistoryItemDto[] }) {
+function HistoryList({
+  history,
+  ratingsLabel,
+  noDateLabel,
+  locale,
+}: {
+  history: AccountHistoryItemDto[];
+  ratingsLabel: string;
+  noDateLabel: string;
+  locale: string;
+}) {
+  function formatHistoryDate(value: string | null, locale: string): string {
+    if (!value) return noDateLabel;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString(locale, {
+      day: "numeric",
+      month: "numeric",
+      year: "numeric",
+    });
+  }
+
   if (!history.length) {
-    return <div className="muted">Ei tilille linkitettyjä arvosteluja vielä.</div>;
+    return null;
   }
 
   return (
@@ -48,10 +50,10 @@ function HistoryList({ history }: { history: AccountHistoryItemDto[] }) {
           href={`/${item.gameId}`}
         >
           <span className="min-w-0">
-            <span className="block truncate font-semibold">{item.gameName || `Sessio #${item.gameId}`}</span>
-            <span className="block text-sm text-muted">{formatHistoryDate(item.updatedAt)}</span>
+            <span className="block truncate font-semibold">{item.gameName || `Session #${item.gameId}`}</span>
+            <span className="block text-sm text-muted">{formatHistoryDate(item.updatedAt, locale)}</span>
           </span>
-          <span className="badge shrink-0">{item.ratingsCount} arviota</span>
+          <span className="badge shrink-0">{item.ratingsCount} {ratingsLabel}</span>
         </a>
       ))}
     </div>
@@ -59,6 +61,7 @@ function HistoryList({ history }: { history: AccountHistoryItemDto[] }) {
 }
 
 export function AccountRoute() {
+  const { t, locale } = useI18n();
   const [session, setSession] = useState<AccountSession | null>(() => loadAccountSession());
   const [history, setHistory] = useState<AccountHistoryItemDto[]>([]);
   const [email, setEmail] = useState(() => session?.user.email ?? "");
@@ -117,7 +120,7 @@ export function AccountRoute() {
       setEmail(response.email);
       setCodeSent(true);
       setResendCooldown(response.resendAvailableInSeconds);
-      setMessage("Koodi lähetetty. Tarkista sähköposti ja syötä kuusinumeroinen koodi.");
+      setMessage(t.account.codeSent);
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
     } finally {
@@ -143,7 +146,7 @@ export function AccountRoute() {
       setCode("");
       setCodeSent(false);
       setResendCooldown(0);
-      setMessage("Kirjautuminen onnistui.");
+      setMessage(t.account.loginSuccess);
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
     } finally {
@@ -170,7 +173,7 @@ export function AccountRoute() {
 
   async function deleteAccount() {
     if (!session) return;
-    const confirmed = window.confirm("Poistetaanko tili ja siihen linkitetyt arvostelut?");
+    const confirmed = window.confirm(t.account.confirmDelete);
     if (!confirmed) return;
 
     setLoading(true);
@@ -181,7 +184,7 @@ export function AccountRoute() {
       clearAccountSession();
       setSession(null);
       setHistory([]);
-      setMessage("Tili poistettu.");
+      setMessage(t.account.accountDeleted);
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
     } finally {
@@ -196,10 +199,10 @@ export function AccountRoute() {
           <a className="inline-link no-underline" href="/">
             Breview
           </a>
-          <div className="mt-1 text-2xl font-extrabold">Tili</div>
+          <div className="mt-1 text-2xl font-extrabold">{t.account.title}</div>
         </div>
         <a className="btn btn-pill no-underline" href="/">
-          Sessiot
+          {t.nav.sessions}
         </a>
       </div>
 
@@ -207,21 +210,30 @@ export function AccountRoute() {
         {session ? (
           <div className="grid gap-4">
             <div>
-              <div className="font-semibold">Kirjautunut</div>
+              <div className="font-semibold">{t.account.loggedIn}</div>
               <div className="muted">{session.user.email}</div>
             </div>
-            <HistoryList history={history} />
+            {history.length ? (
+              <HistoryList
+                history={history}
+                ratingsLabel={t.account.ratingsCount}
+                noDateLabel={t.account.noDate}
+                locale={locale}
+              />
+            ) : (
+              <div className="muted">{t.account.noHistory}</div>
+            )}
           </div>
         ) : (
           <div className="grid gap-4">
             <div>
-              <div className="font-semibold">Historia talteen</div>
-              <div className="muted">Syötä sähköposti, niin lähetämme kertakäyttökoodin.</div>
+              <div className="font-semibold">{t.account.saveHistory}</div>
+              <div className="muted">{t.account.enterEmailPrompt}</div>
             </div>
 
             <form className="grid gap-3" onSubmit={requestCode}>
               <label className="text-sm text-muted" htmlFor="account-email">
-                Sähköposti
+                {t.account.emailLabel}
               </label>
               <input
                 id="account-email"
@@ -234,20 +246,20 @@ export function AccountRoute() {
               />
               <button className="btn btn-primary" type="submit" disabled={loading || resendCooldown > 0}>
                 {resendCooldown > 0
-                  ? `Uusi koodi ${resendCooldown} s`
+                  ? `${t.account.newCodeIn} ${resendCooldown} s`
                   : codeSent
-                    ? "Lähetä uusi koodi"
-                    : "Lähetä koodi"}
+                    ? t.account.resendCode
+                    : t.account.sendCode}
               </button>
               {codeSent && resendCooldown > 0 ? (
-                <div className="text-xs text-muted">Voit pyytää uuden kirjautumiskoodin hetken kuluttua.</div>
+                <div className="text-xs text-muted">{t.account.canRequestNewCode}</div>
               ) : null}
             </form>
 
             {codeSent ? (
               <form className="grid gap-3" onSubmit={verifyCode}>
                 <label className="text-sm text-muted" htmlFor="account-code">
-                  Koodi
+                  {t.account.codeLabel}
                 </label>
                 <input
                   id="account-code"
@@ -259,7 +271,7 @@ export function AccountRoute() {
                   placeholder="123456"
                 />
                 <button className="btn btn-success" type="submit" disabled={loading}>
-                  Kirjaudu
+                  {t.account.login}
                 </button>
               </form>
             ) : null}
@@ -271,24 +283,24 @@ export function AccountRoute() {
 
       {session ? (
         <div className="card">
-          <div className="mb-3 font-semibold">Data ja tuki</div>
+          <div className="mb-3 font-semibold">{t.account.dataAndSupport}</div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <button className="btn grow" type="button" disabled={loading} onClick={() => void logout()}>
-              Kirjaudu ulos
+              {t.account.logout}
             </button>
             <button className="btn btn-danger grow" type="button" disabled={loading} onClick={() => void deleteAccount()}>
-              Poista tili
+              {t.account.deleteAccount}
             </button>
           </div>
           <div className="mt-4 flex flex-wrap gap-3 text-sm">
             <a className="inline-link" href="/privacy">
-              Tietosuoja
+              {t.nav.privacy}
             </a>
             <a className="inline-link" href="/support">
-              Tuki
+              {t.nav.support}
             </a>
             <a className="inline-link" href="/delete-account">
-              Tilin poistamisen ohjeet
+              {t.account.deleteAccountInstructions}
             </a>
           </div>
         </div>
@@ -296,20 +308,20 @@ export function AccountRoute() {
 
       <div className="card">
         <button className="btn w-full" type="button" onClick={() => setPrivacyOpen((open) => !open)}>
-          Tietosuoja
+          {t.account.privacyToggle}
         </button>
         {privacyOpen ? (
           <div className="mt-4 border-t border-line pt-4">
-            <PrivacyDetails />
+            <PrivacyDetails descriptions={t.account.privacyDescription} />
             <div className="mt-4 flex flex-wrap gap-3 text-sm">
               <a className="inline-link" href="/privacy">
-                Tietosuojaseloste
+                {t.account.privacyStatement}
               </a>
               <a className="inline-link" href="/support">
-                Tuki
+                {t.nav.support}
               </a>
               <a className="inline-link" href="/delete-account">
-                Tilin poistaminen
+                {t.nav.deleteAccount}
               </a>
             </div>
           </div>
