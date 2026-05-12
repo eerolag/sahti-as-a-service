@@ -30,6 +30,7 @@ export const fi: Translations = {
     multipleDrinks: "{count} juomaa",
     openMenu: "Avaa valikko",
     createSession: "Luo sessio",
+    joinSession: "Liity sessioon",
     createSessionSubtitle: "Nimeä sessio, lisää juomat ja jaa linkki.",
     openSharedLink: "Avaa jaettu sessiolinkki",
     openSessionLink: "Avaa sessiolinkki",

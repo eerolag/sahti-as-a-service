@@ -30,6 +30,7 @@ export const en: Translations = {
     multipleDrinks: "{count} drinks",
     openMenu: "Open menu",
     createSession: "Create session",
+    joinSession: "Join session",
     createSessionSubtitle: "Name the session, add drinks, and share the link.",
     openSharedLink: "Open shared session link",
     openSessionLink: "Open session link",

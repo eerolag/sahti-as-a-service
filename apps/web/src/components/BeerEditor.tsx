@@ -29,6 +29,7 @@ interface BeerEditorProps {
   onCancel?: () => void;
   cancelLabel?: string;
   surface?: "card" | "strip";
+  showSessionDetails?: boolean;
 }
 
 type IdentifyState = "idle" | "loading" | "success" | "error";
@@ -51,6 +52,7 @@ export function BeerEditor({
   onCancel,
   cancelLabel,
   surface = "card",
+  showSessionDetails = true,
 }: BeerEditorProps) {
   const haptics = useHaptics();
   const t = useT();
@@ -103,21 +105,23 @@ export function BeerEditor({
 
   return (
     <>
-      <div className={surfaceClass}>
-        <div className="flex flex-col gap-2">
-          <div className="font-semibold">{title}</div>
-          <div className="muted">{t.editor.sessionNameRequired}</div>
-          <div className="muted hidden md:block">{t.editor.dragDesktop}</div>
-          <div className="muted md:hidden">{t.editor.dragMobile}</div>
-          <label className="text-sm text-muted">{t.editor.sessionNameLabel}</label>
-          <input
-            className="input"
-            value={gameName}
-            onChange={(event) => onGameNameChange(event.target.value)}
-            placeholder={t.editor.sessionNamePlaceholder}
-          />
+      {showSessionDetails ? (
+        <div className={surfaceClass}>
+          <div className="flex flex-col gap-2">
+            <div className="font-semibold">{title}</div>
+            <div className="muted">{t.editor.sessionNameRequired}</div>
+            <div className="muted hidden md:block">{t.editor.dragDesktop}</div>
+            <div className="muted md:hidden">{t.editor.dragMobile}</div>
+            <label className="text-sm text-muted">{t.editor.sessionNameLabel}</label>
+            <input
+              className="input"
+              value={gameName}
+              onChange={(event) => onGameNameChange(event.target.value)}
+              placeholder={t.editor.sessionNamePlaceholder}
+            />
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div className="beer-list">
         {beers.map((beer, idx) => {

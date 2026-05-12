@@ -30,6 +30,7 @@ export const nl: Translations = {
     multipleDrinks: "{count} dranken",
     openMenu: "Menu openen",
     createSession: "Sessie aanmaken",
+    joinSession: "Deelnemen aan sessie",
     createSessionSubtitle: "Geef de sessie een naam, voeg dranken toe en deel de link.",
     openSharedLink: "Gedeelde sessielink openen",
     openSessionLink: "Sessielink openen",
