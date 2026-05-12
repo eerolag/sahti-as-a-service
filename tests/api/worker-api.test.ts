@@ -92,10 +92,25 @@ describe("worker api", () => {
     expect(gameRes.status).toBe(200);
     const gamePayload = await json(gameRes);
     expect(gamePayload.game.name).toBe("Sahti Night");
+    expect(gamePayload.game.publicId).toMatch(/^[A-Za-z0-9_-]{20,}$/);
     expect(gamePayload.beers).toHaveLength(2);
     expect(gamePayload.beers[0].untappd_url).toBe("https://untappd.com/search?q=Beer%20A");
     expect(gamePayload.beers[0].untappd_source).toBe("search-link");
     expect(gamePayload.beers[0].untappd_confidence).toBeNull();
+  });
+
+  it("assigns a public session code to legacy numeric games without changing the numeric URL", async () => {
+    const legacyId = db.insertLegacyGameForTest("Legacy Test", [{ name: "Old Beer" }]);
+
+    const gameRes = await call(env, `/api/games/${legacyId}`);
+    expect(gameRes.status).toBe(200);
+    const gamePayload = await json(gameRes);
+    expect(gamePayload.game.id).toBe(legacyId);
+    expect(gamePayload.game.publicId).toMatch(/^[A-Za-z0-9_-]{20,}$/);
+
+    const sessionRes = await call(env, `/api/sessions/${gamePayload.game.publicId}`);
+    expect(sessionRes.status).toBe(200);
+    expect((await json(sessionRes)).game.id).toBe(legacyId);
   });
 
   it("creates unguessable session links and requires host token for edits", async () => {
@@ -554,6 +569,7 @@ describe("worker api", () => {
     expect(verified.history).toEqual([
       expect.objectContaining({
         gameId: 1,
+        publicId: game.game.publicId,
         gameName: "Account History",
         ratingsCount: 1,
       }),

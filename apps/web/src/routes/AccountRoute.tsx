@@ -47,7 +47,7 @@ function HistoryList({
         <a
           key={item.gameId}
           className="flex items-center justify-between gap-3 rounded-lg border border-line bg-[#14161b] p-3 no-underline"
-          href={`/${item.gameId}`}
+          href={item.publicId ? `/s/${encodeURIComponent(item.publicId)}` : `/${item.gameId}`}
         >
           <span className="min-w-0">
             <span className="block truncate font-semibold">{item.gameName || `Session #${item.gameId}`}</span>

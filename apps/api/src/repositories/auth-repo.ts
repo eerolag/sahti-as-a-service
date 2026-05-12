@@ -275,6 +275,7 @@ export async function getAccountHistory(
   const rows = await env.DB.prepare(`
     SELECT
       g.id AS gameId,
+      g.public_id AS publicId,
       g.name AS gameName,
       COUNT(r.beer_id) AS ratingsCount,
       MAX(r.updated_at) AS updatedAt
@@ -287,7 +288,7 @@ export async function getAccountHistory(
       ON r.player_id = p.id
       AND r.game_id = p.game_id
     WHERE up.user_id = ?
-    GROUP BY g.id, g.name
+    GROUP BY g.id, g.public_id, g.name
     HAVING COUNT(r.beer_id) > 0
     ORDER BY MAX(r.updated_at) DESC, g.id DESC
   `)
@@ -296,6 +297,7 @@ export async function getAccountHistory(
 
   return (rows.results ?? []).map((row) => ({
     gameId: Number(row.gameId),
+    publicId: row.publicId == null ? null : String(row.publicId),
     gameName: String(row.gameName ?? ""),
     ratingsCount: Number(row.ratingsCount ?? 0),
     updatedAt: row.updatedAt == null ? null : String(row.updatedAt),
