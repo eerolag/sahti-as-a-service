@@ -502,14 +502,14 @@ export default function GamesScreen() {
             <Pressable
               key={game.id}
               accessibilityRole="button"
-              onPress={() => openGame(game.id)}
+              onPress={() => (game.publicId ? openSession(game.publicId) : openGame(game.id))}
               className="active:opacity-80"
             >
               <Card className="py-4">
                 <CardContent className="gap-1 py-0">
                   <Text variant="large">{game.name}</Text>
                   <Text variant="muted">
-                    #{game.id} · {beerMeta(game.beerCount)}
+                    {beerMeta(game.beerCount)}
                   </Text>
                 </CardContent>
                 <CardFooter>

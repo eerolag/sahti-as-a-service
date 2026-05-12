@@ -1,7 +1,7 @@
 import type { AccountHistoryItemDto } from "@breview/shared/api-contracts";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { Alert, Linking, ScrollView, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, View } from "react-native";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,10 +36,16 @@ function PrivacyText() {
   );
 }
 
-function HistoryList({ history }: { history: AccountHistoryItemDto[] }) {
+function HistoryList({
+  history,
+  onOpen,
+}: {
+  history: AccountHistoryItemDto[];
+  onOpen: (item: AccountHistoryItemDto) => void;
+}) {
   const t = useT();
   const { lang } = useI18n();
-  
+
   function formatHistoryDate(value: string | null): string {
     if (!value) return t.account.noDate;
     const date = new Date(value);
@@ -58,12 +64,17 @@ function HistoryList({ history }: { history: AccountHistoryItemDto[] }) {
   return (
     <View className="gap-2">
       {history.map((item) => (
-        <View key={item.gameId} className="gap-1 rounded-md border border-border bg-background p-3">
+        <Pressable
+          key={item.gameId}
+          accessibilityRole="button"
+          className="gap-1 rounded-md border border-border bg-background p-3 active:opacity-80"
+          onPress={() => onOpen(item)}
+        >
           <Text variant="large">{item.gameName || `${t.home.session} #${item.gameId}`}</Text>
           <Text variant="muted">
             {item.ratingsCount} {t.account.reviewsCount} · {formatHistoryDate(item.updatedAt)}
           </Text>
-        </View>
+        </Pressable>
       ))}
     </View>
   );
@@ -122,6 +133,15 @@ export default function AccountScreen() {
     } catch {
       Alert.alert(title, t.errors.pageNotOpened);
     }
+  }
+
+  function openHistoryItem(item: AccountHistoryItemDto) {
+    haptics.selection();
+    router.push(
+      item.publicId
+        ? { pathname: "/s/[gameId]", params: { gameId: item.publicId } }
+        : { pathname: "/[gameId]", params: { gameId: String(item.gameId) } },
+    );
   }
 
   async function requestCode() {
@@ -264,7 +284,7 @@ export default function AccountScreen() {
         </CardHeader>
         <CardContent className="gap-3">
           {session ? (
-            <HistoryList history={history} />
+            <HistoryList history={history} onOpen={openHistoryItem} />
           ) : (
             <>
               <Input
