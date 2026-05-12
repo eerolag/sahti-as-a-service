@@ -9,7 +9,7 @@ Priority order:
 1. Store-safety and policy hardening.
 2. Unguessable share links, host ownership, hidden results, and rating scale options.
 3. First-run welcome, logo-led onboarding, and UI polish.
-4. Localization for Finnish, English, and major world languages.
+4. Localization for the current Finnish, English, Swedish, and Dutch surface, followed by major world languages.
 5. Batch image import and AI recognition queue.
 6. Final store build, metadata, and smoke-test checklist.
 
@@ -24,7 +24,7 @@ Priority order:
 - Updated mobile creation/link-opening basics to use session terminology, public session links, host-only edit controls, configurable rating settings, star/slider rating display, and host reveal.
 - Added a content-report table, report endpoint, and web/mobile report actions for UGC review.
 - Softened support/payment copy so it does not imply alcohol purchase or feature unlocks.
-- Added shared locale utilities and welcome-copy resources for the planned localization set, including RTL metadata for Arabic and Urdu.
+- Added shared locale utilities and dictionaries for Finnish, English, Swedish, and Dutch, with web/mobile language switchers and English fallback for unsupported device/browser locales.
 - Added self-hosted Figtree and JetBrains Mono font assets for web and mobile.
 - Added minimal abusive-text blocking for names, nicknames, and comments.
 - Removed the mobile bottom tab bar; account, support, and privacy actions now live behind the top-right menu.
@@ -66,11 +66,13 @@ Policy references:
 
 ## Localization And UI
 
-- Initial supported locale set: `fi`, `en`, `es`, `pt-BR`, `fr`, `de`, `zh-Hans`, `hi`, `ar`, `bn`, `id`, `ru`, `ur`.
+- Currently implemented locale set: `fi`, `en`, `sv`, `nl`.
+- Planned expansion set before broad release: `es`, `pt-BR`, `fr`, `de`, `zh-Hans`, `hi`, `ar`, `bn`, `id`, `ru`, `ur`.
 - Locale selection default:
   - device/browser Finnish -> `fi`
   - supported device/browser locale -> matching locale
   - fallback -> `en`
+- Manual language selection should remain available in both web and mobile settings/menu surfaces.
 - RTL work is required before marking `ar` or `ur` complete.
 - Use self-hosted Figtree for UI and JetBrains Mono for scores/codes.
 - Replace native-looking file inputs with polished image buttons and previews everywhere.
@@ -98,7 +100,8 @@ Policy references:
   - open shared link directly into the session
   - slider and star rating
   - batch image import with failures
-  - Finnish and English locale switching
+  - Finnish, English, Swedish, and Dutch locale switching
+  - unsupported device/browser locale fallback to English
   - at least one RTL layout pass
 - Store-readiness tests:
   - account deletion reachable in app and web

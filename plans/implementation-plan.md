@@ -12,6 +12,7 @@ Breview is a production web, iOS, and Android app for creating drink tasting ses
 - Web uses React, Vite, TypeScript, Tailwind, and shadcn/ui for production UI components in `apps/web`.
 - Mobile uses Expo SDK 54, Expo Router, TypeScript, NativeWind, and React Native components for native iOS and Android screens in `apps/mobile`. SDK 54 is intentional for the current development window so Breview can share the App Store Expo Go version with the other active SDK 54 project; move to SDK 55 when both projects can use SDK 55 or development builds.
 - Shared framework-agnostic contracts and domain logic live in `packages/shared`; web and mobile clients consume those contracts through `packages/api-client` instead of duplicating API shapes.
+- Shared i18n resources live in `packages/shared/src/i18n`; web and mobile both consume the same dictionaries and locale resolver.
 - Existing Cloudflare resource names may remain unchanged until a deliberate infrastructure rename is planned and tested.
 
 ## Workstreams
@@ -40,6 +41,7 @@ Acceptance criteria:
 - Mobile create, link-open, recent-sessions, rating, comments, save, results, share, session-editing, beer-editing, image-picking, R2 upload, and Workers AI recognition flows call the shared API client or native mobile API helpers and default to `https://breview.ing`.
 - Mobile and web share the same Breview dark visual direction while using shadcn/ui on web and NativeWind/React Native components on mobile.
 - Mobile uses `breview-logo.png` for in-app brand presentation and app icon configuration.
+- Web and mobile support the current locale set `fi`, `en`, `sv`, and `nl`, auto-detect supported browser/device locales, fallback unknown locales to English, and expose manual language selection.
 - Cloudflare D1/R2/Worker resource names are left unchanged.
 - Kilo Gateway is replaced by Cloudflare Workers AI for beer-name recognition.
 - Workers AI beer-name recognition requests use high-detail image input, JSON-only extraction, and Kimi reasoning handling so empty model responses are treated as service failures instead of user image failures.
@@ -66,6 +68,7 @@ Acceptance criteria:
 - Remote D1 migrations are applied through `0008_backfill_game_public_ids.sql`, so old sessions receive random public codes while numeric test URLs remain loadable.
 - Mobile no longer uses bottom tab navigation; account/support/privacy actions live behind the top-right menu and the account screen has an explicit return action.
 - Mobile account, image-picking, sharing, retry, and edit flows have clearer loading, permission-denied, selected-image, and failure states, with local image filenames hidden.
+- Mobile image library selection avoids the extra pre-picker media permission prompt on iOS, and custom `Vibration` haptics are disabled so the app does not simulate haptic feedback against user preference.
 - Paid Brave image search is removed from the web UI, Worker route, shared API contracts, README, and runtime env.
 - Untappd API resolution is removed; stored beer metadata is kept to outbound search links only.
 - Tests, typecheck, and build pass.

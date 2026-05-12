@@ -86,10 +86,19 @@ Official references checked on 2026-05-12:
 - [x] Polish camera/photo permission copy and denial handling.
 - [x] Polish image capture and image library states.
 - [x] Polish edit/share flows and copy.
-- [x] Add haptics where useful without making repeated workflows noisy.
+- [x] Disable custom mobile `Vibration` haptics; only reintroduce native haptics later if they respect platform/user settings.
 - [x] Confirm local filenames are not rendered in mobile UI.
 - [x] Confirm account settings are understandable and not hidden behind unclear labels.
 - [x] Confirm the maker-support link opens externally and does not create a native payment flow.
+
+## Localization
+
+- [x] Add shared dictionaries for Finnish, English, Swedish, and Dutch in `packages/shared/src/i18n`.
+- [x] Use the shared locale resolver on web and mobile.
+- [x] Auto-detect supported browser/device locales and fallback unsupported locales to English.
+- [x] Provide manual language switching in web and mobile UI.
+- [ ] Expand and QA the planned major-language set before broad release.
+- [ ] Complete RTL layout QA before shipping Arabic or Urdu.
 
 ## Untappd
 

@@ -95,6 +95,18 @@ Store-reviewta ja käyttäjiä varten webissä on kirjautumatta avautuvat sivut:
 
 `/delete-account` kertoo, miten tilin voi poistaa sovelluksessa, miten sähköpostipoistopyyntö tehdään, mitä tietoja poistetaan, mitä operatiivisia tietoja voidaan säilyttää ja mikä on odotettu käsittelyaika. Webin ja mobiilin tili-/tukipinnat linkittävät näihin sivuihin.
 
+## Kieliversiot
+
+Web ja mobiili käyttävät yhteisiä käännösresursseja hakemistosta `packages/shared/src/i18n`.
+Nykyiset toteutetut kieliversiot ovat:
+
+- `fi` - suomi
+- `en` - englanti
+- `sv` - ruotsi
+- `nl` - hollanti
+
+Selain tai mobiililaite valitsee automaattisesti tuetun kielen, jos käyttäjän locale vastaa jotakin näistä. Tuntematon locale fallbackaa englantiin. Kielen voi vaihtaa käsin webissä kielivalitsimesta ja mobiilissa etusivun oikean yläkulman valikosta. Laajempi top-kielien joukko pysyy julkaisua edeltävässä backlogissa, mutta sitä ei merkitä valmiiksi ennen kuin kaikki tekstit ja tarvittavat RTL-layoutit on testattu.
+
 ## Deep links ja app links
 
 Mobiilisovelluksen oma scheme on edelleen `breview://`. Lisäksi Expo-konfiguraatio valmistaa iOS universal links- ja Android app links -polun domainille `https://breview.ing`.
@@ -207,7 +219,7 @@ npm --workspace @breview/mobile run android -- --clear
 
 Expo käyttää oletuksena `https://breview.ing` API-basea, eli simulaattori ja Expo Go osuvat oikeaan Cloudflare Workeriin ja sen D1/R2-resursseihin. Paikallisen Workerin voi antaa muuttujalla `EXPO_PUBLIC_API_BASE_URL`.
 
-Mobiilissa voi tällä hetkellä luoda session, avata jaetun sessiolinkin, arvostella juomat sliderilla tai tähdillä, lisätä kommentit, tallentaa arviot, katsoa tulokset, jakaa sessiolinkin sekä hostina muokata sessiota ja juomia. Muokkaus tukee kuvan lisäämistä kamerasta tai kuvakirjastosta, kuvan latausta R2:een ja nimen tunnistusta Workers AI:lla. Alareunan tab-navigaatio on poistettu; etusivun oikean yläkulman valikko avaa Tili-, Tuki- ja Tietosuoja-toiminnot. Tili-näkymä tukee sähköpostiin lähetettävää kertakäyttökoodia, näyttää resend-cooldownin, linkittää tämän laitteen aiemmat arviot tiliin ja näyttää tilille talletetut arvostelusessiot public-linkkeinä. Mobiili linkittää julkisiin privacy/support/delete-account-sivuihin ja pitää valitun paikallisen kuvan tiedostonimen piilossa. Mobiilin tumma Breview-ilme pidetään linjassa webin kanssa, vaikka komponenttipohja on eri.
+Mobiilissa voi tällä hetkellä luoda session, avata jaetun sessiolinkin, arvostella juomat sliderilla tai tähdillä, lisätä kommentit, tallentaa arviot, katsoa tulokset, jakaa sessiolinkin sekä hostina muokata sessiota ja juomia. Muokkaus tukee kuvan lisäämistä kamerasta tai kuvakirjastosta, kuvan latausta R2:een ja nimen tunnistusta Workers AI:lla. iOS-kuvakirjaston valinta käyttää system picker -virtaa ilman erillistä ennakkolupadialogia, jotta picker ei jää jumiin, ja mobiilin oma `Vibration`-haptics on poistettu käytöstä. Alareunan tab-navigaatio on poistettu; etusivun oikean yläkulman valikko avaa Tili-, Tuki-, Tietosuoja- ja kielivalintatoiminnot. Tili-näkymä tukee sähköpostiin lähetettävää kertakäyttökoodia, näyttää resend-cooldownin, linkittää tämän laitteen aiemmat arviot tiliin ja näyttää tilille talletetut arvostelusessiot public-linkkeinä. Mobiili linkittää julkisiin privacy/support/delete-account-sivuihin ja pitää valitun paikallisen kuvan tiedostonimen piilossa. Mobiilin tumma Breview-ilme pidetään linjassa webin kanssa, vaikka komponenttipohja on eri.
 
 iOS-simulaattori tai Expo web:
 

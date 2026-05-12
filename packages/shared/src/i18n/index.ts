@@ -51,11 +51,11 @@ export function resolveLocale(preferredLocales: readonly string[] = []): Support
     if (byLanguage) return byLanguage;
   }
 
-  return "fi";
+  return "en";
 }
 
 export function getTranslations(locale: SupportedLocale): Translations {
-  return LOCALE_MAP[locale] ?? LOCALE_MAP.fi;
+  return LOCALE_MAP[locale] ?? LOCALE_MAP.en;
 }
 
 export function getTranslationsForPreferred(preferredLocales: readonly string[] = []): Translations {

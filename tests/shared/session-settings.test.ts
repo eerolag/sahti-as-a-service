@@ -32,6 +32,6 @@ describe("session settings", () => {
     expect(resolveLocale(["fi-FI", "en-US"])).toBe("fi");
     expect(resolveLocale(["sv-SE"])).toBe("sv");
     expect(resolveLocale(["nl-BE"])).toBe("nl");
-    expect(resolveLocale(["xx-YY"])).toBe("fi");
+    expect(resolveLocale(["xx-YY"])).toBe("en");
   });
 });

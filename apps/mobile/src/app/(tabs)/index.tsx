@@ -1,5 +1,5 @@
 import type { CreateGameRequest } from "@breview/shared/api-contracts";
-import { getWelcomeCopy } from "@breview/shared";
+import { getWelcomeCopy, LOCALE_LABELS, SUPPORTED_LOCALES } from "@breview/shared";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { apiClient, identifyBeerNameAsset, uploadImageAsset, type MobileImageAsset } from "@/lib/api";
 import { haptics } from "@/lib/haptics";
+import { pickSingleImage, requestImageSourcePermission, type ImageSource } from "@/lib/image-picker";
 import { saveHostToken } from "@/lib/creator-session";
 import { getOrCreateClientId } from "@/lib/player-identity";
 import { loadRecentGames, recentGameFromPayload, saveRecentGame, type RecentGame } from "@/lib/recent-games";
@@ -93,7 +94,7 @@ export default function GamesScreen() {
     return count === 1 ? t.home.oneDrink : t.home.multipleDrinks.replace("{count}", String(count));
   }
 
-  function showImagePermissionDenied(source: "camera" | "library") {
+  function showImagePermissionDenied(source: ImageSource) {
     const title = source === "camera" ? t.errors.cameraDenied : t.errors.libraryDenied;
     const body = source === "camera" ? t.errors.allowCamera : t.errors.allowLibrary;
     Alert.alert(
@@ -250,15 +251,11 @@ export default function GamesScreen() {
     });
   }
 
-  async function pickBeerImage(index: number, source: "camera" | "library") {
+  async function pickBeerImage(index: number, source: ImageSource) {
     setMessage(null);
 
-    const permission =
-      source === "camera"
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (!permission.granted) {
+    const hasPermission = await requestImageSourcePermission(source);
+    if (!hasPermission) {
       const message =
         source === "camera"
           ? t.errors.cameraMissing
@@ -269,16 +266,14 @@ export default function GamesScreen() {
       return;
     }
 
-    const result =
-      source === "camera"
-        ? await ImagePicker.launchCameraAsync({
-            mediaTypes: ["images"],
-            quality: 0.9,
-          })
-        : await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ["images"],
-            quality: 0.9,
-          });
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      result = await pickSingleImage(source);
+    } catch (error) {
+      setMessage(String((error as Error)?.message ?? t.errors.generalError));
+      haptics.error();
+      return;
+    }
 
     if (result.canceled || !result.assets[0]) return;
 
@@ -363,27 +358,17 @@ export default function GamesScreen() {
               {t.nav.privacy}
             </Button>
           </View>
-          <View className="mt-2 flex-row gap-2">
-            <Button 
-              className="flex-1" 
-              variant={lang === "fi" ? "secondary" : "outline"} 
-              onPress={() => void setLang("fi")}
-            >FI</Button>
-            <Button 
-              className="flex-1" 
-              variant={lang === "en" ? "secondary" : "outline"} 
-              onPress={() => void setLang("en")}
-            >EN</Button>
-            <Button 
-              className="flex-1" 
-              variant={lang === "sv" ? "secondary" : "outline"} 
-              onPress={() => void setLang("sv")}
-            >SV</Button>
-            <Button 
-              className="flex-1" 
-              variant={lang === "nl" ? "secondary" : "outline"} 
-              onPress={() => void setLang("nl")}
-            >NL</Button>
+          <View className="mt-2 flex-row flex-wrap gap-2">
+            {SUPPORTED_LOCALES.map((locale) => (
+              <Button
+                key={locale}
+                className="min-w-[96px] flex-1"
+                variant={lang === locale ? "secondary" : "outline"}
+                onPress={() => void setLang(locale)}
+              >
+                {LOCALE_LABELS[locale]}
+              </Button>
+            ))}
           </View>
         </Card>
       ) : null}

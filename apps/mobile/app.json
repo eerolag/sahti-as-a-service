@@ -61,8 +61,8 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Breview käyttää kameraa olutkuvien lisäämiseen peleihin.",
-          "photosPermission": "Breview käyttää kuvia olutkuvien lisäämiseen peleihin."
+          "cameraPermission": "Breview käyttää kameraa juomakuvien lisäämiseen sessioihin.",
+          "photosPermission": "Breview käyttää kuvia juomakuvien lisäämiseen sessioihin."
         }
       ],
       "expo-web-browser"

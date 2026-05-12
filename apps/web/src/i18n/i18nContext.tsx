@@ -30,7 +30,7 @@ function detectLocale(): SupportedLocale {
     return resolveLocale(languages);
   }
 
-  return "fi";
+  return "en";
 }
 
 interface I18nContextValue {

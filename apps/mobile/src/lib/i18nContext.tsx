@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 import {
   resolveLocale,
@@ -19,7 +19,7 @@ interface I18nContextType {
 const I18nContext = createContext<I18nContextType | null>(null);
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLangState] = useState<SupportedLocale>("fi");
+  const [lang, setLangState] = useState<SupportedLocale>("en");
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -32,15 +32,15 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
           return;
         }
       } catch {
-        // ignore
+        // Storage can be unavailable in development shells.
       }
-      
+
       try {
         const systemLocale = Intl.DateTimeFormat().resolvedOptions().locale;
         const resolved = resolveLocale([systemLocale]);
         setLangState(resolved);
       } catch {
-        // fallback
+        setLangState("en");
       } finally {
         setIsLoaded(true);
       }
@@ -48,20 +48,20 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     void loadStoredLang();
   }, []);
 
-  const setLang = async (newLang: SupportedLocale) => {
+  const setLang = useCallback(async (newLang: SupportedLocale) => {
     setLangState(newLang);
     try {
       await SecureStore.setItemAsync(LOCALE_STORAGE_KEY, newLang);
     } catch {
-      // ignore
+      // A non-persistent manual language choice is acceptable if storage fails.
     }
-  };
+  }, []);
 
   const contextValue = useMemo(() => ({
     lang,
     t: getTranslations(lang),
     setLang,
-  }), [lang]);
+  }), [lang, setLang]);
 
   if (!isLoaded) {
     return null;

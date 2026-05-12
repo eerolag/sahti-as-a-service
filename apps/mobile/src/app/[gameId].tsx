@@ -25,6 +25,7 @@ import { loadAccountSession } from "@/lib/account-session";
 import { apiClient, identifyBeerNameAsset, uploadImageAsset, type MobileImageAsset } from "@/lib/api";
 import { loadHostToken } from "@/lib/creator-session";
 import { haptics } from "@/lib/haptics";
+import { pickSingleImage, requestImageSourcePermission, type ImageSource } from "@/lib/image-picker";
 import {
   generateAnonymousNickname,
   getOrCreateClientId,
@@ -131,7 +132,7 @@ function asMobileImageAsset(asset: ImagePicker.ImagePickerAsset): MobileImageAss
   };
 }
 
-function showImagePermissionDenied(source: "camera" | "library", t: Translations) {
+function showImagePermissionDenied(source: ImageSource, t: Translations) {
   const title = source === "camera" ? t.errors.cameraDenied : t.errors.libraryDenied;
   Alert.alert(
     title,
@@ -509,15 +510,11 @@ export default function GameScreen() {
     }
   }
 
-  async function pickEditBeerImage(index: number, source: "camera" | "library") {
+  async function pickEditBeerImage(index: number, source: ImageSource) {
     setMessage(null);
 
-    const permission =
-      source === "camera"
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (!permission.granted) {
+    const hasPermission = await requestImageSourcePermission(source);
+    if (!hasPermission) {
       const message =
         source === "camera" ? t.errors.cameraMissing : t.errors.libraryMissing;
       setMessage(message);
@@ -526,16 +523,14 @@ export default function GameScreen() {
       return;
     }
 
-    const result =
-      source === "camera"
-        ? await ImagePicker.launchCameraAsync({
-            mediaTypes: ["images"],
-            quality: 0.9,
-          })
-        : await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ["images"],
-            quality: 0.9,
-          });
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      result = await pickSingleImage(source);
+    } catch (error) {
+      setMessage(String((error as Error)?.message ?? t.errors.generalError));
+      haptics.error();
+      return;
+    }
 
     if (result.canceled || !result.assets[0]) return;
 

@@ -15,6 +15,7 @@
 - Keep the Expo create, join, recent-games, rating, comments, save, results, share, edit, native image-pick, R2 upload, and Workers AI recognition flows connected to the production Cloudflare API by default.
 - Keep manual image URL entry out of web and mobile UI; image input happens through file, camera, or photo library, and `Tunnista nimi AI:lla` activates only after an image is selected.
 - Keep local device image filenames hidden in mobile UI; selected image preview is enough feedback.
+- Keep web and mobile localization backed by shared dictionaries. Current shipped locales are `fi`, `en`, `sv`, and `nl`; unsupported browser/device locales must fallback to English, with manual language selection available in the UI.
 - Keep AI recognition warnings visible as popup/alert feedback in web and mobile, not only inline status text.
 - Keep the `/makers` creator-support page provider-agnostic: web reads `SUPPORT_PAYMENT_URL`, mobile only opens `EXPO_PUBLIC_SUPPORT_PAGE_URL` externally, and no native payment flow is added.
 - Keep optional email-code accounts working across web and mobile: Cloudflare Email Service sends login codes, resend cooldown UI prevents rapid repeat taps, D1 sessions link device ratings to accounts, and account deletion is shown only after login.
@@ -37,11 +38,11 @@
 - Test universal/app link behavior from Messages, Safari/Chrome, email, QR codes, and web fallback on real iOS and Android builds.
 - Keep beer-name recognition on Cloudflare Workers AI, starting with Gemma 4 and escalating to Kimi K2.6 only if quality requires it.
 - Keep Untappd as outbound search links only; do not use scraping, private endpoints, API calls, or Untappd branding.
-- Complete full-string localization QA for all supported locale resources, especially RTL layout for Arabic and Urdu.
+- Expand localization beyond `fi`, `en`, `sv`, and `nl` only after the full-string QA process is ready; the planned top-language backlog includes `es`, `pt-BR`, `fr`, `de`, `zh-Hans`, `hi`, `ar`, `bn`, `id`, `ru`, and `ur`, with RTL layout required before `ar` or `ur` can be marked complete.
 
 ## Then
 
-- Continue smoke-testing native account settings, edit/share/image capture states, permission copy, haptics, loading states, and offline-friendly retry states on physical devices.
+- Continue smoke-testing native account settings, edit/share/image capture states, permission copy, disabled custom haptics, loading states, and offline-friendly retry states on physical devices.
 - Upgrade Breview and the other active mobile project to Expo SDK 55 together, or move Breview to an SDK 55 development build when Apple Developer/TestFlight setup is ready.
 
 ## Release
