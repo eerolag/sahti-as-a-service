@@ -2,6 +2,7 @@ import { Copy, QrCode, Share2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useHaptics } from "../hooks/useHaptics";
+import { useT } from "../i18n/i18nContext";
 import { isWebShareSupported, shareUrl as nativeShareUrl } from "../utils/web-share";
 
 interface SharePanelProps {
@@ -25,17 +26,18 @@ async function copyToClipboard(text: string): Promise<void> {
   const ok = document.execCommand("copy");
   ta.remove();
   if (!ok) {
-    throw new Error("Kopiointi epäonnistui");
+    throw new Error("Copy failed");
   }
 }
 
 export function SharePanel({ shareUrl, hostUrl }: SharePanelProps) {
   const haptics = useHaptics();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [qrStatus, setQrStatus] = useState("");
-  const [copyState, setCopyState] = useState("Kopioi sessiolinkki");
-  const [hostCopyState, setHostCopyState] = useState("Kopioi host-linkki");
+  const [copyState, setCopyState] = useState<"default" | "copied">("default");
+  const [hostCopyState, setHostCopyState] = useState<"default" | "copied">("default");
   const supportsWebShare = useMemo(() => isWebShareSupported(), []);
 
   const targetUrl = shareUrl;
@@ -46,14 +48,14 @@ export function SharePanel({ shareUrl, hostUrl }: SharePanelProps) {
     setOpen(next);
     if (!next || qrDataUrl) return;
 
-    setQrStatus("Luodaan QR-koodia...");
+    setQrStatus(t.share.creatingQR);
     try {
       const dataUrl = await apiClient.qrSvgDataUrl(targetUrl);
       setQrDataUrl(dataUrl);
-      setQrStatus("Skannaa QR avataksesi session");
+      setQrStatus(t.share.scanQR);
     } catch (error) {
       haptics.error();
-      setQrStatus(String((error as Error)?.message ?? "QR-koodin luonti epäonnistui"));
+      setQrStatus(String((error as Error)?.message ?? t.errors.qrFailed));
     }
   }
 
@@ -61,11 +63,11 @@ export function SharePanel({ shareUrl, hostUrl }: SharePanelProps) {
     try {
       await copyToClipboard(targetUrl);
       haptics.success();
-      setCopyState("Kopioitu!");
-      window.setTimeout(() => setCopyState("Kopioi sessiolinkki"), 900);
+      setCopyState("copied");
+      window.setTimeout(() => setCopyState("default"), 900);
     } catch (error) {
       haptics.error();
-      alert(String((error as Error)?.message ?? "URL:n kopiointi epäonnistui"));
+      alert(String((error as Error)?.message ?? t.errors.urlCopyFailed));
     }
   }
 
@@ -76,14 +78,14 @@ export function SharePanel({ shareUrl, hostUrl }: SharePanelProps) {
       haptics.light();
       await nativeShareUrl({
         title: "Breview",
-        text: "Liity Breview-sessioon",
+        text: t.share.joinSession,
         url: targetUrl,
       });
       haptics.success();
     } catch (error) {
       if ((error as Error)?.name === "AbortError") return;
       haptics.error();
-      alert(String((error as Error)?.message ?? "Jakaminen epäonnistui"));
+      alert(String((error as Error)?.message ?? t.errors.sharingFailed));
     }
   }
 
@@ -92,11 +94,11 @@ export function SharePanel({ shareUrl, hostUrl }: SharePanelProps) {
     try {
       await copyToClipboard(hostUrl);
       haptics.success();
-      setHostCopyState("Kopioitu!");
-      window.setTimeout(() => setHostCopyState("Kopioi host-linkki"), 900);
+      setHostCopyState("copied");
+      window.setTimeout(() => setHostCopyState("default"), 900);
     } catch (error) {
       haptics.error();
-      alert(String((error as Error)?.message ?? "Host-linkin kopiointi epäonnistui"));
+      alert(String((error as Error)?.message ?? t.errors.hostCopyFailed));
     }
   }
 
@@ -104,32 +106,32 @@ export function SharePanel({ shareUrl, hostUrl }: SharePanelProps) {
     <div className="surface-strip">
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
-          <div className="font-semibold">Kutsu maistelijat</div>
-          <div className="muted">Jaa arvaamaton sessiolinkki osallistujille.</div>
+          <div className="font-semibold">{t.share.inviteTasters}</div>
+          <div className="muted">{t.share.shareDescription}</div>
         </div>
 
         <div className="flex flex-wrap gap-2">
           <button className="btn btn-pill" type="button" onClick={() => void copyUrl()}>
             <Copy size={15} />
-            {copyState}
+            {copyState === "copied" ? t.share.copied : t.share.copySessionLink}
           </button>
 
           <button className="btn btn-pill" type="button" onClick={() => void toggle()}>
             <QrCode size={15} />
-            {open ? "Piilota QR" : "QR"}
+            {open ? t.share.hideQR : t.share.qr}
           </button>
 
           {supportsWebShare ? (
             <button className="btn btn-pill" type="button" onClick={() => void shareGame()}>
               <Share2 size={15} />
-              Jaa sessio
+              {t.share.shareSession}
             </button>
           ) : null}
 
           {hostUrl ? (
             <button className="btn btn-pill" type="button" onClick={() => void copyHostUrl()}>
               <Copy size={15} />
-              {hostCopyState}
+              {hostCopyState === "copied" ? t.share.copied : t.share.copyHostLink}
             </button>
           ) : null}
         </div>
@@ -140,12 +142,12 @@ export function SharePanel({ shareUrl, hostUrl }: SharePanelProps) {
               {qrDataUrl ? (
                 <img
                   src={qrDataUrl}
-                  alt="QR-koodi session linkille"
+                  alt="QR"
                   className="h-[132px] w-[132px] rounded-lg border border-line bg-white p-1"
                 />
               ) : null}
               <div className="flex min-w-[220px] flex-1 flex-col gap-2">
-                <div className="muted">{qrStatus || "Ladataan..."}</div>
+                <div className="muted">{qrStatus || t.share.loadingEllipsis}</div>
                 <a className="break-all text-sm underline" href={targetUrl}>
                   {targetUrl}
                 </a>

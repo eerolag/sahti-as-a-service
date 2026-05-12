@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
-import { getWelcomeCopy, type RatingMode, type ResultsVisibility } from "@breview/shared";
+import { useState } from "react";
+import type { RatingMode, ResultsVisibility } from "@breview/shared";
 import type { CreateGameRequest } from "@breview/shared/api-contracts";
 import logoUrl from "../../../../breview-logo.png";
 import { apiClient } from "../api/client";
 import { BeerEditor, type BeerEditorRow } from "../components/BeerEditor";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { useHaptics } from "../hooks/useHaptics";
+import { useT } from "../i18n/i18nContext";
 import { prepareImageForBeerNameRecognition, prepareImageForManagedUpload } from "../utils/beer-name-image";
 import { saveHostToken } from "../utils/creator-session";
 import { validateImageFileBeforeUpload } from "../utils/image-upload";
@@ -26,10 +28,7 @@ function createBeerRow(file?: File): BeerEditorRow {
 
 export function HomeRoute() {
   const haptics = useHaptics();
-  const welcomeCopy = useMemo(() => {
-    const languages = typeof navigator === "undefined" ? [] : Array.from(navigator.languages ?? [navigator.language]);
-    return getWelcomeCopy(languages);
-  }, []);
+  const t = useT();
   const [showWelcome, setShowWelcome] = useState(() => {
     try {
       return localStorage.getItem(WELCOME_STORAGE_KEY) !== "1";
@@ -97,16 +96,16 @@ export function HomeRoute() {
     try {
       const url = new URL(value);
       if (url.origin !== window.location.origin && url.hostname !== "breview.ing") {
-        throw new Error("Käytä Breviewin jaettua sessiolinkkiä.");
+        throw new Error(t.errors.useBreviewLink);
       }
       if (!/^\/[sh]\/[A-Za-z0-9_-]+\/?$/.test(url.pathname)) {
-        throw new Error("Linkki ei näytä Breview-sessiolinkiltä.");
+        throw new Error(t.errors.notBreviewLink);
       }
       haptics.light();
       window.location.href = `${url.pathname}${url.hash}`;
     } catch (error) {
       haptics.error();
-      alert(String((error as Error)?.message ?? "Liitä koko Breview-sessiolinkki."));
+      alert(String((error as Error)?.message ?? t.errors.pasteFullLink));
     }
   }
 
@@ -124,7 +123,7 @@ export function HomeRoute() {
         cursor += 1;
         if (!row) return;
 
-        setBatchRowStatus(row.clientKey, "loading", "Tunnistetaan nimeä...");
+        setBatchRowStatus(row.clientKey, "loading", `${t.editor.identifyingName}`);
         try {
           const preparedFile = await prepareImageForBeerNameRecognition(row.file);
           const identified = await apiClient.identifyBeerName(preparedFile, getOrCreateClientId());
@@ -133,9 +132,9 @@ export function HomeRoute() {
               beer.clientKey === row.clientKey ? { ...beer, name: identified.beerName, file: preparedFile } : beer,
             ),
           );
-          setBatchRowStatus(row.clientKey, "success", `Tunnistettu: ${identified.beerName}`);
+          setBatchRowStatus(row.clientKey, "success", `${t.editor.identifiedName}: ${identified.beerName}`);
         } catch (error) {
-          setBatchRowStatus(row.clientKey, "error", String((error as Error)?.message ?? "Tunnistus epäonnistui"));
+          setBatchRowStatus(row.clientKey, "error", String((error as Error)?.message ?? t.editor.identificationFailed));
         }
       }
     }
@@ -153,7 +152,7 @@ export function HomeRoute() {
       return [...existing, ...newRows];
     });
     for (const row of newRows) {
-      if (row.clientKey) setBatchRowStatus(row.clientKey, "queued", "Jonossa tunnistukseen");
+      if (row.clientKey) setBatchRowStatus(row.clientKey, "queued", t.editor.queuedForRecognition);
     }
     void recognizeBatchRows(newRows);
   }
@@ -164,15 +163,15 @@ export function HomeRoute() {
       setSubmitting(true);
 
       const trimmedName = gameName.trim();
-      if (!trimmedName) throw new Error("Anna sessiolle nimi");
-      if (!safetyAccepted) throw new Error("Hyväksy turvallisen käytön ehdot ennen session luontia.");
+      if (!trimmedName) throw new Error(t.errors.giveSessionName);
+      if (!safetyAccepted) throw new Error(t.errors.acceptSafety);
 
       const payloadBeers: CreateGameRequest["beers"] = [];
       for (let index = 0; index < beers.length; index += 1) {
         const row = beers[index];
         const name = row.name.trim();
         if (!name) {
-          throw new Error(`Anna nimi kaikille juomille tai poista tyhjä rivi (rivi ${index + 1})`);
+          throw new Error(`${t.errors.nameAllDrinks} (${t.editor.rowLabel} ${index + 1})`);
         }
 
         let image_url = row.imageUrl.trim() || null;
@@ -190,7 +189,7 @@ export function HomeRoute() {
       }
 
       if (!payloadBeers.length) {
-        throw new Error("Lisää vähintään yksi juoma");
+        throw new Error(t.errors.addAtLeastOneDrink);
       }
 
       const result = await apiClient.createGame({
@@ -209,6 +208,13 @@ export function HomeRoute() {
     }
   }
 
+  function batchStatusLabel(state: BatchStatus): string {
+    if (state === "queued") return t.home.queued;
+    if (state === "loading") return t.home.running;
+    if (state === "success") return t.home.done;
+    return t.home.fixManually;
+  }
+
   return (
     <div className="app-wrap">
       <div className="mb-4 flex items-start justify-between gap-3">
@@ -216,31 +222,34 @@ export function HomeRoute() {
           <img src={logoUrl} alt="" className="h-12 w-12 rounded-xl object-cover" />
           <div>
             <div className="mb-1 text-2xl font-extrabold">Breview</div>
-            <div className="text-sm text-muted">{welcomeCopy.welcomeSubtitle}</div>
+            <div className="text-sm text-muted">{t.welcome.welcomeSubtitle}</div>
           </div>
         </div>
-        <a className="btn btn-pill no-underline" href="/account">
-          Tili
-        </a>
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
+          <a className="btn btn-pill no-underline" href="/account">
+            {t.nav.account}
+          </a>
+        </div>
       </div>
 
       {showWelcome ? (
-        <div className="card border-amber-500/40" dir={welcomeCopy.dir} lang={welcomeCopy.locale}>
+        <div className="card border-amber-500/40" lang={t.locale}>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
               <img src={logoUrl} alt="" className="h-16 w-16 rounded-2xl object-cover" />
               <div>
-                <div className="text-xl font-bold">{welcomeCopy.welcomeTitle}</div>
-                <div className="muted">{welcomeCopy.welcomeSubtitle}</div>
+                <div className="text-xl font-bold">{t.welcome.welcomeTitle}</div>
+                <div className="muted">{t.welcome.welcomeSubtitle}</div>
               </div>
             </div>
             <div className="grid gap-2 text-sm text-muted sm:grid-cols-3">
-              <div className="rounded-lg border border-line bg-[#14161b] p-3">1. {welcomeCopy.createStep}</div>
-              <div className="rounded-lg border border-line bg-[#14161b] p-3">2. {welcomeCopy.inviteStep}</div>
-              <div className="rounded-lg border border-line bg-[#14161b] p-3">3. {welcomeCopy.revealStep}</div>
+              <div className="rounded-lg border border-line bg-[#14161b] p-3">1. {t.welcome.createStep}</div>
+              <div className="rounded-lg border border-line bg-[#14161b] p-3">2. {t.welcome.inviteStep}</div>
+              <div className="rounded-lg border border-line bg-[#14161b] p-3">3. {t.welcome.revealStep}</div>
             </div>
             <button className="btn btn-primary" type="button" onClick={dismissWelcome}>
-              Aloita
+              {t.welcome.start}
             </button>
           </div>
         </div>
@@ -256,13 +265,13 @@ export function HomeRoute() {
               setShowCreate((prev) => !prev);
             }}
           >
-            Luo sessio
+            {t.home.createSession}
           </button>
 
           <div className="h-px bg-line" />
 
           <label className="text-sm text-muted" htmlFor="join-link">
-            Avaa jaettu sessiolinkki
+            {t.home.openSharedLink}
           </label>
           <div className="flex gap-2">
             <input
@@ -278,7 +287,7 @@ export function HomeRoute() {
               type="button"
               onClick={openSharedLink}
             >
-              Avaa
+              {t.home.open}
             </button>
           </div>
         </div>
@@ -289,46 +298,46 @@ export function HomeRoute() {
           <div className="card">
             <div className="grid gap-3">
               <div>
-                <div className="font-semibold">Session asetukset</div>
-                <div className="muted">Valitse arvostelutapa ja milloin tulokset näkyvät.</div>
+                <div className="font-semibold">{t.home.sessionSettings}</div>
+                <div className="muted">{t.home.settingsDescription}</div>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="grid gap-1 text-sm text-muted">
-                  Arvostelutapa
+                  {t.home.ratingMode}
                   <select className="input" value={ratingMode} onChange={(event) => setRatingMode(event.target.value as RatingMode)}>
-                    <option value="slider">Slideri</option>
-                    <option value="stars">Tähdet</option>
+                    <option value="slider">{t.home.slider}</option>
+                    <option value="stars">{t.home.stars}</option>
                   </select>
                 </label>
                 <label className="grid gap-1 text-sm text-muted">
-                  Tulokset
+                  {t.home.results}
                   <select
                     className="input"
                     value={resultsVisibility}
                     onChange={(event) => setResultsVisibility(event.target.value as ResultsVisibility)}
                   >
-                    <option value="host_reveal">Paljasta lopussa</option>
-                    <option value="after_submit">Näytä oman tallennuksen jälkeen</option>
-                    <option value="live">Näytä heti</option>
+                    <option value="host_reveal">{t.home.revealAtEnd}</option>
+                    <option value="after_submit">{t.home.showAfterSubmit}</option>
+                    <option value="live">{t.home.showImmediately}</option>
                   </select>
                 </label>
               </div>
               {ratingMode === "slider" ? (
                 <div className="grid gap-2 sm:grid-cols-4">
                   <label className="grid gap-1 text-sm text-muted">
-                    Asteikko
+                    {t.home.scale}
                     <select className="input" value={scorePreset} onChange={(event) => setScorePreset(event.target.value)}>
                       <option value="0-10">0-10</option>
                       <option value="0-5">0-5</option>
                       <option value="1-10">1-10</option>
-                      <option value="custom">Oma</option>
+                      <option value="custom">{t.home.custom}</option>
                     </select>
                   </label>
                   {scorePreset === "custom" ? (
                     <>
-                      <input className="input" value={customMin} onChange={(event) => setCustomMin(event.target.value)} aria-label="Minimi" />
-                      <input className="input" value={customMax} onChange={(event) => setCustomMax(event.target.value)} aria-label="Maksimi" />
-                      <input className="input" value={customStep} onChange={(event) => setCustomStep(event.target.value)} aria-label="Askel" />
+                      <input className="input" value={customMin} onChange={(event) => setCustomMin(event.target.value)} aria-label={t.home.minLabel} />
+                      <input className="input" value={customMax} onChange={(event) => setCustomMax(event.target.value)} aria-label={t.home.maxLabel} />
+                      <input className="input" value={customStep} onChange={(event) => setCustomStep(event.target.value)} aria-label={t.home.stepLabel} />
                     </>
                   ) : null}
                 </div>
@@ -340,10 +349,10 @@ export function HomeRoute() {
                   checked={safetyAccepted}
                   onChange={(event) => setSafetyAccepted(event.target.checked)}
                 />
-                <span>Lisään vain asiallista sisältöä ja ymmärrän, että nimet, kuvat ja kommentit näkyvät linkin saaneille.</span>
+                <span>{t.home.safetyCheckbox}</span>
               </label>
               <label className="btn inline-flex cursor-pointer justify-center">
-                Lisää monta kuvaa
+                {t.home.addMultipleImages}
                 <input
                   className="sr-only"
                   type="file"
@@ -359,7 +368,7 @@ export function HomeRoute() {
                 <div className="grid gap-1 text-xs text-muted">
                   {Object.entries(batchStatus).slice(-6).map(([key, status]) => (
                     <div key={key} className={status.state === "error" ? "text-red-200" : ""}>
-                      {status.state === "queued" ? "Jonossa" : status.state === "loading" ? "Käynnissä" : status.state === "success" ? "Valmis" : "Korjaa käsin"}: {status.message}
+                      {batchStatusLabel(status.state)}: {status.message}
                     </div>
                   ))}
                 </div>
@@ -367,28 +376,28 @@ export function HomeRoute() {
             </div>
           </div>
           <BeerEditor
-            title="Luo uusi sessio"
+            title={t.editor.createNewSession}
             gameName={gameName}
             onGameNameChange={setGameName}
             beers={beers}
             onBeersChange={setBeers}
             onSubmit={submitCreateGame}
             submitting={submitting}
-            submitLabel="Tallenna ja luo sessio"
-            addLabel="+ Lisää juoma"
+            submitLabel={t.editor.saveAndCreate}
+            addLabel={t.editor.addDrink}
           />
         </>
       ) : null}
 
       <div className="mt-6 flex flex-wrap justify-center gap-4 text-sm text-muted">
         <a className="inline-link" href="/privacy">
-          Tietosuoja
+          {t.nav.privacy}
         </a>
         <a className="inline-link" href="/support">
-          Tuki
+          {t.nav.support}
         </a>
         <a className="inline-link" href="/delete-account">
-          Poista tili
+          {t.nav.deleteAccount}
         </a>
       </div>
     </div>

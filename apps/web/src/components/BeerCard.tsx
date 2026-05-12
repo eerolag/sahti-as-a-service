@@ -4,6 +4,7 @@ import { normalizeScore } from "@breview/shared/scoring";
 import { DEFAULT_RATING_CONFIG, type RatingConfig } from "@breview/shared";
 import { MAX_RATING_COMMENT_LENGTH } from "@breview/shared/validation";
 import { useHaptics } from "../hooks/useHaptics";
+import { useT } from "../i18n/i18nContext";
 
 const DESKTOP_SLIDER_STEP = 0.05;
 const MOBILE_SLIDER_STEP = 0.25;
@@ -53,6 +54,7 @@ export function BeerCard({
   onReport,
 }: BeerCardProps) {
   const haptics = useHaptics();
+  const t = useT();
   const imageStyle = beer.image_url
     ? { backgroundImage: `url("${beer.image_url.replace(/"/g, "&quot;")}")` }
     : undefined;
@@ -120,7 +122,7 @@ export function BeerCard({
             className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-xl border border-line bg-[#14161b] bg-cover bg-center text-xs text-muted"
             style={imageStyle}
           >
-            {!beer.image_url ? "Ei kuvaa" : null}
+            {!beer.image_url ? t.beerCard.noImage : null}
           </div>
 
           <div className="flex min-h-[72px] flex-col justify-center gap-2">
@@ -128,7 +130,7 @@ export function BeerCard({
               <div className="font-bold">{beer.name}</div>
               {onReport ? (
                 <button className="inline-link shrink-0 text-xs" type="button" onClick={onReport}>
-                  Ilmoita
+                  {t.beerCard.report}
                 </button>
               ) : null}
             </div>
@@ -138,7 +140,7 @@ export function BeerCard({
               target="_blank"
               rel="noreferrer"
             >
-              Ulkoinen haku
+              {t.beerCard.externalSearch}
             </a>
           </div>
         </div>
@@ -148,13 +150,13 @@ export function BeerCard({
             <div className="rounded-lg border border-line bg-[#14161b] px-2 py-1 font-bold">
               {formatScore((beer as ResultBeerDto).avg_score, ratingConfig)}
             </div>
-            <div className="muted">keskiarvo</div>
-            <div className="badge">{Number((beer as ResultBeerDto).rating_count ?? 0)} arvosanaa</div>
+            <div className="muted">{t.beerCard.average}</div>
+            <div className="badge">{Number((beer as ResultBeerDto).rating_count ?? 0)} {t.beerCard.ratings}</div>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
             {ratingConfig.mode === "stars" ? (
-              <div className="grid grid-cols-5 gap-2" role="radiogroup" aria-label={`Arvosana juomalle ${beer.name}`}>
+              <div className="grid grid-cols-5 gap-2" role="radiogroup" aria-label={`${t.beerCard.scoreFor} ${beer.name}`}>
                 {Array.from({ length: Math.max(1, Math.round(ratingConfig.scoreMax - ratingConfig.scoreMin)) }, (_, idx) => {
                   const value = ratingConfig.scoreMin + idx + 1;
                   return (
@@ -182,7 +184,7 @@ export function BeerCard({
                   value={normalizedScore ?? ratingConfig.scoreMin}
                   onInput={(event) => handleSliderChange((event.target as HTMLInputElement).value)}
                   onChange={(event) => handleSliderChange(event.target.value)}
-                  aria-label={`Arvosana juomalle ${beer.name}`}
+                  aria-label={`${t.beerCard.scoreFor} ${beer.name}`}
                 />
               ) : null}
               <input
@@ -203,12 +205,12 @@ export function BeerCard({
                   setIsEditingInput(false);
                   setScoreInput(parsed == null && normalizedScore == null ? "" : formatScore(parsed ?? normalizedScore, ratingConfig));
                 }}
-                aria-label={`Arvosana numerona juomalle ${beer.name}`}
+                aria-label={`${t.beerCard.scoreNumericFor} ${beer.name}`}
               />
             </div>
 
             <label className="text-sm text-muted" htmlFor={`beer-comment-${beer.id}`}>
-              Kommentti (valinnainen)
+              {t.beerCard.commentOptional}
             </label>
             <textarea
               id={`beer-comment-${beer.id}`}
@@ -216,7 +218,7 @@ export function BeerCard({
               maxLength={MAX_RATING_COMMENT_LENGTH}
               value={normalizedComment}
               onChange={(event) => onCommentChange?.(event.target.value)}
-              aria-label={`Kommentti juomalle ${beer.name}`}
+              aria-label={`${t.beerCard.commentFor} ${beer.name}`}
             />
             <div className="text-right text-xs text-muted">
               {normalizedComment.length}/{MAX_RATING_COMMENT_LENGTH}

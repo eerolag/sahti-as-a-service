@@ -4,6 +4,7 @@ import { HomeRoute } from "./routes/HomeRoute";
 import { GameRoute, type GameSection } from "./routes/GameRoute";
 import { MakersRoute } from "./routes/MakersRoute";
 import { PublicInfoRoute, type PublicInfoPage } from "./routes/PublicInfoRoute";
+import { useT } from "./i18n/i18nContext";
 
 export type AppRoute =
   | { type: "home" }
@@ -73,6 +74,7 @@ export function parsePath(pathname: string): AppRoute {
 }
 
 export function App() {
+  const t = useT();
   const [pathname, setPathname] = useState(() => window.location.pathname);
 
   useEffect(() => {
@@ -138,9 +140,9 @@ export function App() {
     <div className="app-wrap">
       <div className="mb-1 text-2xl font-extrabold">Breview</div>
       <div className="card">
-        <div className="mb-2 font-semibold">Tuntematon osoite</div>
+        <div className="mb-2 font-semibold">{t.game.unknownAddress}</div>
         <a className="btn inline-flex no-underline" href="/">
-          Takaisin etusivulle
+          {t.nav.backToHome}
         </a>
       </div>
     </div>

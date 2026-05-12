@@ -1,16 +1,11 @@
 import { ExternalLink, Home, Mail } from "lucide-react";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
+import { useT, useI18n } from "../i18n/i18nContext";
 
 export type PublicInfoPage = "privacy" | "support" | "delete-account";
 
 const SUPPORT_EMAIL = "support@breview.ing";
-
-const pageTitles: Record<PublicInfoPage, string> = {
-  privacy: "Tietosuoja",
-  support: "Tuki",
-  "delete-account": "Tilin poistaminen",
-};
 
 function PageShell({
   page,
@@ -23,15 +18,18 @@ function PageShell({
   title: string;
   children: ReactNode;
 }) {
+  const t = useT();
+  const { locale } = useI18n();
+
   useEffect(() => {
-    document.title = `${pageTitles[page]} | Breview`;
+    document.title = `${title} | Breview`;
     return () => {
       document.title = "Breview";
     };
-  }, [page]);
+  }, [title]);
 
   return (
-    <main className="public-page">
+    <main className="public-page" lang={locale}>
       <nav className="public-nav" aria-label="Breview pages">
         <a className="makers-home-link" href="/">
           <Home size={16} aria-hidden="true" />
@@ -39,13 +37,13 @@ function PageShell({
         </a>
         <div className="public-nav__links">
           <a className="inline-link" href="/privacy">
-            Tietosuoja
+            {t.nav.privacy}
           </a>
           <a className="inline-link" href="/support">
-            Tuki
+            {t.nav.support}
           </a>
           <a className="inline-link" href="/delete-account">
-            Poista tili
+            {t.nav.deleteAccount}
           </a>
         </div>
       </nav>
@@ -60,183 +58,79 @@ function PageShell({
   );
 }
 
-function PrivacyPage() {
+function SectionContent({ section }: { section: { title: string; paragraphs: readonly string[]; list?: readonly string[] } }) {
   return (
-    <PageShell page="privacy" eyebrow="Breview privacy" title="Tietosuojaseloste">
-      <section className="public-panel">
-        <h2>Mitä tietoja Breview käsittelee</h2>
-        <p>
-          Breview tallentaa sessioiden nimet, juomien nimet, käyttäjien nimimerkit, arvosanat, kommentit ja
-          käyttäjän lisäämät kuvat. Jos kirjaudut sähköpostilla, Breview tallentaa sähköpostiosoitteesi,
-          tilin istunnot ja tiliin linkitetyn arvosteluhistorian.
-        </p>
-        <p>
-          Sovellus käyttää laite- tai selainkohtaista teknistä tunnistetta, jotta samalla laitteella tehdyt
-          arvostelut voidaan löytää ja liittää tiliin kirjautumisen yhteydessä. Tunnistetta ei käytetä mainontaan.
-        </p>
-      </section>
+    <section className="public-panel">
+      <h2>{section.title}</h2>
+      {section.paragraphs.map((p, idx) => (
+        <p key={idx}>{p}</p>
+      ))}
+      {section.list && section.list.length > 0 ? (
+        <ul className="public-list">
+          {section.list.map((item, idx) => (
+            <li key={idx}>{item}</li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
 
-      <section className="public-panel">
-        <h2>Mihin tietoja käytetään</h2>
-        <p>
-          Tietoja käytetään maistelusessioiden luomiseen, jakamiseen, arvosanojen tallentamiseen, tulosten
-          näyttämiseen, kirjautumiseen, väärinkäytön rajoittamiseen ja palvelun vianmääritykseen.
-        </p>
-        <p>
-          Kuvien nimientunnistus käsitellään Cloudflare Workers AI:n kautta. Ladatut kuvat säilytetään
-          Cloudflare R2:ssa, jotta sessiot ja tulokset voivat näyttää niihin liitetyt kuvat.
-        </p>
-      </section>
-
-      <section className="public-panel">
-        <h2>Palvelut ja jakaminen</h2>
-        <p>
-          Breview käyttää Cloudflare Workersia, D1-tietokantaa, R2-tallennusta, Workers AI:ta ja Cloudflare
-          Email Serviceä. Breview ei sisällä kolmannen osapuolen mainonta- tai seurantakirjastoja.
-        </p>
-        <p>
-          Sessiolinkit ovat jaettavia. Henkilö, jolla on session linkki, voi nähdä session, siihen tallennetut
-          juomat ja näkyvissä olevat tulokset. Älä lisää kommentteihin tietoja, joita et halua jakaa muille
-          osallistujille.
-        </p>
-      </section>
-
-      <section className="public-panel">
-        <h2>Tilin poistaminen ja yhteydenotto</h2>
-        <p>
-          Kirjautunut käyttäjä voi poistaa tilinsä Breviewin tili-näkymästä. Julkinen ohjesivu on osoitteessa{" "}
-          <a className="inline-link" href="/delete-account">
-            breview.ing/delete-account
-          </a>
-          .
-        </p>
-        <p>
-          Tukipyynnöt voi lähettää osoitteeseen{" "}
-          <a className="inline-link" href={`mailto:${SUPPORT_EMAIL}`}>
-            {SUPPORT_EMAIL}
-          </a>
-          .
-        </p>
-      </section>
+function PrivacyPage() {
+  const t = useT();
+  return (
+    <PageShell page="privacy" eyebrow={t.publicInfo.privacyEyebrow} title={t.publicInfo.privacyTitle}>
+      {t.publicInfo.privacySections.map((section, idx) => (
+        <SectionContent key={idx} section={section} />
+      ))}
     </PageShell>
   );
 }
 
 function SupportPage() {
+  const t = useT();
   return (
-    <PageShell page="support" eyebrow="Breview support" title="Tuki">
-      <section className="public-panel">
-        <h2>Yhteydenotto</h2>
-        <p>
-          Jos kirjautuminen, session avaaminen, kuvien lataaminen tai tilin poistaminen ei toimi, lähetä viesti
-          osoitteeseen{" "}
-          <a className="inline-link" href={`mailto:${SUPPORT_EMAIL}`}>
-            {SUPPORT_EMAIL}
-          </a>
-          .
-        </p>
-        <p>
-          Liitä mukaan käyttämäsi sähköpostiosoite, sessiolinkki, laitteen tyyppi ja lyhyt kuvaus siitä, mitä
-          tapahtui. Älä lähetä kirjautumiskoodeja tai istuntotunnuksia.
-        </p>
-      </section>
-
-      <section className="public-panel">
-        <h2>Yleiset tilanteet</h2>
-        <ul className="public-list">
-          <li>Jos kirjautumiskoodi ei saavu, tarkista roskaposti ja pyydä uusi koodi hetken kuluttua.</li>
-          <li>Jos jaettu linkki ei avaa sovellusta, sama linkki toimii myös selaimessa osoitteessa breview.ing.</li>
-          <li>Jos kamera tai kuvakirjasto on estetty, salli käyttöoikeus laitteen asetuksista ja yritä uudelleen.</li>
-          <li>Jos haluat poistaa tilin, käytä kirjautuneena tili-näkymää tai seuraa julkista poistopyyntöä.</li>
-        </ul>
-      </section>
-
-      <section className="public-panel">
-        <h2>Lisätiedot</h2>
-        <p>
-          Tietosuojaseloste on osoitteessa{" "}
-          <a className="inline-link" href="/privacy">
-            breview.ing/privacy
-          </a>
-          . Tilin poistamisen ohjeet ovat osoitteessa{" "}
-          <a className="inline-link" href="/delete-account">
-            breview.ing/delete-account
-          </a>
-          .
-        </p>
-        <p>
-          Jos haluat tukea Breviewin ylläpitoa, tekijäsivu on osoitteessa{" "}
-          <a className="inline-link" href="/makers">
-            breview.ing/makers
-          </a>
-          .
-        </p>
-      </section>
+    <PageShell page="support" eyebrow={t.publicInfo.supportEyebrow} title={t.publicInfo.supportTitle}>
+      {t.publicInfo.supportSections.map((section, idx) => (
+        <SectionContent key={idx} section={section} />
+      ))}
     </PageShell>
   );
 }
 
 function DeleteAccountPage() {
+  const t = useT();
   return (
-    <PageShell page="delete-account" eyebrow="Account deletion" title="Tilin poistaminen Breviewistä">
+    <PageShell page="delete-account" eyebrow={t.publicInfo.deleteAccountEyebrow} title={t.publicInfo.deleteAccountTitle}>
       <section className="public-panel public-panel--important">
-        <h2>Nopein tapa poistaa tili</h2>
-        <ol className="public-list public-list--ordered">
-          <li>Avaa Breview webissä tai mobiilisovelluksessa.</li>
-          <li>Siirry Tili-näkymään ja kirjaudu sähköpostikoodilla, jos et ole kirjautunut.</li>
-          <li>Valitse Poista tili ja vahvista poisto.</li>
-        </ol>
-        <p>
-          Sovelluksessa tehty poisto käsitellään heti. Kirjaudut ulos, tili poistetaan ja tiliin linkitetyt
-          pelaajarivit, arvosanat ja kommentit poistuvat aktiivisista peleistä.
-        </p>
+        <h2>{t.publicInfo.deleteAccountSections[0].title}</h2>
+        {t.publicInfo.deleteAccountSections[0].list ? (
+          <ol className="public-list public-list--ordered">
+            {t.publicInfo.deleteAccountSections[0].list.map((item, idx) => (
+              <li key={idx}>{item}</li>
+            ))}
+          </ol>
+        ) : null}
+        {t.publicInfo.deleteAccountSections[0].paragraphs.map((p, idx) => (
+          <p key={idx}>{p}</p>
+        ))}
       </section>
 
       <section className="public-panel">
-        <h2>Jos et pääse kirjautumaan</h2>
-        <p>
-          Lähetä poistopyyntö osoitteeseen{" "}
-          <a className="inline-link" href={`mailto:${SUPPORT_EMAIL}?subject=Breview%20account%20deletion`}>
-            {SUPPORT_EMAIL}
-          </a>{" "}
-          siitä sähköpostiosoitteesta, jolla käytit Breview-tiliä. Jos kirjoitat toisesta osoitteesta, pyydämme
-          vahvistamaan omistajuuden ennen poistoa.
-        </p>
+        <h2>{t.publicInfo.deleteAccountSections[1].title}</h2>
+        {t.publicInfo.deleteAccountSections[1].paragraphs.map((p, idx) => (
+          <p key={idx}>{p}</p>
+        ))}
         <a className="btn btn-primary public-mail-cta no-underline" href={`mailto:${SUPPORT_EMAIL}?subject=Breview%20account%20deletion`}>
           <Mail size={18} aria-hidden="true" />
-          Lähetä poistopyyntö
+          {t.publicInfo.emailLinkText}
           <ExternalLink size={16} aria-hidden="true" />
         </a>
       </section>
 
-      <section className="public-panel">
-        <h2>Mitä poistetaan</h2>
-        <p>
-          Poistamme tilin sähköpostiosoitteen, aktiiviset istunnot, tiliin linkitetyt pelaajarivit, arvosanat ja
-          kommentit. Kun pelaajarivi poistuu, siihen liittyvät arvosanat eivät enää näy session tuloksissa.
-        </p>
-        <p>
-          Sessiot, juomalistat ja muiden osallistujien arvosanat voivat jäädä näkyviin, koska ne eivät kuulu vain
-          yhteen tiliin. Tilin poistaminen ei poista muiden käyttäjien jakamia tai tallentamia tietoja.
-        </p>
-      </section>
-
-      <section className="public-panel">
-        <h2>Mitä voidaan säilyttää</h2>
-        <p>
-          Breview voi säilyttää rajallisia operatiivisia lokitietoja, kuten kirjautumis- ja poistotapahtumia,
-          toimitusvirheitä, turvarajoituksia ja palvelun virhelokeja, väärinkäytön estämistä, vianmääritystä ja
-          lakisääteisiä velvoitteita varten. Näitä tietoja säilytetään vain niin kauan kuin niille on perusteltu tarve.
-        </p>
-      </section>
-
-      <section className="public-panel">
-        <h2>Aikataulu</h2>
-        <p>
-          Sovelluksessa vahvistettu poisto tapahtuu välittömästi. Sähköpostilla lähetetyt poistopyynnöt käsitellään
-          yleensä 7 päivän kuluessa ja viimeistään 30 päivän kuluessa, ellei pyynnön vahvistaminen vaadi lisätietoja.
-        </p>
-      </section>
+      {t.publicInfo.deleteAccountSections.slice(2).map((section, idx) => (
+        <SectionContent key={idx + 2} section={section} />
+      ))}
     </PageShell>
   );
 }

@@ -16,6 +16,7 @@ import { saveHostToken } from "@/lib/creator-session";
 import { getOrCreateClientId } from "@/lib/player-identity";
 import { loadRecentGames, recentGameFromPayload, saveRecentGame, type RecentGame } from "@/lib/recent-games";
 import { mobileSupportConfig } from "@/lib/support";
+import { useT, useI18n } from "@/lib/i18nContext";
 
 interface CreateBeerDraft {
   clientKey: string;
@@ -69,30 +70,11 @@ function parseSessionLink(value: string): SessionTarget | null {
   }
 }
 
-function beerMeta(count: number): string {
-  return count === 1 ? "1 juoma" : `${count} juomaa`;
-}
-
-function showImagePermissionDenied(source: "camera" | "library") {
-  const label = source === "camera" ? "kamera" : "kuvakirjasto";
-  Alert.alert(
-    source === "camera" ? "Kamera ei ole käytössä" : "Kuvakirjasto ei ole käytössä",
-    `Salli ${label} laitteen asetuksista, jotta voit lisätä kuvan sessioon.`,
-    [
-      { text: "Peruuta", style: "cancel" },
-      {
-        text: "Avaa asetukset",
-        onPress: () => {
-          void Linking.openSettings();
-        },
-      },
-    ],
-  );
-}
-
 export default function GamesScreen() {
+  const t = useT();
+  const { lang, setLang } = useI18n();
   const router = useRouter();
-  const welcomeCopy = useMemo(() => getWelcomeCopy(["fi", Intl.DateTimeFormat().resolvedOptions().locale]), []);
+  const welcomeCopy = useMemo(() => getWelcomeCopy([lang, Intl.DateTimeFormat().resolvedOptions().locale]), [lang]);
   const [gameName, setGameName] = useState("");
   const [beers, setBeers] = useState<CreateBeerDraft[]>([createEmptyBeerDraft()]);
   const [joinInput, setJoinInput] = useState("");
@@ -106,6 +88,28 @@ export default function GamesScreen() {
   useEffect(() => {
     setRecentGames(loadRecentGames());
   }, []);
+
+  function beerMeta(count: number): string {
+    return count === 1 ? t.home.oneDrink : t.home.multipleDrinks.replace("{count}", String(count));
+  }
+
+  function showImagePermissionDenied(source: "camera" | "library") {
+    const title = source === "camera" ? t.errors.cameraDenied : t.errors.libraryDenied;
+    const body = source === "camera" ? t.errors.allowCamera : t.errors.allowLibrary;
+    Alert.alert(
+      title,
+      body,
+      [
+        { text: t.game.cancel, style: "cancel" },
+        {
+          text: t.errors.openSettings,
+          onPress: () => {
+            void Linking.openSettings();
+          },
+        },
+      ],
+    );
+  }
 
   function openGame(gameId: number) {
     haptics.selection();
@@ -132,7 +136,7 @@ export default function GamesScreen() {
   async function handleJoinGame() {
     const target = parseSessionLink(joinInput);
     if (!target) {
-      setMessage("Liitä Breviewin jaettu sessiolinkki.");
+      setMessage(t.errors.pasteValidLink);
       haptics.error();
       return;
     }
@@ -160,7 +164,7 @@ export default function GamesScreen() {
     try {
       await Linking.openURL(url);
     } catch {
-      Alert.alert("Breview", "Sivua ei voitu avata. Yritä myöhemmin uudelleen.");
+      Alert.alert("Breview", t.errors.pageNotOpened);
     }
   }
 
@@ -175,13 +179,13 @@ export default function GamesScreen() {
     const payloadBeers: CreateGameRequest["beers"] = [];
 
     if (!name) {
-      setMessage("Anna sessiolle nimi.");
+      setMessage(t.errors.giveSessionName);
       haptics.error();
       return;
     }
 
     if (!safetyAccepted) {
-      setMessage("Hyväksy turvallisen käytön ehdot ennen session luontia.");
+      setMessage(t.errors.acceptSafetyTerms);
       haptics.error();
       return;
     }
@@ -195,7 +199,7 @@ export default function GamesScreen() {
         const beer = beers[index];
         const beerName = beer.name.trim();
         if (!beerName) {
-          throw new Error(`Anna nimi kaikille juomille tai poista tyhjä rivi (rivi ${index + 1}).`);
+          throw new Error(t.errors.nameAllDrinks);
         }
 
         let image_url: string | null = null;
@@ -208,7 +212,7 @@ export default function GamesScreen() {
       }
 
       if (!payloadBeers.length) {
-        throw new Error("Lisää vähintään yksi juoma.");
+        throw new Error(t.errors.addAtLeastOneDrink);
       }
 
       const created = await apiClient.createGame({
@@ -257,8 +261,8 @@ export default function GamesScreen() {
     if (!permission.granted) {
       const message =
         source === "camera"
-          ? "Kameran käyttöoikeus puuttuu. Salli kamera asetuksista ja yritä uudelleen."
-          : "Kuvakirjaston käyttöoikeus puuttuu. Salli kuvat asetuksista ja yritä uudelleen.";
+          ? t.errors.cameraMissing
+          : t.errors.libraryMissing;
       setMessage(message);
       showImagePermissionDenied(source);
       haptics.error();
@@ -282,14 +286,14 @@ export default function GamesScreen() {
     updateBeer(index, {
       localAsset: asset,
     });
-    setMessage("Kuva valittu. Voit tunnistaa nimen tai jatkaa session luontia.");
+    setMessage(t.editor.imageSelected);
     haptics.success();
   }
 
   async function identifyBeer(index: number) {
     const row = beers[index];
     if (!row?.localAsset) {
-      setMessage("Valitse ensin kuva kamerasta tai kuvista.");
+      setMessage(t.errors.selectImageFirst);
       haptics.error();
       return;
     }
@@ -303,10 +307,10 @@ export default function GamesScreen() {
       updateBeer(index, { name: identified.beerName, identifying: false });
       haptics.success();
     } catch (error) {
-      const message = String((error as Error)?.message ?? "Nimen tunnistus epäonnistui.");
+      const message = String((error as Error)?.message ?? t.errors.aiIdentificationFailed);
       updateBeer(index, { identifying: false });
       setMessage(message);
-      Alert.alert("AI-tunnistus", message);
+      Alert.alert("AI", message);
       haptics.error();
     }
   }
@@ -328,13 +332,13 @@ export default function GamesScreen() {
           <Text variant="h1" className="text-foreground">
             Breview
           </Text>
-          <Text variant="muted">Sessio</Text>
+          <Text variant="muted">{t.home.session}</Text>
           <Text variant="muted" numberOfLines={3} className="leading-5">
             {welcomeCopy.welcomeSubtitle}
           </Text>
         </View>
         <Pressable
-          accessibilityLabel="Avaa valikko"
+          accessibilityLabel={t.home.openMenu}
           accessibilityRole="button"
           className="h-11 w-11 items-center justify-center rounded-full border border-border bg-card active:opacity-80"
           onPress={() => {
@@ -349,15 +353,37 @@ export default function GamesScreen() {
       {menuOpen ? (
         <Card className="gap-2 p-3">
           <Button variant="secondary" onPress={openAccount}>
-            Tili
+            {t.nav.account}
           </Button>
           <View className="flex-row gap-2">
             <Button className="flex-1" variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.supportUrl)}>
-              Tuki
+              {t.nav.support}
             </Button>
             <Button className="flex-1" variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.privacyUrl)}>
-              Tietosuoja
+              {t.nav.privacy}
             </Button>
+          </View>
+          <View className="mt-2 flex-row gap-2">
+            <Button 
+              className="flex-1" 
+              variant={lang === "fi" ? "secondary" : "outline"} 
+              onPress={() => void setLang("fi")}
+            >FI</Button>
+            <Button 
+              className="flex-1" 
+              variant={lang === "en" ? "secondary" : "outline"} 
+              onPress={() => void setLang("en")}
+            >EN</Button>
+            <Button 
+              className="flex-1" 
+              variant={lang === "sv" ? "secondary" : "outline"} 
+              onPress={() => void setLang("sv")}
+            >SV</Button>
+            <Button 
+              className="flex-1" 
+              variant={lang === "nl" ? "secondary" : "outline"} 
+              onPress={() => void setLang("nl")}
+            >NL</Button>
           </View>
         </Card>
       ) : null}
@@ -372,11 +398,11 @@ export default function GamesScreen() {
 
       <Card className="gap-4">
         <CardHeader>
-          <CardTitle>Luo sessio</CardTitle>
-          <CardDescription>Lisää juomat ja jaettava sessiolinkki syntyy automaattisesti.</CardDescription>
+          <CardTitle>{t.home.createSession}</CardTitle>
+          <CardDescription>{t.home.createSessionSubtitle}</CardDescription>
         </CardHeader>
         <CardContent className="gap-3">
-          <Input placeholder="Session nimi" value={gameName} onChangeText={setGameName} returnKeyType="next" />
+          <Input placeholder={t.home.sessionName} value={gameName} onChangeText={setGameName} returnKeyType="next" />
 
           <View className="gap-2">
             {beers.map((beer, index) => (
@@ -387,38 +413,38 @@ export default function GamesScreen() {
                       <Image source={{ uri: beer.localAsset.uri }} style={{ width: 64, height: 64 }} contentFit="cover" />
                     ) : (
                       <Text variant="muted" className="text-center text-xs">
-                        Ei kuvaa
+                        {t.editor.noImage}
                       </Text>
                     )}
                   </View>
                   <View className="flex-1 gap-1">
-                    <Text variant="large">{beer.name.trim() || `Juoma ${index + 1}`}</Text>
+                    <Text variant="large">{beer.name.trim() || `${t.home.drink} ${index + 1}`}</Text>
                     <Text variant="muted">
-                      {beer.localAsset ? "Kuva valittu" : `Rivi ${index + 1}`}
+                      {beer.localAsset ? t.editor.imageSelected : `${t.editor.row} ${index + 1}`}
                     </Text>
                   </View>
                   {beers.length > 1 ? (
                     <Button variant="ghost" size="sm" onPress={() => removeBeerRow(index)}>
-                      Poista
+                      {t.editor.remove}
                     </Button>
                   ) : null}
                 </View>
 
                 <Input
-                  placeholder={`Juoma ${index + 1}`}
+                  placeholder={`${t.home.drink} ${index + 1}`}
                   value={beer.name}
                   onChangeText={(value) => updateBeer(index, { name: value })}
                   returnKeyType="next"
                 />
 
                 <View className="gap-2">
-                  <Text variant="muted">Kuva (valinnainen)</Text>
+                  <Text variant="muted">{t.editor.imageOptional}</Text>
                   <View className="flex-row gap-2">
                     <Button className="flex-1" variant="secondary" onPress={() => void pickBeerImage(index, "camera")}>
-                      Kamera
+                      {t.editor.camera}
                     </Button>
                     <Button className="flex-1" variant="secondary" onPress={() => void pickBeerImage(index, "library")}>
-                      Kuvat
+                      {t.editor.gallery}
                     </Button>
                   </View>
                   <Button
@@ -427,7 +453,7 @@ export default function GamesScreen() {
                     disabled={!beer.localAsset || creating}
                     onPress={() => void identifyBeer(index)}
                   >
-                    Tunnista nimi AI:lla
+                    {t.editor.identifyWithAi}
                   </Button>
                 </View>
               </View>
@@ -435,23 +461,23 @@ export default function GamesScreen() {
           </View>
 
           <Button variant="outline" onPress={addBeerRow}>
-            Lisää juoma
+            {t.editor.addDrink}
           </Button>
           <Pressable accessibilityRole="checkbox" onPress={() => setSafetyAccepted((value) => !value)}>
             <Text variant="muted">
-              {safetyAccepted ? "✓" : "○"} Lisään vain asiallista sisältöä ja ymmärrän, että sisältö näkyy linkin saaneille.
+              {safetyAccepted ? "✓" : "○"} {t.editor.safetyTerms}
             </Text>
           </Pressable>
           <Button loading={creating} onPress={handleCreateGame}>
-            Luo sessio
+            {t.home.createSession}
           </Button>
         </CardContent>
       </Card>
 
       <Card className="gap-4">
         <CardHeader>
-          <CardTitle>Avaa sessiolinkki</CardTitle>
-          <CardDescription>Liity avaamalla sinulle jaettu Breview-linkki.</CardDescription>
+          <CardTitle>{t.home.openSessionLink}</CardTitle>
+          <CardDescription>{t.home.openSessionLinkSubtitle}</CardDescription>
         </CardHeader>
         <CardContent className="gap-3">
           <Input
@@ -464,13 +490,13 @@ export default function GamesScreen() {
             onSubmitEditing={handleJoinGame}
           />
           <Button variant="secondary" loading={joining} onPress={handleJoinGame}>
-            Liity
+            {t.home.join}
           </Button>
         </CardContent>
       </Card>
 
       <View className="gap-3">
-        <Text variant="large">Viimeisimmät</Text>
+        <Text variant="large">{t.home.recent}</Text>
         {recentGames.length ? (
           recentGames.map((game) => (
             <Pressable
@@ -487,13 +513,13 @@ export default function GamesScreen() {
                   </Text>
                 </CardContent>
                 <CardFooter>
-                  <Text variant="small">Avaa</Text>
+                  <Text variant="small">{t.home.open}</Text>
                 </CardFooter>
               </Card>
             </Pressable>
           ))
         ) : (
-          <Text variant="muted">Ei vielä avattuja sessioita tällä laitteella.</Text>
+          <Text variant="muted">{t.home.noRecentGames}</Text>
         )}
       </View>
     </ScrollView>
