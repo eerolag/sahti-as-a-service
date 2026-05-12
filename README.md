@@ -1,13 +1,13 @@
 # Breview
 
-Breview on tuotantoon rakennettava web-, iOS- ja Android-sovellus oluiden arviointipeleihin.
+Breview on tuotantoon rakennettava web-, iOS- ja Android-sovellus juomien maistelusessioihin ja arviointiin.
 
 Tuotantodomain: `https://breview.ing`
 
 Monorepo-arkkitehtuuri:
 - `apps/api`: Cloudflare Worker, API-reitit, D1-migraatiot ja binding-konfiguraatio
 - `apps/web`: React + Vite + Tailwind -web-käyttöliittymä
-- `apps/mobile`: Expo Router + AniUI + NativeWind -mobiilisovellus
+- `apps/mobile`: Expo Router + NativeWind + React Native -mobiilisovellus
 - `packages/shared`: framework-agnostinen domain-logiikka ja API-tyypit
 - `packages/api-client`: webin ja mobiilin jaettu typed fetch-client
 
@@ -57,7 +57,7 @@ Agentin pitää päivittää plans-dokumentit samassa muutoksessa, jos työn aik
 - React
 - Tailwind CSS
 - shadcn/ui (webin tuotantosuunta)
-- Expo Router + AniUI + NativeWind (mobiilin tuotantosuunta)
+- Expo Router + NativeWind + React Native -komponentit (mobiilin tuotantosuunta)
 - Vite
 - Vitest
 - qrcode
@@ -113,7 +113,9 @@ Jos natiivijulkaisun omistajatietoja ei ole asetettu, nämä endpointit palautta
 
 Tuotannon jakolinkit käyttävät arvaamattomia polkuja `https://breview.ing/s/:shareId` osallistujille ja
 `https://breview.ing/h/:shareId#hostToken` hostille. Vanhat numeeriset `/:gameId`-linkit jäävät vain
-siirtymäkauden yhteensopivuudeksi.
+siirtymäkauden yhteensopivuudeksi. Tuotannon D1-migraatiot `0007_session_links_settings_reports.sql` ja
+`0008_backfill_game_public_ids.sql` lisäävät public-linkkikentät ja backfillaavat vanhoille sessioille
+satunnaiset public-koodit; uusi share-, account- ja recent-UI käyttää ensisijaisesti `/s/:shareId`-linkkejä.
 
 ## R2-kuvabucket (pakollinen kuvatiedostoille)
 
@@ -205,7 +207,7 @@ npm --workspace @breview/mobile run android -- --clear
 
 Expo käyttää oletuksena `https://breview.ing` API-basea, eli simulaattori ja Expo Go osuvat oikeaan Cloudflare Workeriin ja sen D1/R2-resursseihin. Paikallisen Workerin voi antaa muuttujalla `EXPO_PUBLIC_API_BASE_URL`.
 
-Mobiilissa voi tällä hetkellä luoda session, avata jaetun sessiolinkin, arvostella juomat sliderilla tai tähdillä, lisätä kommentit, tallentaa arviot, katsoa tulokset, jakaa sessiolinkin sekä hostina muokata sessiota ja juomia. Muokkaus tukee kuvan lisäämistä kamerasta tai kuvakirjastosta, kuvan latausta R2:een ja nimen tunnistusta Workers AI:lla. Tili-välilehti tukee sähköpostiin lähetettävää kertakäyttökoodia, näyttää resend-cooldownin, linkittää tämän laitteen aiemmat arviot tiliin ja näyttää tilille talletetut arvostelusessiot. Mobiili linkittää julkisiin privacy/support/delete-account-sivuihin ja pitää valitun paikallisen kuvan tiedostonimen piilossa. Mobiilin tumma Breview-ilme pidetään linjassa webin kanssa, vaikka komponenttipohja on eri.
+Mobiilissa voi tällä hetkellä luoda session, avata jaetun sessiolinkin, arvostella juomat sliderilla tai tähdillä, lisätä kommentit, tallentaa arviot, katsoa tulokset, jakaa sessiolinkin sekä hostina muokata sessiota ja juomia. Muokkaus tukee kuvan lisäämistä kamerasta tai kuvakirjastosta, kuvan latausta R2:een ja nimen tunnistusta Workers AI:lla. Alareunan tab-navigaatio on poistettu; etusivun oikean yläkulman valikko avaa Tili-, Tuki- ja Tietosuoja-toiminnot. Tili-näkymä tukee sähköpostiin lähetettävää kertakäyttökoodia, näyttää resend-cooldownin, linkittää tämän laitteen aiemmat arviot tiliin ja näyttää tilille talletetut arvostelusessiot public-linkkeinä. Mobiili linkittää julkisiin privacy/support/delete-account-sivuihin ja pitää valitun paikallisen kuvan tiedostonimen piilossa. Mobiilin tumma Breview-ilme pidetään linjassa webin kanssa, vaikka komponenttipohja on eri.
 
 iOS-simulaattori tai Expo web:
 
@@ -225,7 +227,7 @@ Fyysisellä puhelimella käytä kehityskoneen LAN-IP:tä, esimerkiksi `http://19
 
 Webissä on julkinen maker-sivu osoitteessa `/makers`. Maksupainike käyttää vain ulkoista linkkiä muuttujasta `SUPPORT_PAYMENT_URL`; jos muuttujaa ei ole, sivu näyttää tekstin `Support link coming soon.` eikä avaa maksua. Valinnainen `SUPPORT_PAYMENT_LABEL` näkyy CTA:n alla.
 
-Mobiili ei sisällä natiivia maksuflow'ta. Tili-välilehden maker-linkki avaa ulkoisen web-sivun muuttujasta `EXPO_PUBLIC_SUPPORT_PAGE_URL`, jonka oletus on `https://breview.ing/makers`.
+Mobiili ei sisällä natiivia maksuflow'ta. Tili-näkymän maker-linkki avaa ulkoisen web-sivun muuttujasta `EXPO_PUBLIC_SUPPORT_PAGE_URL`, jonka oletus on `https://breview.ing/makers`.
 
 ## Build, test ja tyypitys
 
@@ -283,7 +285,7 @@ Jotta workflow voi deployata Cloudflareen, lisää GitHub-repoon `Settings -> Se
 - `POST /api/sessions/:shareId/reveal-results` (`x-breview-creator-token`)
 - `POST /api/sessions/:shareId/reports`
 - `GET /api/games/:id`
-- `PUT /api/games/:id`
+- `PUT /api/games/:id` (legacy-yhteensopivuus; uusien sessioiden host-muokkaus kulkee `/api/sessions/:shareId`-reitin kautta)
 - `POST /api/games/:id/ratings` (body: `clientId`, `ratings`, optional `nickname`; ratingissä valinnainen `comment`, max 255 merkkiä)
 - `GET /api/games/:id/ratings?clientId=...` (tekninen tunniste omien arvosanojen hakuun)
 - `GET /api/games/:id/results`
@@ -297,8 +299,8 @@ Jotta workflow voi deployata Cloudflareen, lisää GitHub-repoon `Settings -> Se
 - `GET /api/images/:key`
 - `GET /api/qr?url=<http/https-url-encoded>`
 
-Pääsession vastauskentät ovat taaksepäin yhteensopivat aiemman version kanssa. Uudet share-UI:t eivät näytä
-numeerista session ID:tä.
+Pääsession vastauskentät ovat taaksepäin yhteensopivat aiemman version kanssa. `game.publicId` ja
+account-historian `publicId` ovat ensisijainen linkityspinta, ja uudet share-UI:t eivät näytä numeerista session ID:tä.
 
 ## Lisenssi
 

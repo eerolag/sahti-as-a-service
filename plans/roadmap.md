@@ -21,12 +21,14 @@
 - Keep structured auth logs in Worker logs for login-code requests, send success/failure, verify success/failure, logout, and account deletion; user-facing auth errors must remain concise and non-leaky.
 - Keep public `/privacy`, `/support`, and `/delete-account` pages reachable without login and linked from account/support surfaces.
 - Keep new production sessions on unguessable `/s/:shareId` participant links and `/h/:shareId#hostToken` host links; numeric routes are legacy compatibility only.
+- Keep old sessions backfilled with random public IDs through D1 migration `0008_backfill_game_public_ids.sql`; web account history and mobile recent/account history should open `/s/:shareId` whenever `publicId` exists.
 - Keep host-only session editing, configurable rating scales, and hidden-result reveal behavior working across web and mobile.
 - Keep UGC hardening active: safety acceptance before creation, basic abusive-text blocking, content report submission, and store-safe support/payment wording.
 - Keep `plans/pre-release-improvements.md` as the current release-hardening plan before App Store and Google Play submission.
 - Keep `breview://` plus prepared iOS universal links and Android app links for `https://breview.ing`; final production association still needs Apple Team ID and Android SHA-256 signing fingerprint.
 - Keep privacy basics available from the account UI before login and link to the fuller public reviewer pages.
-- Keep the mobile dark Breview visual direction aligned with the web UI while using AniUI/NativeWind components.
+- Keep the mobile dark Breview visual direction aligned with the web UI while using NativeWind/React Native components.
+- Keep mobile account/support/privacy actions in the top-right menu instead of the removed bottom tab bar.
 - Keep the Expo shell's account, image upload, sharing, retry, permission-denied, and edit states release-grade while continuing to use SDK 54.
 
 ## Next

@@ -17,6 +17,7 @@ Priority order:
 
 - Added public session links with random `public_id` values and host-token protected edit/reveal endpoints.
 - Added `/api/sessions/:shareId` routes for session load, update, ratings, results, reveal, and reports while keeping numeric game routes as legacy compatibility.
+- Added D1 migration `0008_backfill_game_public_ids.sql` so legacy numeric sessions receive random public codes while staying loadable by old URLs.
 - Added session settings for rating mode, score range, score step, and results visibility.
 - Added host-reveal result hiding and reveal flow.
 - Updated web creation to use the Breview logo, first-run welcome, safety acceptance, session copy, share links, host links, rating settings, and batch image import with a concurrency-limited AI naming queue.
@@ -26,6 +27,7 @@ Priority order:
 - Added shared locale utilities and welcome-copy resources for the planned localization set, including RTL metadata for Arabic and Urdu.
 - Added self-hosted Figtree and JetBrains Mono font assets for web and mobile.
 - Added minimal abusive-text blocking for names, nicknames, and comments.
+- Removed the mobile bottom tab bar; account, support, and privacy actions now live behind the top-right menu.
 
 ## Product Changes
 
@@ -59,7 +61,8 @@ Policy references:
 - [Google Play account deletion requirements](https://support.google.com/googleplay/android-developer/answer/13327111)
 - [Google Play UGC policy](https://support.google.com/googleplay/android-developer/answer/9876937)
 - [Google Play Data safety](https://support.google.com/googleplay/android-developer/answer/10787469)
-- [Google Play tobacco/alcohol policy](https://support.google.com/googleplay/android-developer/answer/16313518)
+- [Google Play inappropriate content / tobacco and alcohol policy](https://support.google.com/googleplay/android-developer/answer/9878810?hl=en)
+- [Google Play age-restricted physical goods guidance](https://support.google.com/googleplay/android-developer/answer/7444750?hl=en)
 
 ## Localization And UI
 
@@ -71,7 +74,7 @@ Policy references:
 - RTL work is required before marking `ar` or `ur` complete.
 - Use self-hosted Figtree for UI and JetBrains Mono for scores/codes.
 - Replace native-looking file inputs with polished image buttons and previews everywhere.
-- Keep top navigation and bottom actions consistent full-width sticky app-shell surfaces.
+- Keep primary mobile navigation in clear top/app-shell surfaces; do not reintroduce the bottom tab bar unless it is intentionally redesigned and tested.
 
 ## Test Plan
 
@@ -106,8 +109,8 @@ Policy references:
 
 ## Remaining Before Store Submission
 
-- Apply remote D1 migration `0007_session_links_settings_reports.sql`.
-- Verify production `/s/:shareId` web fallback and native app-link behavior on real devices.
+- Keep remote D1 migrations applied through at least `0008_backfill_game_public_ids.sql` before deploys.
+- Production `/s/:shareId` web fallback was smoke-tested after the 2026-05-12 deploy; native app-link behavior still needs real-device verification.
 - Add final Apple Team ID and Android SHA-256 signing fingerprints.
 - Complete App Store privacy labels and Google Play Data safety declarations from the final data inventory.
 - Run TestFlight and Google Play internal testing with reviewer-ready demo notes.

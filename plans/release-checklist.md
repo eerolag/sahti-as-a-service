@@ -2,7 +2,7 @@
 
 This checklist tracks the remaining work to ship Breview to the Apple App Store and Google Play. It assumes the current production web/API path remains Cloudflare-first at `https://breview.ing` and the mobile app remains Expo-based.
 
-Official references checked on 2026-05-10:
+Official references checked on 2026-05-12:
 
 - Apple App Review Guidelines: https://developer.apple.com/app-store/review/guidelines/
 - Apple Developer Program enrollment: https://developer.apple.com/help/account/membership/program-enrollment/
@@ -10,14 +10,20 @@ Official references checked on 2026-05-10:
 - Apple App Privacy Details: https://developer.apple.com/app-store/app-privacy-details/
 - Google Play account deletion requirements: https://support.google.com/googleplay/android-developer/answer/13327111
 - Google Play Console account setup: https://support.google.com/googleplay/android-developer/answer/6112435
+- Google Play UGC policy: https://support.google.com/googleplay/android-developer/answer/9876937
+- Google Play Data safety: https://support.google.com/googleplay/android-developer/answer/10787469
+- Google Play inappropriate content / tobacco and alcohol policy: https://support.google.com/googleplay/android-developer/answer/9878810?hl=en
+- Google Play age-restricted physical goods guidance: https://support.google.com/googleplay/android-developer/answer/7444750?hl=en
 - Expo distribution overview: https://docs.expo.dev/distribution/introduction/
 - Expo EAS plans and billing: https://docs.expo.dev/billing/plans/
 
 ## Production Readiness
 
 - [x] Keep `plans/implementation-plan.md`, `plans/roadmap.md`, and this checklist current as release scope changes.
-- [ ] Confirm production API and web are deployed from the intended branch.
-- [ ] Confirm D1 migrations are applied remotely before each Worker deploy.
+- [ ] Confirm production API and web are deployed from the intended release branch before store submission.
+- [x] Confirm latest production hotfix deploy completed on 2026-05-12 with Worker version `04d46321-685c-4871-852e-91c7bc6e82e0`.
+- [x] Confirm D1 migrations were applied remotely through `0008_backfill_game_public_ids.sql` on 2026-05-12.
+- [ ] Re-confirm D1 migrations are applied remotely before each future Worker deploy.
 - [ ] Confirm R2 image serving works from `https://breview.ing/api/images/:key`.
 - [ ] Confirm Workers AI image recognition works for beverage labels, tap handles, tap lists, and non-beverage rejection.
 - [ ] Confirm Cloudflare Email Service is configured for `login@breview.ing` or the final chosen sender.
@@ -66,10 +72,10 @@ Official references checked on 2026-05-10:
 
 ## Deep Links And App Links
 
-- [x] Keep `breview://` scheme working for game links.
+- [x] Keep `breview://` scheme working for session links.
 - [ ] Configure iOS associated domains for `https://breview.ing` when Apple Developer account is ready. App config now includes `applinks:breview.ing`; final verification still requires the Apple Developer account and Team ID.
 - [ ] Add and serve `/.well-known/apple-app-site-association` with the final iOS app identifier. The Worker serves this endpoint now, but it intentionally returns empty `details` until `IOS_APPLE_TEAM_ID` is provided.
-- [x] Configure Android intent filters for `https://breview.ing` game links.
+- [x] Configure Android intent filters for `https://breview.ing` session links.
 - [ ] Add and serve `/.well-known/assetlinks.json` with the final Android package and signing certificate fingerprint. The Worker serves this endpoint now, but it intentionally returns `[]` until `ANDROID_SHA256_CERT_FINGERPRINTS` is provided.
 - [ ] Test link behavior from Messages, Safari/Chrome, email, and QR code on iOS and Android.
 - [ ] Ensure fallback links still open the web app when the native app is not installed.
@@ -87,9 +93,9 @@ Official references checked on 2026-05-10:
 
 ## Untappd
 
-- [ ] Keep Untappd as an outbound search link only.
-- [ ] Do not use Untappd API calls, scraping, private endpoints, cached Untappd data, logos, badges, or wording that implies affiliation.
-- [ ] Keep link text generic enough that the feature reads as an external search shortcut.
+- [x] Keep Untappd as an outbound search link only.
+- [x] Do not use Untappd API calls, scraping, private endpoints, cached Untappd data, logos, badges, or wording that implies affiliation.
+- [x] Keep link text generic enough that the feature reads as an external search shortcut.
 
 ## Expo And Native Build Setup
 
@@ -138,17 +144,19 @@ Official references checked on 2026-05-10:
 
 ## Release Verification
 
-Local verification note from 2026-05-10: this Codex shell did not expose an `npm` binary, so the exact `npm run ...` commands could not execute here. Equivalent commands were run directly with the bundled Node runtime: all TypeScript project checks passed, Vitest passed, and the Vite web build passed. Run the exact npm commands again in the normal developer shell before release tagging.
+Local verification note from 2026-05-12: Vitest passed (`72/72`), API/web/mobile/shared/api-client TypeScript checks passed, iOS export passed, and the Vite web build passed via the bundled Codex Node runtime. In this desktop environment, `npm run build:web` can fail when Rollup's native optional dependency is rejected by macOS code signing; the same Vite build succeeds when run with the bundled Node path. Re-run the exact npm commands in the normal developer shell before release tagging.
 
 - [ ] Run `npm test`.
 - [ ] Run `npm run typecheck`.
 - [ ] Run `npm run build`.
-- [ ] Apply remote D1 migrations.
-- [ ] Deploy Worker/web.
+- [x] Apply remote D1 migrations through `0008_backfill_game_public_ids.sql` for the latest web/API hotfix.
+- [x] Deploy latest Worker/web hotfix.
+- [ ] Re-apply remote D1 migrations for the final store-release deploy.
+- [ ] Deploy Worker/web for the final store-release candidate.
 - [ ] Smoke test `https://breview.ing` on desktop and mobile browsers.
 - [ ] Smoke test native iOS build:
-  - create game
-  - join game
+  - create session
+  - open shared session link
   - rate beers
   - comments
   - results

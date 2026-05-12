@@ -2,7 +2,7 @@
 
 ## Goal
 
-Breview is a production web, iOS, and Android app for creating beer tasting games, sharing them with players, collecting ratings and comments, and reviewing results. The web app remains the canonical public surface at `https://breview.ing`, and the native apps use the same Cloudflare API and share links.
+Breview is a production web, iOS, and Android app for creating drink tasting sessions, sharing them with tasters, collecting ratings and comments, and reviewing results. The web app remains the canonical public surface at `https://breview.ing`, and the native apps use the same Cloudflare API and share links.
 
 ## Architecture
 
@@ -10,7 +10,7 @@ Breview is a production web, iOS, and Android app for creating beer tasting game
 - Beer-name recognition starts with `@cf/google/gemma-4-26b-a4b-it` because it has vision support and the lowest confirmed cost among the currently selected Workers AI vision-capable models; use `@cf/moonshotai/kimi-k2.6` as the higher-cost fallback when Gemma is unavailable or unreliable.
 - The repo is an npm-workspaces monorepo: `apps/api`, `apps/web`, `apps/mobile`, `packages/shared`, and `packages/api-client`.
 - Web uses React, Vite, TypeScript, Tailwind, and shadcn/ui for production UI components in `apps/web`.
-- Mobile uses Expo SDK 54, Expo Router, TypeScript, AniUI, and NativeWind for native iOS and Android screens in `apps/mobile`. SDK 54 is intentional for the current development window so Breview can share the App Store Expo Go version with the other active SDK 54 project; move to SDK 55 when both projects can use SDK 55 or development builds.
+- Mobile uses Expo SDK 54, Expo Router, TypeScript, NativeWind, and React Native components for native iOS and Android screens in `apps/mobile`. SDK 54 is intentional for the current development window so Breview can share the App Store Expo Go version with the other active SDK 54 project; move to SDK 55 when both projects can use SDK 55 or development builds.
 - Shared framework-agnostic contracts and domain logic live in `packages/shared`; web and mobile clients consume those contracts through `packages/api-client` instead of duplicating API shapes.
 - Existing Cloudflare resource names may remain unchanged until a deliberate infrastructure rename is planned and tested.
 
@@ -19,7 +19,7 @@ Breview is a production web, iOS, and Android app for creating beer tasting game
 - Rebrand: update visible product copy, metadata, store copy, support/privacy pages, and share text to Breview with `breview.ing` as the canonical domain.
 - Authentication: maintain optional email-code login using Cloudflare Email Service, D1-backed users, hashed login challenges, sessions, and account-linked rating history.
 - Privacy and account deletion: keep in-app and web account deletion available only after login, keep privacy basics visible before login, and keep public reviewer-ready `/privacy`, `/support`, and `/delete-account` pages reachable without login.
-- Mobile app: build a native Expo app with create/join/rate/results/edit/share/account flows, deep links, app links, image upload, and history sync.
+- Mobile app: build a native Expo app with create/link-open/rate/results/edit/share/account flows, deep links, app links, image upload, and history sync.
 - AI and image handling: use Workers AI via the `AI` binding for beer-name recognition, keep R2 for uploads, remove paid web image search from the production app and API surface, and keep provider failures graceful.
 - Untappd: do not use scraping, private APIs, or the Untappd API. Keep only user-visible outbound search links unless legal/product review decides to remove them; avoid implying any affiliation or endorsement.
 - Store release: use `plans/release-checklist.md` as the operational release checklist, then configure EAS builds, Apple Developer/App Store Connect ownership, Google Play Console ownership, TestFlight, Google Play testing tracks, store metadata, screenshots, review notes, versioning, and production rollout.
@@ -27,7 +27,7 @@ Breview is a production web, iOS, and Android app for creating beer tasting game
 
 ## Current Slice
 
-This slice converts the repo to a production monorepo, keeps the existing Cloudflare Worker and web app running from workspace apps, and connects the first Expo mobile shell to the production Cloudflare API without changing Cloudflare infrastructure resource names.
+This slice keeps the production monorepo aligned around Breview sessions, unguessable public session links, the Cloudflare Worker/web deployment, and the Expo mobile app without changing Cloudflare infrastructure resource names.
 
 Acceptance criteria:
 
@@ -36,9 +36,9 @@ Acceptance criteria:
 - Existing web UI runs from `apps/web`.
 - Shared contracts and domain logic run from `packages/shared`.
 - Web and mobile can use the shared typed client from `packages/api-client`.
-- Expo SDK 54 mobile shell exists in `apps/mobile` with Expo Router, AniUI, NativeWind, `breview://`, and `ing.breview.app`.
-- Mobile create, join, recent-games, rating, comments, save, results, share, game-editing, beer-editing, image-picking, R2 upload, and Workers AI recognition flows call the shared API client or native mobile API helpers and default to `https://breview.ing`.
-- Mobile and web share the same Breview dark visual direction while using shadcn/ui on web and AniUI/NativeWind components on mobile.
+- Expo SDK 54 mobile shell exists in `apps/mobile` with Expo Router, NativeWind, `breview://`, and `ing.breview.app`.
+- Mobile create, link-open, recent-sessions, rating, comments, save, results, share, session-editing, beer-editing, image-picking, R2 upload, and Workers AI recognition flows call the shared API client or native mobile API helpers and default to `https://breview.ing`.
+- Mobile and web share the same Breview dark visual direction while using shadcn/ui on web and NativeWind/React Native components on mobile.
 - Mobile uses `breview-logo.png` for in-app brand presentation and app icon configuration.
 - Cloudflare D1/R2/Worker resource names are left unchanged.
 - Kilo Gateway is replaced by Cloudflare Workers AI for beer-name recognition.
@@ -62,6 +62,9 @@ Acceptance criteria:
 - Web exposes public reviewer pages at `/privacy`, `/support`, and `/delete-account`; web and mobile account/support surfaces link to them.
 - Worker serves `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json`; without Apple Team ID or Android SHA-256 fingerprints it returns valid empty associations rather than placeholder production identifiers.
 - Expo config keeps `breview://` and prepares `https://breview.ing` iOS universal links and Android app links; final association requires Apple Team ID and Android signing certificate fingerprint from the release owner.
+- Production session links use `/s/:shareId` and `/h/:shareId#hostToken`; legacy numeric routes remain loadable but public/account/recent UI should prefer `publicId`.
+- Remote D1 migrations are applied through `0008_backfill_game_public_ids.sql`, so old sessions receive random public codes while numeric test URLs remain loadable.
+- Mobile no longer uses bottom tab navigation; account/support/privacy actions live behind the top-right menu and the account screen has an explicit return action.
 - Mobile account, image-picking, sharing, retry, and edit flows have clearer loading, permission-denied, selected-image, and failure states, with local image filenames hidden.
 - Paid Brave image search is removed from the web UI, Worker route, shared API contracts, README, and runtime env.
 - Untappd API resolution is removed; stored beer metadata is kept to outbound search links only.
