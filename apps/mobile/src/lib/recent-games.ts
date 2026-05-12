@@ -2,6 +2,7 @@ import type { GetGameResponse } from "@breview/shared/api-contracts";
 
 export interface RecentGame {
   id: number;
+  publicId: string | null;
   name: string;
   beerCount: number;
   updatedAt: string;
@@ -26,6 +27,7 @@ function isRecentGame(value: unknown): value is RecentGame {
   const game = value as Partial<RecentGame>;
   return (
     Number.isInteger(game.id) &&
+    (game.publicId == null || typeof game.publicId === "string") &&
     typeof game.name === "string" &&
     typeof game.beerCount === "number" &&
     typeof game.updatedAt === "string"
@@ -43,7 +45,10 @@ export function loadRecentGames(): RecentGame[] {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return memoryRecentGames;
 
-    memoryRecentGames = parsed.filter(isRecentGame).slice(0, MAX_RECENT_GAMES);
+    memoryRecentGames = parsed
+      .filter(isRecentGame)
+      .map((game) => ({ ...game, publicId: game.publicId ?? null }))
+      .slice(0, MAX_RECENT_GAMES);
     return memoryRecentGames;
   } catch {
     return memoryRecentGames;
@@ -51,7 +56,10 @@ export function loadRecentGames(): RecentGame[] {
 }
 
 export function saveRecentGame(game: RecentGame): RecentGame[] {
-  const next = [game, ...loadRecentGames().filter((item) => item.id !== game.id)].slice(0, MAX_RECENT_GAMES);
+  const next = [
+    game,
+    ...loadRecentGames().filter((item) => item.id !== game.id && (!game.publicId || item.publicId !== game.publicId)),
+  ].slice(0, MAX_RECENT_GAMES);
   memoryRecentGames = next;
 
   try {
@@ -66,6 +74,7 @@ export function saveRecentGame(game: RecentGame): RecentGame[] {
 export function recentGameFromPayload(payload: GetGameResponse): RecentGame {
   return {
     id: payload.game.id,
+    publicId: payload.game.publicId,
     name: payload.game.name,
     beerCount: payload.beers.length,
     updatedAt: new Date().toISOString(),

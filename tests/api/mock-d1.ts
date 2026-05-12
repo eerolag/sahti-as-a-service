@@ -162,6 +162,40 @@ export class MockD1Database implements D1Database {
     return { id: player.id, nickname: player.nickname };
   }
 
+  insertLegacyGameForTest(name: string, beers: Array<{ name: string; image_url?: string | null }>): number {
+    const game: GameRow = {
+      id: this.gameIdCounter++,
+      name,
+      created_at: now(),
+      public_id: null,
+      creator_token_hash: null,
+      rating_mode: "slider",
+      score_min: 0,
+      score_max: 10,
+      score_step: 0.25,
+      results_visibility: "live",
+      results_revealed_at: null,
+    };
+    this.games.push(game);
+
+    beers.forEach((beer, index) => {
+      this.beers.push({
+        id: this.beerIdCounter++,
+        game_id: game.id,
+        name: beer.name,
+        image_url: beer.image_url ?? null,
+        sort_order: index,
+        untappd_url: null,
+        untappd_source: null,
+        untappd_confidence: null,
+        untappd_resolved_at: null,
+        created_at: now(),
+      });
+    });
+
+    return game.id;
+  }
+
   async batch(statements: D1PreparedStatement[]): Promise<unknown[]> {
     const result: unknown[] = [];
     for (const statement of statements) {
@@ -217,6 +251,15 @@ export class MockD1Database implements D1Database {
     if (sql.startsWith("update games set results_revealed_at = datetime('now') where id = ?")) {
       const game = this.games.find((g) => g.id === Number(values[0]));
       if (game) game.results_revealed_at = now();
+      return { success: true, meta: {} };
+    }
+
+    if (sql.startsWith("update games set public_id = ? where id = ? and (public_id is null or trim(public_id) = '')")) {
+      const [publicId, id] = values;
+      const game = this.games.find((g) => g.id === Number(id));
+      if (game && !game.public_id?.trim()) {
+        game.public_id = String(publicId ?? "");
+      }
       return { success: true, meta: {} };
     }
 
@@ -551,7 +594,7 @@ export class MockD1Database implements D1Database {
   async executeFirst(sqlRaw: string, values: unknown[]): Promise<AnyRow | null> {
     const sql = normalizeSql(sqlRaw);
 
-    if (sql.startsWith("select id, name, created_at, coalesce(public_id, cast(id as text)) as publicid")) {
+    if (sql.startsWith("select id, name, created_at, public_id as publicid")) {
       const isPublicIdLookup = sql.includes("where public_id = ?");
       const game = isPublicIdLookup
         ? this.games.find((row) => row.public_id === String(values[0] ?? ""))
@@ -561,7 +604,7 @@ export class MockD1Database implements D1Database {
         id: game.id,
         name: game.name,
         created_at: game.created_at,
-        publicId: game.public_id ?? String(game.id),
+        publicId: game.public_id,
         creatorTokenHash: game.creator_token_hash,
         ratingMode: game.rating_mode,
         scoreMin: game.score_min,
@@ -774,6 +817,7 @@ export class MockD1Database implements D1Database {
           })
           .map((row) => ({
             gameId: row.game.id,
+            publicId: row.game.public_id,
             gameName: row.game.name,
             ratingsCount: row.ratingsCount,
             updatedAt: row.updatedAt,

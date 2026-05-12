@@ -19,7 +19,7 @@ export interface GameDto {
   id: number;
   name: string;
   created_at: string;
-  publicId: string;
+  publicId: string | null;
   ratingConfig: RatingConfig;
   resultsVisibility: ResultsVisibility;
   resultsRevealedAt: string | null;
@@ -141,6 +141,7 @@ export interface AccountUserDto {
 
 export interface AccountHistoryItemDto {
   gameId: number;
+  publicId: string | null;
   gameName: string;
   ratingsCount: number;
   updatedAt: string | null;

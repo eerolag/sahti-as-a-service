@@ -20,6 +20,7 @@ import {
   upsertBeersForGame,
 } from "../repositories/beers-repo";
 import {
+  assignGamePublicId,
   createGame,
   gameExists,
   getGameById,
@@ -38,6 +39,25 @@ import {
 import { ensureUntappdLinksForGame, enrichBeersWithUntappd } from "../services/untappd-service";
 
 const PUBLIC_ID_ATTEMPTS = 5;
+
+async function ensureGamePublicId(env: Env, game: GameRow): Promise<GameRow> {
+  if (game.publicId) return game;
+
+  for (let attempt = 0; attempt < PUBLIC_ID_ATTEMPTS; attempt += 1) {
+    const publicId = createSessionPublicId();
+    try {
+      await assignGamePublicId(env, game.id, publicId);
+    } catch (error) {
+      if (String((error as Error)?.message ?? error).toLowerCase().includes("unique")) continue;
+      throw error;
+    }
+
+    const updated = await getGameById(env, game.id);
+    if (updated?.publicId) return updated;
+  }
+
+  return game;
+}
 
 async function createGameWithPublicId(
   request: Request,
@@ -81,8 +101,9 @@ async function createGameWithPublicId(
 }
 
 async function getGameWithBeers(env: Env, gameOrId: number | GameRow): Promise<GetGameResponse | null> {
-  const game = typeof gameOrId === "number" ? await getGameById(env, gameOrId) : gameOrId;
-  if (!game) return null;
+  const existingGame = typeof gameOrId === "number" ? await getGameById(env, gameOrId) : gameOrId;
+  if (!existingGame) return null;
+  const game = await ensureGamePublicId(env, existingGame);
 
   const beers = await getBeersByGameId(env, game.id);
   return { game, beers };
@@ -146,8 +167,13 @@ export async function handleGetSession(publicId: string, env: Env): Promise<Resp
   return json(payload);
 }
 
-async function updateGameByRow(game: GameRow, request: Request, env: Env): Promise<Response> {
-  if (!(await isValidCreatorToken(env, game, request))) {
+async function updateGameByRow(
+  game: GameRow,
+  request: Request,
+  env: Env,
+  options: { creatorAlreadyValidated?: boolean } = {},
+): Promise<Response> {
+  if (!options.creatorAlreadyValidated && !(await isValidCreatorToken(env, game, request))) {
     return json({ error: "Vain session luoja voi muokata tätä sessiota" }, 403);
   }
 
@@ -234,7 +260,11 @@ export async function handleUpdateGame(gameId: number, request: Request, env: En
   const game = await getGameById(env, gameId);
   if (!game) return json({ error: "Sessiota ei löytynyt" }, 404);
 
-  return updateGameByRow(game, request, env);
+  if (!(await isValidCreatorToken(env, game, request, { allowMissingCreatorToken: true }))) {
+    return json({ error: "Vain session luoja voi muokata tätä sessiota" }, 403);
+  }
+
+  return updateGameByRow(game, request, env, { creatorAlreadyValidated: true });
 }
 
 export async function handleUpdateSession(publicId: string, request: Request, env: Env): Promise<Response> {

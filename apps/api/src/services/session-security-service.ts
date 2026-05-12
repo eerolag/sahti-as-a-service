@@ -35,8 +35,14 @@ export async function hashSessionHostToken(env: Env, publicId: string, token: st
   return sha256Hex(`breview.creator:${publicId}:${token}:${env.AUTH_SECRET ?? ""}`);
 }
 
-export async function isValidCreatorToken(env: Env, game: GameRow, request: Request): Promise<boolean> {
-  if (!game.creatorTokenHash) return true;
+export async function isValidCreatorToken(
+  env: Env,
+  game: GameRow,
+  request: Request,
+  options: { allowMissingCreatorToken?: boolean } = {},
+): Promise<boolean> {
+  if (!game.creatorTokenHash) return Boolean(options.allowMissingCreatorToken);
+  if (!game.publicId) return false;
 
   const token = request.headers.get("x-breview-creator-token")?.trim() || "";
   if (!token) return false;

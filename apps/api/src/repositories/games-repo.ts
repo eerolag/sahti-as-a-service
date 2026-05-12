@@ -5,7 +5,7 @@ export interface GameRow {
   id: number;
   name: string;
   created_at: string;
-  publicId: string;
+  publicId: string | null;
   creatorTokenHash: string | null;
   ratingConfig: RatingConfig;
   resultsVisibility: ResultsVisibility;
@@ -31,7 +31,7 @@ const GAME_SELECT = [
   "id,",
   "name,",
   "created_at,",
-  "COALESCE(public_id, CAST(id AS TEXT)) AS publicId,",
+  "public_id AS publicId,",
   "creator_token_hash AS creatorTokenHash,",
   "COALESCE(rating_mode, 'slider') AS ratingMode,",
   "COALESCE(score_min, 0) AS scoreMin,",
@@ -54,7 +54,7 @@ function toGameRow(row: DbGameRow | null | undefined): GameRow | null {
     id: Number(row.id),
     name: String(row.name ?? ""),
     created_at: String(row.created_at ?? ""),
-    publicId: String(row.publicId ?? row.id),
+    publicId: row.publicId ? String(row.publicId) : null,
     creatorTokenHash: row.creatorTokenHash ? String(row.creatorTokenHash) : null,
     ratingConfig: {
       mode: ratingMode,
@@ -108,6 +108,12 @@ export async function getGameByPublicId(env: Env, publicId: string): Promise<Gam
     .bind(publicId)
     .first<DbGameRow>();
   return toGameRow(game);
+}
+
+export async function assignGamePublicId(env: Env, gameId: number, publicId: string): Promise<void> {
+  await env.DB.prepare("UPDATE games SET public_id = ? WHERE id = ? AND (public_id IS NULL OR trim(public_id) = '')")
+    .bind(publicId, gameId)
+    .run();
 }
 
 export async function gameExists(env: Env, gameId: number): Promise<boolean> {
