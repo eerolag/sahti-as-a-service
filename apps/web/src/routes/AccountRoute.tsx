@@ -192,12 +192,21 @@ export function AccountRoute() {
     }
   }
 
+  function goBack() {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+
+    window.location.href = "/";
+  }
+
   return (
     <div className="app-wrap app-wrap-with-header">
       <div className="app-header">
-        <a className="icon-btn" href="/" aria-label={t.nav.backToHome}>
+        <button className="icon-btn" type="button" onClick={goBack} aria-label={t.nav.backToHome}>
           ←
-        </a>
+        </button>
         <a className="header-brand" href="/">
           Breview
         </a>

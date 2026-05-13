@@ -62,6 +62,8 @@ export function BeerCard({
   const untappdUrl = beerUntappdUrl(beer);
   const normalizedScore = score == null ? null : normalizeScore(score, ratingConfig);
   const normalizedComment = String(comment ?? "");
+  const starCount = Math.max(1, Math.round(ratingConfig.scoreMax - ratingConfig.scoreMin));
+  const starScoreLabel = normalizedScore == null ? "–" : String(Math.round(normalizedScore));
   const [scoreInput, setScoreInput] = useState(() => (normalizedScore == null ? "" : formatScore(normalizedScore, ratingConfig)));
   const [isEditingInput, setIsEditingInput] = useState(false);
   const lastSliderScoreRef = useRef<number>(normalizedScore ?? ratingConfig.scoreMin);
@@ -156,25 +158,28 @@ export function BeerCard({
         ) : (
           <div className="flex flex-col gap-2">
             {ratingConfig.mode === "stars" ? (
-              <div className="grid grid-cols-5 gap-2" role="radiogroup" aria-label={`${t.beerCard.scoreFor} ${beer.name}`}>
-                {Array.from({ length: Math.max(1, Math.round(ratingConfig.scoreMax - ratingConfig.scoreMin)) }, (_, idx) => {
-                  const value = ratingConfig.scoreMin + idx + 1;
-                  return (
-                    <button
-                      key={value}
-                      className={`btn min-h-10 px-2 ${normalizedScore != null && normalizedScore >= value ? "btn-primary" : ""}`}
-                      type="button"
-                      onClick={() => onScoreChange?.(value)}
-                    >
-                      ★
-                    </button>
-                  );
-                })}
+              <div className="flex items-center gap-2">
+                <div className="flex min-w-0 flex-1 gap-1" role="radiogroup" aria-label={`${t.beerCard.scoreFor} ${beer.name}`}>
+                  {Array.from({ length: starCount }, (_, idx) => {
+                    const value = ratingConfig.scoreMin + idx + 1;
+                    return (
+                      <button
+                        key={value}
+                        className={`btn min-h-10 min-w-0 flex-1 px-0 ${normalizedScore != null && normalizedScore >= value ? "btn-primary" : ""}`}
+                        type="button"
+                        onClick={() => onScoreChange?.(value)}
+                      >
+                        ★
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="w-12 text-right text-xs text-muted tabular-nums">
+                  {starScoreLabel}/{starCount}
+                </div>
               </div>
-            ) : null}
-
-            <div className="flex items-center gap-3">
-              {ratingConfig.mode === "slider" ? (
+            ) : (
+              <div className="flex items-center gap-3">
                 <input
                   className="range"
                   type="range"
@@ -186,28 +191,28 @@ export function BeerCard({
                   onChange={(event) => handleSliderChange(event.target.value)}
                   aria-label={`${t.beerCard.scoreFor} ${beer.name}`}
                 />
-              ) : null}
-              <input
-                className="w-20 rounded-lg border border-line bg-[#14161b] px-2 py-1 text-right tabular-nums text-text"
-                type="text"
-                inputMode="decimal"
-                value={scoreInput}
-                onFocus={() => setIsEditingInput(true)}
-                onChange={(event) => {
-                  const raw = event.target.value;
-                  setScoreInput(raw);
-                  const next = parseScoreInput(raw, ratingConfig);
-                  if (next == null) return;
-                  onScoreChange?.(next);
-                }}
-                onBlur={() => {
-                  const parsed = parseScoreInput(scoreInput, ratingConfig);
-                  setIsEditingInput(false);
-                  setScoreInput(parsed == null && normalizedScore == null ? "" : formatScore(parsed ?? normalizedScore, ratingConfig));
-                }}
-                aria-label={`${t.beerCard.scoreNumericFor} ${beer.name}`}
-              />
-            </div>
+                <input
+                  className="w-20 rounded-lg border border-line bg-[#14161b] px-2 py-1 text-right tabular-nums text-text"
+                  type="text"
+                  inputMode="decimal"
+                  value={scoreInput}
+                  onFocus={() => setIsEditingInput(true)}
+                  onChange={(event) => {
+                    const raw = event.target.value;
+                    setScoreInput(raw);
+                    const next = parseScoreInput(raw, ratingConfig);
+                    if (next == null) return;
+                    onScoreChange?.(next);
+                  }}
+                  onBlur={() => {
+                    const parsed = parseScoreInput(scoreInput, ratingConfig);
+                    setIsEditingInput(false);
+                    setScoreInput(parsed == null && normalizedScore == null ? "" : formatScore(parsed ?? normalizedScore, ratingConfig));
+                  }}
+                  aria-label={`${t.beerCard.scoreNumericFor} ${beer.name}`}
+                />
+              </div>
+            )}
 
             <label className="text-sm text-muted" htmlFor={`beer-comment-${beer.id}`}>
               {t.beerCard.commentOptional}

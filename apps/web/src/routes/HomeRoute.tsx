@@ -18,6 +18,7 @@ const BATCH_RECOGNITION_CONCURRENCY = 3;
 
 type BatchStatus = "queued" | "loading" | "success" | "error";
 type HomeAction = "create" | "join" | null;
+type StarCount = "5" | "10";
 
 function createBeerRow(file?: File): BeerEditorRow {
   return {
@@ -44,6 +45,7 @@ export function HomeRoute() {
   const [beers, setBeers] = useState<BeerEditorRow[]>([createBeerRow()]);
   const [batchStatus, setBatchStatus] = useState<Record<string, { state: BatchStatus; message: string }>>({});
   const [ratingMode, setRatingMode] = useState<RatingMode>("slider");
+  const [starMax, setStarMax] = useState<StarCount>("5");
   const [scorePreset, setScorePreset] = useState("0-10");
   const [customMin, setCustomMin] = useState("0");
   const [customMax, setCustomMax] = useState("10");
@@ -67,8 +69,8 @@ export function HomeRoute() {
       return {
         ratingMode,
         scoreMin: 0,
-        scoreMax: 5,
-        scoreStep: 0.5,
+        scoreMax: Number(starMax),
+        scoreStep: 1,
         resultsVisibility,
       };
     }
@@ -360,7 +362,30 @@ export function HomeRoute() {
                     </>
                   ) : null}
                 </div>
-              ) : null}
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    className={`btn ${starMax === "5" ? "btn-primary" : ""}`}
+                    type="button"
+                    onClick={() => {
+                      haptics.selection();
+                      setStarMax("5");
+                    }}
+                  >
+                    5
+                  </button>
+                  <button
+                    className={`btn ${starMax === "10" ? "btn-primary" : ""}`}
+                    type="button"
+                    onClick={() => {
+                      haptics.selection();
+                      setStarMax("10");
+                    }}
+                  >
+                    10
+                  </button>
+                </div>
+              )}
               <label className="flex items-start gap-2 text-sm text-muted">
                 <input
                   className="mt-1"

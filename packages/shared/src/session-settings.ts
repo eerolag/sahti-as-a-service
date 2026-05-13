@@ -63,7 +63,32 @@ export function normalizeSessionSettings(
     return { error: "Virheellinen arvostelutapa" };
   }
 
-  const fallback = mode === "stars" ? { scoreMin: 0, scoreMax: 5, scoreStep: 0.5 } : DEFAULT_RATING_CONFIG;
+  if (mode === "stars") {
+    const scoreMax = roundScorePart(readFiniteNumber(source.scoreMax, 5));
+    if (scoreMax !== 5 && scoreMax !== 10) {
+      return { error: "Tähtiarvostelun määrä voi olla vain 5 tai 10" };
+    }
+
+    const resultsVisibility =
+      source.resultsVisibility == null ? DEFAULT_RESULTS_VISIBILITY : source.resultsVisibility;
+    if (!isResultsVisibility(resultsVisibility)) {
+      return { error: "Virheellinen tulosten näkyvyysasetus" };
+    }
+
+    return {
+      value: {
+        ratingConfig: {
+          mode,
+          scoreMin: 0,
+          scoreMax,
+          scoreStep: 1,
+        },
+        resultsVisibility,
+      },
+    };
+  }
+
+  const fallback = DEFAULT_RATING_CONFIG;
   const scoreMin = roundScorePart(readFiniteNumber(source.scoreMin, fallback.scoreMin));
   const scoreMax = roundScorePart(readFiniteNumber(source.scoreMax, fallback.scoreMax));
   const scoreStep = roundScorePart(readFiniteNumber(source.scoreStep, fallback.scoreStep));
@@ -109,4 +134,3 @@ export function normalizeScoreForConfig(value: unknown, config: RatingConfig = D
   const snapped = config.scoreMin + steps * config.scoreStep;
   return roundScorePart(Math.min(config.scoreMax, Math.max(config.scoreMin, snapped)));
 }
-

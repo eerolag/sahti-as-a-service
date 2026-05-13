@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronDown, MoreHorizontal, Pencil, Share2, UserCircle } from "lucide-react";
+import { ArrowLeft, ChevronDown, Pencil, Share2, UserCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { GetResultsResponse, ResultBeerDto, UpdateGameRequest } from "@breview/shared/api-contracts";
 import { normalizeScore } from "@breview/shared/scoring";
@@ -421,31 +421,6 @@ export function GameRoute({ target, section, onSectionChange }: GameRouteProps) 
     }
   }
 
-  async function reportContent(targetType: "session" | "beer" | "image" | "comment" | "participant", targetId?: number | string) {
-    if (!shareId) {
-      alert(t.errors.reportingOnNewOnly);
-      return;
-    }
-
-    const reason = window.prompt(t.errors.reportPrompt);
-    if (!reason?.trim()) return;
-
-    try {
-      haptics.light();
-      await apiClient.reportSession(shareId, {
-        targetType,
-        targetId,
-        reason: reason.trim(),
-        clientId: activeClientId,
-      });
-      haptics.success();
-      alert(t.errors.reportReceived);
-    } catch (error) {
-      haptics.error();
-      alert(String((error as Error)?.message ?? t.errors.reportFailed));
-    }
-  }
-
   async function saveGameEdits() {
     if (!editDraft) return;
 
@@ -490,9 +465,9 @@ export function GameRoute({ target, section, onSectionChange }: GameRouteProps) 
         beers: payloadBeers,
         settings: {
           ratingMode: editDraft.ratingMode,
-          scoreMin: Number(editDraft.scoreMin),
-          scoreMax: Number(editDraft.scoreMax),
-          scoreStep: Number(editDraft.scoreStep),
+          scoreMin: editDraft.ratingMode === "stars" ? 0 : Number(editDraft.scoreMin),
+          scoreMax: editDraft.ratingMode === "stars" ? (editDraft.scoreMax === "10" ? 10 : 5) : Number(editDraft.scoreMax),
+          scoreStep: editDraft.ratingMode === "stars" ? 1 : Number(editDraft.scoreStep),
           resultsVisibility: editDraft.resultsVisibility,
         },
       };
@@ -568,9 +543,20 @@ export function GameRoute({ target, section, onSectionChange }: GameRouteProps) 
                 <select
                   className="input"
                   value={editDraft.ratingMode}
-                  onChange={(event) =>
-                    setEditDraft((prev) => (prev ? { ...prev, ratingMode: event.target.value as RatingMode } : prev))
-                  }
+                  onChange={(event) => {
+                    const nextMode = event.target.value as RatingMode;
+                    setEditDraft((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            ratingMode: nextMode,
+                            scoreMin: nextMode === "stars" ? "0" : prev.scoreMin,
+                            scoreMax: nextMode === "stars" ? (prev.scoreMax === "10" ? "10" : "5") : prev.scoreMax,
+                            scoreStep: nextMode === "stars" ? "1" : prev.scoreStep,
+                          }
+                        : prev,
+                    );
+                  }}
                 >
                   <option value="slider">{t.home.slider}</option>
                   <option value="stars">{t.home.stars}</option>
@@ -593,26 +579,53 @@ export function GameRoute({ target, section, onSectionChange }: GameRouteProps) 
                 </select>
               </label>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
-              <input
-                className="input"
-                value={editDraft.scoreMin}
-                onChange={(event) => setEditDraft((prev) => (prev ? { ...prev, scoreMin: event.target.value } : prev))}
-                aria-label={t.home.minLabel}
-              />
-              <input
-                className="input"
-                value={editDraft.scoreMax}
-                onChange={(event) => setEditDraft((prev) => (prev ? { ...prev, scoreMax: event.target.value } : prev))}
-                aria-label={t.home.maxLabel}
-              />
-              <input
-                className="input"
-                value={editDraft.scoreStep}
-                onChange={(event) => setEditDraft((prev) => (prev ? { ...prev, scoreStep: event.target.value } : prev))}
-                aria-label={t.home.stepLabel}
-              />
-            </div>
+            {editDraft.ratingMode === "stars" ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  className={`btn ${editDraft.scoreMax === "10" ? "" : "btn-primary"}`}
+                  type="button"
+                  onClick={() =>
+                    setEditDraft((prev) =>
+                      prev ? { ...prev, scoreMin: "0", scoreMax: "5", scoreStep: "1" } : prev,
+                    )
+                  }
+                >
+                  5
+                </button>
+                <button
+                  className={`btn ${editDraft.scoreMax === "10" ? "btn-primary" : ""}`}
+                  type="button"
+                  onClick={() =>
+                    setEditDraft((prev) =>
+                      prev ? { ...prev, scoreMin: "0", scoreMax: "10", scoreStep: "1" } : prev,
+                    )
+                  }
+                >
+                  10
+                </button>
+              </div>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-3">
+                <input
+                  className="input"
+                  value={editDraft.scoreMin}
+                  onChange={(event) => setEditDraft((prev) => (prev ? { ...prev, scoreMin: event.target.value } : prev))}
+                  aria-label={t.home.minLabel}
+                />
+                <input
+                  className="input"
+                  value={editDraft.scoreMax}
+                  onChange={(event) => setEditDraft((prev) => (prev ? { ...prev, scoreMax: event.target.value } : prev))}
+                  aria-label={t.home.maxLabel}
+                />
+                <input
+                  className="input"
+                  value={editDraft.scoreStep}
+                  onChange={(event) => setEditDraft((prev) => (prev ? { ...prev, scoreStep: event.target.value } : prev))}
+                  aria-label={t.home.stepLabel}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -653,11 +666,6 @@ export function GameRoute({ target, section, onSectionChange }: GameRouteProps) 
           {canHost ? (
             <button className="icon-btn" type="button" onClick={openEdit} aria-label={t.game.editSession}>
               <Pencil size={18} />
-            </button>
-          ) : null}
-          {shareId ? (
-            <button className="icon-btn" type="button" onClick={() => void reportContent("session")} aria-label={t.game.reportContent}>
-              <MoreHorizontal size={18} />
             </button>
           ) : null}
           <a className="icon-btn" href="/account" aria-label={t.nav.account}>

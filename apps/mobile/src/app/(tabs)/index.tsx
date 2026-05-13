@@ -16,7 +16,6 @@ import { pickSingleImage, requestImageSourcePermission, type ImageSource } from 
 import { saveHostToken } from "@/lib/creator-session";
 import { getOrCreateClientId } from "@/lib/player-identity";
 import { loadRecentGames, recentGameFromPayload, saveRecentGame, type RecentGame } from "@/lib/recent-games";
-import { mobileSupportConfig } from "@/lib/support";
 import { useT, useI18n } from "@/lib/i18nContext";
 
 interface CreateBeerDraft {
@@ -43,7 +42,21 @@ function asMobileImageAsset(asset: ImagePicker.ImagePickerAsset): MobileImageAss
   };
 }
 
-type SessionTarget = { type: "game"; id: number } | { type: "session"; shareId: string; host: boolean };
+type StarCount = "5" | "10";
+type SessionTarget =
+  | { type: "game"; id: number }
+  | { type: "session"; shareId: string; host: boolean; hostToken?: string };
+
+function decodeHashToken(hash: string): string {
+  const raw = hash.replace(/^#/, "").trim();
+  if (!raw) return "";
+
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
 
 function parseSessionLink(value: string): SessionTarget | null {
   const trimmed = value.trim();
@@ -51,8 +64,13 @@ function parseSessionLink(value: string): SessionTarget | null {
 
   try {
     const url = new URL(trimmed);
-    const match = url.pathname.match(/^\/([sh])\/([A-Za-z0-9_-]+)\/?$/);
-    if (match) return { type: "session", host: match[1] === "h", shareId: match[2] };
+    const webMatch = url.pathname.match(/^\/([sh])\/([A-Za-z0-9_-]+)\/?$/);
+    const schemeMatch = /^[sh]$/.test(url.hostname) ? url.pathname.match(/^\/([A-Za-z0-9_-]+)\/?$/) : null;
+    if (webMatch || schemeMatch) {
+      const host = webMatch ? webMatch[1] === "h" : url.hostname === "h";
+      const shareId = webMatch ? webMatch[2] : schemeMatch?.[1] ?? "";
+      return { type: "session", host, shareId, hostToken: host ? decodeHashToken(url.hash) : undefined };
+    }
 
     const gameIdSegment = url.pathname.split("/").find((part) => /^\d+$/.test(part));
     if (!gameIdSegment) return null;
@@ -61,7 +79,16 @@ function parseSessionLink(value: string): SessionTarget | null {
     return Number.isInteger(gameId) && gameId > 0 ? { type: "game", id: gameId } : null;
   } catch {
     const sessionMatch = trimmed.match(/(?:^|\/)([sh])\/([A-Za-z0-9_-]+)(?:$|[/?#])/);
-    if (sessionMatch) return { type: "session", host: sessionMatch[1] === "h", shareId: sessionMatch[2] };
+    if (sessionMatch) {
+      const host = sessionMatch[1] === "h";
+      const hashIndex = trimmed.indexOf("#");
+      return {
+        type: "session",
+        host,
+        shareId: sessionMatch[2],
+        hostToken: host && hashIndex >= 0 ? decodeHashToken(trimmed.slice(hashIndex)) : undefined,
+      };
+    }
 
     const match = trimmed.match(/(?:^|\/)(\d+)(?:$|[/?#])/);
     if (!match) return null;
@@ -69,6 +96,15 @@ function parseSessionLink(value: string): SessionTarget | null {
     const gameId = Number(match[1]);
     return Number.isInteger(gameId) && gameId > 0 ? { type: "game", id: gameId } : null;
   }
+}
+
+function ProfileIcon() {
+  return (
+    <View className="items-center justify-center">
+      <View className="h-3 w-3 rounded-full bg-foreground" />
+      <View className="mt-1 h-3 w-5 rounded-full bg-foreground" />
+    </View>
+  );
 }
 
 export default function GamesScreen() {
@@ -84,8 +120,8 @@ export default function GamesScreen() {
   const [joining, setJoining] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [safetyAccepted, setSafetyAccepted] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [ratingMode, setRatingMode] = useState<RatingMode>("slider");
+  const [starMax, setStarMax] = useState<StarCount>("5");
   const [scoreMin, setScoreMin] = useState("0");
   const [scoreMax, setScoreMax] = useState("10");
   const [scoreStep, setScoreStep] = useState("0.25");
@@ -150,6 +186,9 @@ export default function GamesScreen() {
 
     try {
       if (target.type === "session") {
+        if (target.host && target.hostToken) {
+          await saveHostToken(target.shareId, target.hostToken);
+        }
         await openRemoteSession(target.shareId, target.host);
       } else {
         await openRemoteGame(target.id);
@@ -162,16 +201,7 @@ export default function GamesScreen() {
     }
   }
 
-  async function openExternalPage(url: string) {
-    try {
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert("Breview", t.errors.pageNotOpened);
-    }
-  }
-
   function openAccount() {
-    setMenuOpen(false);
     router.push("/explore");
   }
 
@@ -220,9 +250,9 @@ export default function GamesScreen() {
         beers: payloadBeers,
         settings: {
           ratingMode,
-          scoreMin: Number(scoreMin),
-          scoreMax: Number(scoreMax),
-          scoreStep: Number(scoreStep),
+          scoreMin: ratingMode === "stars" ? 0 : Number(scoreMin),
+          scoreMax: ratingMode === "stars" ? Number(starMax) : Number(scoreMax),
+          scoreStep: ratingMode === "stars" ? 1 : Number(scoreStep),
           resultsVisibility,
         },
       });
@@ -348,32 +378,14 @@ export default function GamesScreen() {
           </Text>
         </View>
         <Pressable
-          accessibilityLabel={t.home.openMenu}
+          accessibilityLabel={t.nav.account}
           accessibilityRole="button"
           className="h-11 w-11 items-center justify-center rounded-full border border-border bg-card active:opacity-80"
-          onPress={() => {
-            setMenuOpen((open) => !open);
-          }}
+          onPress={openAccount}
         >
-          <Text className="text-3xl leading-none text-foreground">⋯</Text>
+          <ProfileIcon />
         </Pressable>
       </View>
-
-      {menuOpen ? (
-        <Card className="gap-2 p-3">
-          <Button variant="secondary" onPress={openAccount}>
-            {t.nav.account}
-          </Button>
-          <View className="flex-row gap-2">
-            <Button className="flex-1" variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.supportUrl)}>
-              {t.nav.support}
-            </Button>
-            <Button className="flex-1" variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.privacyUrl)}>
-              {t.nav.privacy}
-            </Button>
-          </View>
-        </Card>
-      ) : null}
 
       {message ? (
         <Card className="border-destructive bg-background p-4">
@@ -493,11 +505,36 @@ export default function GamesScreen() {
                 {t.home.stars}
               </Button>
             </View>
-            <View className="flex-row gap-2">
-              <Input className="flex-1" value={scoreMin} onChangeText={setScoreMin} keyboardType="decimal-pad" placeholder={t.home.minLabel} />
-              <Input className="flex-1" value={scoreMax} onChangeText={setScoreMax} keyboardType="decimal-pad" placeholder={t.home.maxLabel} />
-              <Input className="flex-1" value={scoreStep} onChangeText={setScoreStep} keyboardType="decimal-pad" placeholder={t.home.stepLabel} />
-            </View>
+            {ratingMode === "stars" ? (
+              <View className="flex-row gap-2">
+                <Button
+                  className="flex-1"
+                  variant={starMax === "5" ? "default" : "secondary"}
+                  onPress={() => {
+                    haptics.selection();
+                    setStarMax("5");
+                  }}
+                >
+                  5
+                </Button>
+                <Button
+                  className="flex-1"
+                  variant={starMax === "10" ? "default" : "secondary"}
+                  onPress={() => {
+                    haptics.selection();
+                    setStarMax("10");
+                  }}
+                >
+                  10
+                </Button>
+              </View>
+            ) : (
+              <View className="flex-row gap-2">
+                <Input className="flex-1" value={scoreMin} onChangeText={setScoreMin} keyboardType="decimal-pad" placeholder={t.home.minLabel} />
+                <Input className="flex-1" value={scoreMax} onChangeText={setScoreMax} keyboardType="decimal-pad" placeholder={t.home.maxLabel} />
+                <Input className="flex-1" value={scoreStep} onChangeText={setScoreStep} keyboardType="decimal-pad" placeholder={t.home.stepLabel} />
+              </View>
+            )}
             <View className="gap-2">
               <Button
                 variant={resultsVisibility === "host_reveal" ? "default" : "secondary"}

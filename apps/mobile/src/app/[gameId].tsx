@@ -24,7 +24,7 @@ import { Text } from "@/components/ui/text";
 import { loadAccountSession } from "@/lib/account-session";
 import { showNativeActionSheet } from "@/lib/action-sheet";
 import { apiClient, identifyBeerNameAsset, uploadImageAsset, type MobileImageAsset } from "@/lib/api";
-import { loadHostToken } from "@/lib/creator-session";
+import { loadHostToken, saveHostToken } from "@/lib/creator-session";
 import { haptics } from "@/lib/haptics";
 import { pickSingleImage, requestImageSourcePermission, type ImageSource } from "@/lib/image-picker";
 import {
@@ -68,6 +68,26 @@ function untappdUrl(beer: BeerDto | ResultBeerDto | EditBeerDraft): string {
 
 function sessionUrl(publicId: string): string {
   return `${BREVIEW_ORIGIN}/s/${publicId}`;
+}
+
+function hostTokenFromUrl(value: string | null | undefined, shareId: string): string {
+  if (!value || !shareId) return "";
+
+  try {
+    const url = new URL(value);
+    const decodedShareId = decodeURIComponent(shareId);
+    const pathname = url.pathname.replace(/\/+$/, "");
+    const hostStyleMatch = pathname.match(/^\/h\/([^/]+)$/);
+    const schemeStyleMatch = url.hostname === "h" ? pathname.match(/^\/([^/]+)$/) : null;
+    const matchedShareId = hostStyleMatch?.[1] ?? schemeStyleMatch?.[1] ?? "";
+    if (decodeURIComponent(matchedShareId) !== decodedShareId) return "";
+
+    const rawToken = url.hash.replace(/^#/, "").trim();
+    if (!rawToken) return "";
+    return decodeURIComponent(rawToken);
+  } catch {
+    return "";
+  }
 }
 
 function toRatingDraft(ratings: RatingDto[], ratingConfig?: RatingConfig): RatingDraft {
@@ -193,9 +213,29 @@ export default function GameScreen() {
 
   useEffect(() => {
     if (!isHostRoute || !routeShareId) return;
-    void (async () => {
-      setCreatorToken(await loadHostToken(routeShareId));
-    })();
+    let cancelled = false;
+
+    async function applyHostToken(url?: string | null) {
+      const tokenFromUrl = hostTokenFromUrl(url, routeShareId);
+      if (tokenFromUrl) {
+        await saveHostToken(routeShareId, tokenFromUrl);
+        if (!cancelled) setCreatorToken(tokenFromUrl);
+        return;
+      }
+
+      const storedToken = await loadHostToken(routeShareId);
+      if (!cancelled) setCreatorToken(storedToken);
+    }
+
+    void Linking.getInitialURL().then(applyHostToken);
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      void applyHostToken(url);
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
   }, [isHostRoute, routeShareId]);
 
   function applyPayload(nextPayload: GetGameResponse) {
@@ -524,11 +564,17 @@ export default function GameScreen() {
 
   async function shareGame() {
     try {
-      await Share.share({
-        title,
-        message: `${title}\n${shareUrl}`,
-        url: shareUrl,
-      });
+      await Share.share(
+        {
+          title: `${title} - Breview`,
+          message: `${title} - Breview\n${shareUrl}`,
+          url: shareUrl,
+        },
+        {
+          dialogTitle: `${title} - Breview`,
+          subject: `${title} - Breview`,
+        },
+      );
     } catch (error) {
       setMessage(String((error as Error)?.message ?? t.errors.sharingFailed));
       haptics.error();
@@ -633,9 +679,9 @@ export default function GameScreen() {
         beers: payloadBeers,
         settings: {
           ratingMode: editRatingMode,
-          scoreMin: Number(editScoreMin),
-          scoreMax: Number(editScoreMax),
-          scoreStep: Number(editScoreStep),
+          scoreMin: editRatingMode === "stars" ? 0 : Number(editScoreMin),
+          scoreMax: editRatingMode === "stars" ? (editScoreMax === "10" ? 10 : 5) : Number(editScoreMax),
+          scoreStep: editRatingMode === "stars" ? 1 : Number(editScoreStep),
           resultsVisibility: editResultsVisibility,
         },
       };
@@ -859,16 +905,48 @@ export default function GameScreen() {
                   onPress={() => {
                     haptics.selection();
                     setEditRatingMode("stars");
+                    setEditScoreMin("0");
+                    setEditScoreMax(editScoreMax === "10" ? "10" : "5");
+                    setEditScoreStep("1");
                   }}
                 >
                   {t.home.stars}
                 </Button>
               </View>
-              <View className="flex-row gap-2">
-                <Input className="flex-1" value={editScoreMin} onChangeText={setEditScoreMin} keyboardType="decimal-pad" placeholder={t.home.minLabel} />
-                <Input className="flex-1" value={editScoreMax} onChangeText={setEditScoreMax} keyboardType="decimal-pad" placeholder={t.home.maxLabel} />
-                <Input className="flex-1" value={editScoreStep} onChangeText={setEditScoreStep} keyboardType="decimal-pad" placeholder={t.home.stepLabel} />
-              </View>
+              {editRatingMode === "stars" ? (
+                <View className="flex-row gap-2">
+                  <Button
+                    className="flex-1"
+                    variant={editScoreMax === "10" ? "secondary" : "default"}
+                    onPress={() => {
+                      haptics.selection();
+                      setEditScoreMin("0");
+                      setEditScoreMax("5");
+                      setEditScoreStep("1");
+                    }}
+                  >
+                    5
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    variant={editScoreMax === "10" ? "default" : "secondary"}
+                    onPress={() => {
+                      haptics.selection();
+                      setEditScoreMin("0");
+                      setEditScoreMax("10");
+                      setEditScoreStep("1");
+                    }}
+                  >
+                    10
+                  </Button>
+                </View>
+              ) : (
+                <View className="flex-row gap-2">
+                  <Input className="flex-1" value={editScoreMin} onChangeText={setEditScoreMin} keyboardType="decimal-pad" placeholder={t.home.minLabel} />
+                  <Input className="flex-1" value={editScoreMax} onChangeText={setEditScoreMax} keyboardType="decimal-pad" placeholder={t.home.maxLabel} />
+                  <Input className="flex-1" value={editScoreStep} onChangeText={setEditScoreStep} keyboardType="decimal-pad" placeholder={t.home.stepLabel} />
+                </View>
+              )}
               <View className="gap-2">
                 <Button
                   variant={editResultsVisibility === "host_reveal" ? "default" : "secondary"}
@@ -962,6 +1040,7 @@ interface BeerRatingCardProps {
 function BeerRatingCard({ t,  beer, score, comment, ratingConfig, onScoreChange, onCommentChange }: BeerRatingCardProps) {
   const sliderValue = score == null ? ratingConfig.scoreMin : score;
   const starCount = Math.max(1, Math.round(ratingConfig.scoreMax - ratingConfig.scoreMin));
+  const scoreText = score == null ? "–" : String(Math.round(score));
 
   return (
     <Card className="gap-4">
@@ -986,20 +1065,20 @@ function BeerRatingCard({ t,  beer, score, comment, ratingConfig, onScoreChange,
       <View className="gap-2">
         <View className="flex-row items-center gap-3">
           {ratingConfig.mode === "stars" ? (
-            <View className="flex-1 flex-row gap-1">
+            <View className="flex-1 flex-row gap-0.5">
               {Array.from({ length: starCount }, (_, index) => {
                 const value = ratingConfig.scoreMin + index + 1;
                 return (
                   <Pressable
                     key={value}
                     accessibilityRole="button"
-                    className="min-h-10 flex-1 items-center justify-center rounded-md bg-secondary"
+                    className="min-h-10 flex-1 items-center justify-center rounded-md bg-secondary px-0"
                     onPress={() => {
                       haptics.selection();
                       onScoreChange(value);
                     }}
                   >
-                    <Text className={score != null && score >= value ? "text-primary" : "text-muted-foreground"}>★</Text>
+                    <Text className={score != null && score >= value ? "text-sm text-primary" : "text-sm text-muted-foreground"}>★</Text>
                   </Pressable>
                 );
               })}
@@ -1019,11 +1098,17 @@ function BeerRatingCard({ t,  beer, score, comment, ratingConfig, onScoreChange,
               />
             </View>
           )}
-          <View className="w-20 rounded-lg border border-border bg-background px-3 py-2">
-            <Text className="text-right text-xl tabular-nums" style={{ fontFamily: "JetBrainsMono" }}>
-              {formatScore(score, ratingConfig)}
+          {ratingConfig.mode === "stars" ? (
+            <Text variant="small" className="w-10 text-right text-muted-foreground" style={{ fontFamily: "JetBrainsMono" }}>
+              {scoreText}/{starCount}
             </Text>
-          </View>
+          ) : (
+            <View className="w-20 rounded-lg border border-border bg-background px-3 py-2">
+              <Text className="text-right text-xl tabular-nums" style={{ fontFamily: "JetBrainsMono" }}>
+                {formatScore(score, ratingConfig)}
+              </Text>
+            </View>
+          )}
         </View>
 
         <Text variant="muted">{t.home.optionalComment}</Text>

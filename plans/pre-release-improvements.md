@@ -22,7 +22,7 @@ Priority order:
 - Added host-reveal result hiding and reveal flow.
 - Updated web creation to use the Breview logo, first-run welcome, safety acceptance, session copy, share links, host links, rating settings, and batch image import with a concurrency-limited AI naming queue.
 - Updated mobile creation/link-opening basics to use session terminology, public session links, host-only edit controls, configurable rating settings, star/slider rating display, and host reveal.
-- Added a content-report table, report endpoint, and web/mobile report actions for UGC review.
+- Added a content-report table, report endpoint, and mobile report action for UGC review; web keeps the backend capability without a visible primary report CTA.
 - Softened support/payment copy so it does not imply alcohol purchase or feature unlocks.
 - Added shared locale utilities and dictionaries for Finnish, English, Swedish, and Dutch, with web/mobile language switchers and English fallback for unsupported device/browser locales.
 - Added self-hosted Figtree and JetBrains Mono font assets for web and mobile.
@@ -40,6 +40,7 @@ Priority order:
 - Session settings should stay available at creation and for the host:
   - rating input: `slider` or `stars`
   - slider ranges: `0-5`, `0-10`, `1-10`, or custom
+  - star ranges: `0-5` or `0-10`, whole-star steps only
   - result visibility: `live`, `after_submit`, or `host_reveal`
 - Batch image import should remain a client-side concurrency-limited queue unless later telemetry shows a backend job is needed.
 
@@ -78,7 +79,7 @@ Policy references:
 - Replace native-looking file inputs with polished image buttons and previews everywhere.
 - Keep primary mobile navigation in clear top/app-shell surfaces; do not reintroduce the bottom tab bar unless it is intentionally redesigned and tested.
 - Keep web session header actions separated by intent: profile/account behind a user icon, session sharing behind a share action, and host editing behind an edit action.
-- Keep required UGC reporting available from low-prominence overflow/support surfaces rather than as a primary call-to-action.
+- Keep required UGC reporting available from mobile overflow/support surfaces rather than as a primary call-to-action; avoid a visible web report CTA unless review feedback requires it.
 
 ## Test Plan
 
