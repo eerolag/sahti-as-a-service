@@ -42,15 +42,31 @@
   }
 
   .app-header {
-    @apply sticky top-0 z-30 mb-3 grid grid-cols-[36px_1fr_36px] items-center gap-2 px-4 py-2 backdrop-blur-md;
+    @apply sticky top-0 z-30 mb-3 flex items-center justify-between gap-2 px-4 py-2 backdrop-blur-md;
     width: 100vw;
     margin-left: calc(50% - 50vw);
     margin-right: calc(50% - 50vw);
     background-color: rgba(17, 19, 24, 0.72);
   }
 
+  .app-header > * {
+    min-width: 0;
+  }
+
   .header-brand {
-    @apply text-center text-sm font-semibold no-underline;
+    @apply absolute left-1/2 -translate-x-1/2 text-center text-sm font-semibold no-underline;
+  }
+
+  .header-logo {
+    @apply inline-flex items-center gap-2 text-sm font-semibold no-underline;
+  }
+
+  .header-logo img {
+    @apply h-8 w-8 rounded-lg object-cover;
+  }
+
+  .header-actions {
+    @apply fixed right-4 top-2 z-40 flex items-center justify-end gap-2;
   }
 
   .icon-btn {

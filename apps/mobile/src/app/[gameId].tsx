@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { loadAccountSession } from "@/lib/account-session";
+import { showNativeActionSheet } from "@/lib/action-sheet";
 import { apiClient, identifyBeerNameAsset, uploadImageAsset, type MobileImageAsset } from "@/lib/api";
 import { loadHostToken } from "@/lib/creator-session";
 import { haptics } from "@/lib/haptics";
@@ -358,6 +359,18 @@ export default function GameScreen() {
     });
   }
 
+  function moveEditBeer(fromIndex: number, toIndex: number) {
+    haptics.selection();
+    setEditBeers((current) => {
+      if (toIndex < 0 || toIndex >= current.length) return current;
+      const next = [...current];
+      const [item] = next.splice(fromIndex, 1);
+      if (!item) return current;
+      next.splice(toIndex, 0, item);
+      return next;
+    });
+  }
+
   async function saveRatings() {
     if (!payload) return;
 
@@ -385,7 +398,6 @@ export default function GameScreen() {
     setSaving(true);
     setSaveLabel(t.game.saving);
     setMessage(null);
-    haptics.light();
 
     try {
       const accountSession = await loadAccountSession();
@@ -418,7 +430,6 @@ export default function GameScreen() {
 
     setResultsLoading(true);
     setMessage(null);
-    haptics.light();
 
     try {
       setResults(
@@ -426,7 +437,6 @@ export default function GameScreen() {
           ? await apiClient.getSessionResults(shareId, identity?.clientId, creatorToken)
           : await apiClient.getResults(payload.game.id),
       );
-      haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
       haptics.error();
@@ -436,7 +446,6 @@ export default function GameScreen() {
   }
 
   function openResults() {
-    haptics.selection();
     setSection("results");
     if (!results && !resultsLoading) {
       void loadResults();
@@ -446,7 +455,6 @@ export default function GameScreen() {
   async function revealResults() {
     if (!shareId || !creatorToken) return;
     try {
-      haptics.light();
       const response = await apiClient.revealSessionResults(shareId, creatorToken);
       setPayload((current) => (current ? { ...current, game: response.game } : current));
       await loadResults();
@@ -477,7 +485,6 @@ export default function GameScreen() {
         onPress: () => {
           void (async () => {
             try {
-              haptics.light();
               await apiClient.reportSession(shareId, {
                 targetType: "session",
                 reason: "Mobile user report",
@@ -495,15 +502,33 @@ export default function GameScreen() {
     ]);
   }
 
+  function openSessionActions() {
+    if (!shareId) return;
+    showNativeActionSheet(
+      title,
+      [
+        {
+          label: t.game.reportContent,
+          destructive: true,
+          onPress: reportSessionContent,
+        },
+      ],
+      t.game.cancel,
+    );
+  }
+
+  function openEditSection() {
+    if (!canHost) return;
+    setSection("edit");
+  }
+
   async function shareGame() {
     try {
-      haptics.light();
       await Share.share({
         title,
         message: `${title}\n${shareUrl}`,
         url: shareUrl,
       });
-      haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? t.errors.sharingFailed));
       haptics.error();
@@ -539,8 +564,7 @@ export default function GameScreen() {
       localAsset: asset,
       imageUrl: "",
     });
-    setMessage(t.editor.imageSelected);
-    haptics.success();
+    haptics.selection();
   }
 
   async function identifyEditBeer(index: number) {
@@ -553,7 +577,6 @@ export default function GameScreen() {
 
     setMessage(null);
     setEditBeer(index, { identifying: true });
-    haptics.light();
 
     try {
       const identified = await identifyBeerNameAsset(asMobileImageAsset(row.localAsset), await getOrCreateClientId());
@@ -579,7 +602,6 @@ export default function GameScreen() {
     const payloadBeers: UpdateGameRequest["beers"] = [];
     setEditSaving(true);
     setMessage(null);
-    haptics.light();
 
     try {
       for (let index = 0; index < editBeers.length; index += 1) {
@@ -683,11 +705,21 @@ export default function GameScreen() {
               </Text>
             </Text>
           )}
-          {shareId ? (
-            <Button variant="ghost" size="sm" onPress={reportSessionContent}>
-              {t.game.reportContent}
+          <View className="mt-2 flex-row flex-wrap justify-center gap-2">
+            <Button variant="secondary" size="sm" onPress={shareGame}>
+              {t.share.shareSession}
             </Button>
-          ) : null}
+            {canHost ? (
+              <Button variant="secondary" size="sm" onPress={openEditSection}>
+                {t.game.editSession}
+              </Button>
+            ) : null}
+            {shareId ? (
+              <Button variant="ghost" size="sm" onPress={openSessionActions}>
+                ⋯
+              </Button>
+            ) : null}
+          </View>
         </View>
 
         <View className="flex-row rounded-lg bg-secondary p-1">
@@ -695,21 +727,10 @@ export default function GameScreen() {
             active={section === "rate"}
             label={t.game.rate}
             onPress={() => {
-              haptics.selection();
               setSection("rate");
             }}
           />
           <SectionTab active={section === "results"} label={t.game.resultsTab} onPress={openResults} />
-          {canHost ? (
-            <SectionTab
-              active={section === "edit"}
-              label={t.game.settings}
-              onPress={() => {
-                haptics.selection();
-                setSection("edit");
-              }}
-            />
-          ) : null}
         </View>
 
         {message ? (
@@ -790,9 +811,9 @@ export default function GameScreen() {
           <View className="gap-5">
             <Card className="gap-4">
               <View className="gap-1">
-                <Text variant="h3">{t.game.players}</Text>
+                <Text variant="h3">{t.share.inviteTasters}</Text>
                 <Text selectable variant="muted">
-                  {t.share.copySessionLink}
+                  {t.share.shareDescription}
                 </Text>
               </View>
               <View className="gap-2">
@@ -825,14 +846,20 @@ export default function GameScreen() {
                 <Button
                   className="flex-1"
                   variant={editRatingMode === "slider" ? "default" : "secondary"}
-                  onPress={() => setEditRatingMode("slider")}
+                  onPress={() => {
+                    haptics.selection();
+                    setEditRatingMode("slider");
+                  }}
                 >
                   {t.home.slider}
                 </Button>
                 <Button
                   className="flex-1"
                   variant={editRatingMode === "stars" ? "default" : "secondary"}
-                  onPress={() => setEditRatingMode("stars")}
+                  onPress={() => {
+                    haptics.selection();
+                    setEditRatingMode("stars");
+                  }}
                 >
                   {t.home.stars}
                 </Button>
@@ -845,19 +872,28 @@ export default function GameScreen() {
               <View className="gap-2">
                 <Button
                   variant={editResultsVisibility === "host_reveal" ? "default" : "secondary"}
-                  onPress={() => setEditResultsVisibility("host_reveal")}
+                  onPress={() => {
+                    haptics.selection();
+                    setEditResultsVisibility("host_reveal");
+                  }}
                 >
                   {t.home.revealAtEnd}
                 </Button>
                 <Button
                   variant={editResultsVisibility === "after_submit" ? "default" : "secondary"}
-                  onPress={() => setEditResultsVisibility("after_submit")}
+                  onPress={() => {
+                    haptics.selection();
+                    setEditResultsVisibility("after_submit");
+                  }}
                 >
                   {t.home.showAfterSubmit}
                 </Button>
                 <Button
                   variant={editResultsVisibility === "live" ? "default" : "secondary"}
-                  onPress={() => setEditResultsVisibility("live")}
+                  onPress={() => {
+                    haptics.selection();
+                    setEditResultsVisibility("live");
+                  }}
                 >
                   {t.home.showImmediately}
                 </Button>
@@ -876,6 +912,10 @@ export default function GameScreen() {
                   onPickCamera={() => void pickEditBeerImage(index, "camera")}
                   onPickLibrary={() => void pickEditBeerImage(index, "library")}
                   onIdentify={() => void identifyEditBeer(index)}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < editBeers.length - 1}
+                  onMoveUp={() => moveEditBeer(index, index - 1)}
+                  onMoveDown={() => moveEditBeer(index, index + 1)}
                 />
               ))}
             </View>
@@ -954,7 +994,10 @@ function BeerRatingCard({ t,  beer, score, comment, ratingConfig, onScoreChange,
                     key={value}
                     accessibilityRole="button"
                     className="min-h-10 flex-1 items-center justify-center rounded-md bg-secondary"
-                    onPress={() => onScoreChange(value)}
+                    onPress={() => {
+                      haptics.selection();
+                      onScoreChange(value);
+                    }}
                   >
                     <Text className={score != null && score >= value ? "text-primary" : "text-muted-foreground"}>★</Text>
                   </Pressable>
@@ -972,6 +1015,7 @@ function BeerRatingCard({ t,  beer, score, comment, ratingConfig, onScoreChange,
                 maximumTrackTintColor="#e5e7eb"
                 thumbTintColor="#0a84ff"
                 onValueChange={(value) => onScoreChange(value)}
+                onSlidingComplete={() => haptics.light()}
               />
             </View>
           )}
@@ -1009,7 +1053,11 @@ interface EditBeerCardProps {
   beer: EditBeerDraft;
   index: number;
   canRemove: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   onRemove: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onChange: (patch: Partial<EditBeerDraft>) => void;
   onPickCamera: () => void;
   onPickLibrary: () => void;
@@ -1020,7 +1068,11 @@ function EditBeerCard({ t,
   beer,
   index,
   canRemove,
+  canMoveUp,
+  canMoveDown,
   onRemove,
+  onMoveUp,
+  onMoveDown,
   onChange,
   onPickCamera,
   onPickLibrary,
@@ -1044,11 +1096,21 @@ function EditBeerCard({ t,
           <Text variant="large">{beer.name.trim() || t.editor.drink}</Text>
           <Text variant="muted">{beer.localAsset ? t.editor.imageSelected : `${t.editor.row} ${index + 1}`}</Text>
         </View>
-        {canRemove ? (
-          <Button variant="ghost" size="sm" onPress={onRemove}>
-            {t.editor.remove}
-          </Button>
-        ) : null}
+        <View className="items-end gap-1">
+          <View className="flex-row gap-1">
+            <Button variant="ghost" size="sm" disabled={!canMoveUp} onPress={onMoveUp}>
+              ↑
+            </Button>
+            <Button variant="ghost" size="sm" disabled={!canMoveDown} onPress={onMoveDown}>
+              ↓
+            </Button>
+          </View>
+          {canRemove ? (
+            <Button variant="ghost" size="sm" onPress={onRemove}>
+              {t.editor.remove}
+            </Button>
+          ) : null}
+        </View>
       </View>
 
       <View className="gap-2">

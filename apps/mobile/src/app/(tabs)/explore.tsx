@@ -1,4 +1,5 @@
 import type { AccountHistoryItemDto } from "@breview/shared/api-contracts";
+import { LOCALE_LABELS, SUPPORTED_LOCALES } from "@breview/shared";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, View } from "react-native";
@@ -8,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { apiClient } from "@/lib/api";
+import { showNativeActionSheet } from "@/lib/action-sheet";
 import {
   clearAccountSession,
   loadAccountSession,
@@ -83,6 +85,7 @@ function HistoryList({
 export default function AccountScreen() {
   const router = useRouter();
   const t = useT();
+  const { lang, setLang } = useI18n();
   const [session, setSession] = useState<AccountSession | null>(null);
   const [history, setHistory] = useState<AccountHistoryItemDto[]>([]);
   const [email, setEmail] = useState("");
@@ -136,7 +139,6 @@ export default function AccountScreen() {
   }
 
   function openHistoryItem(item: AccountHistoryItemDto) {
-    haptics.selection();
     router.push(
       item.publicId
         ? { pathname: "/s/[gameId]", params: { gameId: item.publicId } }
@@ -144,9 +146,22 @@ export default function AccountScreen() {
     );
   }
 
+  function chooseLanguage() {
+    showNativeActionSheet(
+      t.nav.language,
+      SUPPORTED_LOCALES.map((locale) => ({
+        label: `${lang === locale ? "✓ " : ""}${LOCALE_LABELS[locale]}`,
+        onPress: () => {
+          haptics.selection();
+          void setLang(locale);
+        },
+      })),
+      t.game.cancel,
+    );
+  }
+
   async function requestCode() {
     if (resendCooldown > 0) return;
-    haptics.light();
     setLoading(true);
     setMessage(null);
 
@@ -166,7 +181,6 @@ export default function AccountScreen() {
   }
 
   async function verifyCode() {
-    haptics.light();
     setLoading(true);
     setMessage(null);
 
@@ -195,7 +209,6 @@ export default function AccountScreen() {
 
   async function logout() {
     if (!session) return;
-    haptics.selection();
     setLoading(true);
     setMessage(null);
 
@@ -213,7 +226,6 @@ export default function AccountScreen() {
 
   function confirmDeleteAccount() {
     if (!session) return;
-    haptics.selection();
     Alert.alert(t.nav.deleteAccount, t.account.deleteConfirm, [
       { text: t.game.cancel, style: "cancel" },
       {
@@ -228,7 +240,6 @@ export default function AccountScreen() {
 
   async function deleteAccount() {
     if (!session) return;
-    haptics.light();
     setLoading(true);
     setMessage(null);
 
@@ -261,17 +272,19 @@ export default function AccountScreen() {
             {session ? session.user.email : t.account.notLoggedIn}
           </Text>
         </View>
-        <Button
-          variant="outline"
-          size="sm"
-          onPress={() => {
-            haptics.selection();
-            router.replace("/");
-          }}
-        >
-          {t.nav.home}
-        </Button>
       </View>
+
+      <Card className="gap-4">
+        <CardHeader>
+          <CardTitle>{t.game.settings}</CardTitle>
+          <CardDescription>{t.nav.language}</CardDescription>
+        </CardHeader>
+        <CardContent className="gap-3">
+          <Button variant="secondary" onPress={chooseLanguage}>
+            {LOCALE_LABELS[lang]}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card className="gap-4">
         <CardHeader>

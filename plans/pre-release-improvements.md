@@ -77,6 +77,8 @@ Policy references:
 - Use self-hosted Figtree for UI and JetBrains Mono for scores/codes.
 - Replace native-looking file inputs with polished image buttons and previews everywhere.
 - Keep primary mobile navigation in clear top/app-shell surfaces; do not reintroduce the bottom tab bar unless it is intentionally redesigned and tested.
+- Keep web session header actions separated by intent: profile/account behind a user icon, session sharing behind a share action, and host editing behind an edit action.
+- Keep required UGC reporting available from low-prominence overflow/support surfaces rather than as a primary call-to-action.
 
 ## Test Plan
 
@@ -97,6 +99,7 @@ Policy references:
 - Web/mobile smoke tests:
   - first-run welcome
   - create session and share participant link
+  - mobile create-session rating settings and beer reordering
   - open shared link directly into the session
   - slider and star rating
   - batch image import with failures

@@ -38,7 +38,7 @@ Acceptance criteria:
 - Shared contracts and domain logic run from `packages/shared`.
 - Web and mobile can use the shared typed client from `packages/api-client`.
 - Expo SDK 54 mobile shell exists in `apps/mobile` with Expo Router, NativeWind, `breview://`, and `ing.breview.app`.
-- Mobile create, link-open, recent-sessions, rating, comments, save, results, share, session-editing, beer-editing, image-picking, R2 upload, and Workers AI recognition flows call the shared API client or native mobile API helpers and default to `https://breview.ing`.
+- Mobile create, link-open, recent-sessions, rating, comments, save, results, share, session-editing, beer-editing, beer-reordering, image-picking, R2 upload, and Workers AI recognition flows call the shared API client or native mobile API helpers and default to `https://breview.ing`.
 - Mobile and web share the same Breview dark visual direction while using shadcn/ui on web and NativeWind/React Native components on mobile.
 - Mobile uses `breview-logo.png` for in-app brand presentation and app icon configuration.
 - Web and mobile support the current locale set `fi`, `en`, `sv`, and `nl`, auto-detect supported browser/device locales, fallback unknown locales to English, and expose manual language selection.
@@ -57,7 +57,7 @@ Acceptance criteria:
 - Web exposes a public `/makers` page for `Breview by Five Pint Sauna`, using `SUPPORT_PAYMENT_URL` and optional `SUPPORT_PAYMENT_LABEL` for a provider-agnostic external support CTA.
 - Mobile account UI links to the public support page through `EXPO_PUBLIC_SUPPORT_PAGE_URL` and does not implement native payments.
 - Web exposes `/account` with email-code login, account rating history, logout, deletion, and a privacy basics panel.
-- Mobile account UI sends email login codes, verifies sessions, links this device's existing ratings to the account, shows account rating history, hides account deletion until logged in, and keeps privacy basics visible when logged out.
+- Mobile account UI sends email login codes, verifies sessions, links this device's existing ratings to the account, shows account rating history, exposes manual language selection, hides account deletion until logged in, and keeps privacy basics visible when logged out.
 - Worker auth endpoints use Cloudflare Email Service binding `EMAIL`, D1 users/login challenges/sessions/user-player links, hashed login codes, and hashed bearer session tokens.
 - Web and mobile expose login-code resend cooldown UI after a successful code request.
 - Worker auth flows write structured `breview.auth_event` logs for code request, send success/failure, verify success/failure, logout, and account deletion while keeping user-facing auth errors non-leaky.
@@ -66,9 +66,10 @@ Acceptance criteria:
 - Expo config keeps `breview://` and prepares `https://breview.ing` iOS universal links and Android app links; final association requires Apple Team ID and Android signing certificate fingerprint from the release owner.
 - Production session links use `/s/:shareId` and `/h/:shareId#hostToken`; legacy numeric routes remain loadable but public/account/recent UI should prefer `publicId`.
 - Remote D1 migrations are applied through `0008_backfill_game_public_ids.sql`, so old sessions receive random public codes while numeric test URLs remain loadable.
-- Mobile no longer uses bottom tab navigation; account/support/privacy actions live behind the top-right menu and the account screen has an explicit return action.
+- Mobile no longer uses bottom tab navigation; account/support/privacy actions live behind the top-right menu and the account screen opens as a native stack page with the platform back affordance.
 - Mobile account, image-picking, sharing, retry, and edit flows have clearer loading, permission-denied, selected-image, and failure states, with local image filenames hidden.
-- Mobile image library selection avoids the extra pre-picker media permission prompt on iOS, and custom `Vibration` haptics are disabled so the app does not simulate haptic feedback against user preference.
+- Mobile session creation exposes rating mode, score range, score step, and result visibility settings instead of hard-coded defaults.
+- Mobile image library selection avoids the extra pre-picker media permission prompt on iOS, and custom `Vibration` haptics are disabled; native `expo-haptics` feedback is limited to deliberate choices, rating input, and save/error confirmations rather than navigation or menu transitions.
 - Paid Brave image search is removed from the web UI, Worker route, shared API contracts, README, and runtime env.
 - Untappd API resolution is removed; stored beer metadata is kept to outbound search links only.
 - Tests, typecheck, and build pass.

@@ -86,9 +86,12 @@ Official references checked on 2026-05-12:
 - [x] Polish camera/photo permission copy and denial handling.
 - [x] Polish image capture and image library states.
 - [x] Polish edit/share flows and copy.
-- [x] Disable custom mobile `Vibration` haptics; only reintroduce native haptics later if they respect platform/user settings.
+- [x] Disable custom mobile `Vibration` haptics and use native `expo-haptics` only for deliberate selections, rating input, and save/error confirmation, not navigation or menu transitions.
 - [x] Confirm local filenames are not rendered in mobile UI.
 - [x] Confirm account settings are understandable and not hidden behind unclear labels.
+- [x] Add mobile language selection to account settings.
+- [x] Add mobile create-session rating settings and beer reordering.
+- [x] Keep mobile session share/edit actions separate from account/profile settings.
 - [x] Confirm the maker-support link opens externally and does not create a native payment flow.
 
 ## Localization

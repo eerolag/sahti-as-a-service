@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { RatingMode, ResultsVisibility } from "@breview/shared";
 import type { CreateGameRequest } from "@breview/shared/api-contracts";
+import { UserCircle } from "lucide-react";
 import logoUrl from "../../../../breview-logo.png";
 import { apiClient } from "../api/client";
 import { BeerEditor, type BeerEditorRow } from "../components/BeerEditor";
@@ -217,19 +218,17 @@ export function HomeRoute() {
   }
 
   return (
-    <div className="app-wrap">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <img src={logoUrl} alt="" className="h-12 w-12 rounded-xl object-cover" />
-          <div>
-            <div className="mb-1 text-2xl font-extrabold">Breview</div>
-            <div className="text-sm text-muted">{t.welcome.welcomeSubtitle}</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
+    <div className="app-wrap app-wrap-with-header">
+      <div className="app-header">
+        <a className="header-logo" href="/">
+          <img src={logoUrl} alt="" />
+          <span>Breview</span>
+        </a>
+        <span aria-hidden="true" />
+        <div className="header-actions">
           <LanguageSwitcher />
-          <a className="btn btn-pill no-underline" href="/account">
-            {t.nav.account}
+          <a className="icon-btn" href="/account" aria-label={t.nav.account}>
+            <UserCircle size={18} />
           </a>
         </div>
       </div>

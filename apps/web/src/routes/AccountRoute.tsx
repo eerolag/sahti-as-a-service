@@ -193,17 +193,19 @@ export function AccountRoute() {
   }
 
   return (
-    <div className="app-wrap">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <a className="inline-link no-underline" href="/">
-            Breview
-          </a>
-          <div className="mt-1 text-2xl font-extrabold">{t.account.title}</div>
-        </div>
-        <a className="btn btn-pill no-underline" href="/">
-          {t.nav.sessions}
+    <div className="app-wrap app-wrap-with-header">
+      <div className="app-header">
+        <a className="icon-btn" href="/" aria-label={t.nav.backToHome}>
+          ←
         </a>
+        <a className="header-brand" href="/">
+          Breview
+        </a>
+        <span className="icon-btn-placeholder" aria-hidden="true" />
+      </div>
+
+      <div className="mb-4">
+        <div className="text-2xl font-extrabold">{t.account.title}</div>
       </div>
 
       <div className="card">

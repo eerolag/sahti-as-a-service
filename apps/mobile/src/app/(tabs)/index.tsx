@@ -1,5 +1,5 @@
 import type { CreateGameRequest } from "@breview/shared/api-contracts";
-import { getWelcomeCopy, LOCALE_LABELS, SUPPORTED_LOCALES } from "@breview/shared";
+import { getWelcomeCopy, type RatingMode, type ResultsVisibility } from "@breview/shared";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -73,7 +73,7 @@ function parseSessionLink(value: string): SessionTarget | null {
 
 export default function GamesScreen() {
   const t = useT();
-  const { lang, setLang } = useI18n();
+  const { lang } = useI18n();
   const router = useRouter();
   const welcomeCopy = useMemo(() => getWelcomeCopy([lang, Intl.DateTimeFormat().resolvedOptions().locale]), [lang]);
   const [gameName, setGameName] = useState("");
@@ -85,6 +85,11 @@ export default function GamesScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [safetyAccepted, setSafetyAccepted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [ratingMode, setRatingMode] = useState<RatingMode>("slider");
+  const [scoreMin, setScoreMin] = useState("0");
+  const [scoreMax, setScoreMax] = useState("10");
+  const [scoreStep, setScoreStep] = useState("0.25");
+  const [resultsVisibility, setResultsVisibility] = useState<ResultsVisibility>("host_reveal");
 
   useEffect(() => {
     setRecentGames(loadRecentGames());
@@ -113,12 +118,10 @@ export default function GamesScreen() {
   }
 
   function openGame(gameId: number) {
-    haptics.selection();
     router.push({ pathname: "/[gameId]", params: { gameId: String(gameId) } });
   }
 
   function openSession(shareId: string, host = false) {
-    haptics.selection();
     router.push({ pathname: host ? "/h/[gameId]" : "/s/[gameId]", params: { gameId: shareId } });
   }
 
@@ -142,7 +145,6 @@ export default function GamesScreen() {
       return;
     }
 
-    haptics.light();
     setJoining(true);
     setMessage(null);
 
@@ -152,7 +154,6 @@ export default function GamesScreen() {
       } else {
         await openRemoteGame(target.id);
       }
-      haptics.success();
     } catch (error) {
       setMessage(String((error as Error)?.message ?? error));
       haptics.error();
@@ -170,7 +171,6 @@ export default function GamesScreen() {
   }
 
   function openAccount() {
-    haptics.selection();
     setMenuOpen(false);
     router.push("/explore");
   }
@@ -191,7 +191,6 @@ export default function GamesScreen() {
       return;
     }
 
-    haptics.light();
     setCreating(true);
     setMessage(null);
 
@@ -219,7 +218,13 @@ export default function GamesScreen() {
       const created = await apiClient.createGame({
         name,
         beers: payloadBeers,
-        settings: { ratingMode: "slider", scoreMin: 0, scoreMax: 10, scoreStep: 0.25, resultsVisibility: "host_reveal" },
+        settings: {
+          ratingMode,
+          scoreMin: Number(scoreMin),
+          scoreMax: Number(scoreMax),
+          scoreStep: Number(scoreStep),
+          resultsVisibility,
+        },
       });
       await saveHostToken(created.shareId, created.hostToken);
       await openRemoteSession(created.shareId, true);
@@ -248,6 +253,18 @@ export default function GamesScreen() {
     setBeers((current) => {
       const next = current.filter((_, itemIndex) => itemIndex !== index);
       return next.length ? next : [createEmptyBeerDraft()];
+    });
+  }
+
+  function moveBeerRow(fromIndex: number, toIndex: number) {
+    haptics.selection();
+    setBeers((current) => {
+      if (toIndex < 0 || toIndex >= current.length) return current;
+      const next = [...current];
+      const [item] = next.splice(fromIndex, 1);
+      if (!item) return current;
+      next.splice(toIndex, 0, item);
+      return next;
     });
   }
 
@@ -281,8 +298,7 @@ export default function GamesScreen() {
     updateBeer(index, {
       localAsset: asset,
     });
-    setMessage(t.editor.imageSelected);
-    haptics.success();
+    haptics.selection();
   }
 
   async function identifyBeer(index: number) {
@@ -293,7 +309,6 @@ export default function GamesScreen() {
       return;
     }
 
-    haptics.light();
     setMessage(null);
     updateBeer(index, { identifying: true });
 
@@ -337,7 +352,6 @@ export default function GamesScreen() {
           accessibilityRole="button"
           className="h-11 w-11 items-center justify-center rounded-full border border-border bg-card active:opacity-80"
           onPress={() => {
-            haptics.selection();
             setMenuOpen((open) => !open);
           }}
         >
@@ -357,18 +371,6 @@ export default function GamesScreen() {
             <Button className="flex-1" variant="outline" onPress={() => void openExternalPage(mobileSupportConfig.privacyUrl)}>
               {t.nav.privacy}
             </Button>
-          </View>
-          <View className="mt-2 flex-row flex-wrap gap-2">
-            {SUPPORTED_LOCALES.map((locale) => (
-              <Button
-                key={locale}
-                className="min-w-[96px] flex-1"
-                variant={lang === locale ? "secondary" : "outline"}
-                onPress={() => void setLang(locale)}
-              >
-                {LOCALE_LABELS[locale]}
-              </Button>
-            ))}
           </View>
         </Card>
       ) : null}
@@ -408,11 +410,26 @@ export default function GamesScreen() {
                       {beer.localAsset ? t.editor.imageSelected : `${t.editor.row} ${index + 1}`}
                     </Text>
                   </View>
-                  {beers.length > 1 ? (
-                    <Button variant="ghost" size="sm" onPress={() => removeBeerRow(index)}>
-                      {t.editor.remove}
-                    </Button>
-                  ) : null}
+                  <View className="items-end gap-1">
+                    <View className="flex-row gap-1">
+                      <Button variant="ghost" size="sm" disabled={index === 0} onPress={() => moveBeerRow(index, index - 1)}>
+                        ↑
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={index === beers.length - 1}
+                        onPress={() => moveBeerRow(index, index + 1)}
+                      >
+                        ↓
+                      </Button>
+                    </View>
+                    {beers.length > 1 ? (
+                      <Button variant="ghost" size="sm" onPress={() => removeBeerRow(index)}>
+                        {t.editor.remove}
+                      </Button>
+                    ) : null}
+                  </View>
                 </View>
 
                 <Input
@@ -448,7 +465,77 @@ export default function GamesScreen() {
           <Button variant="outline" onPress={addBeerRow}>
             {t.editor.addDrink}
           </Button>
-          <Pressable accessibilityRole="checkbox" onPress={() => setSafetyAccepted((value) => !value)}>
+
+          <View className="gap-3 rounded-lg border border-border bg-background p-4">
+            <View className="gap-1">
+              <Text variant="large">{t.home.sessionSettings}</Text>
+              <Text variant="muted">{t.home.settingsDescription}</Text>
+            </View>
+            <View className="flex-row gap-2">
+              <Button
+                className="flex-1"
+                variant={ratingMode === "slider" ? "default" : "secondary"}
+                onPress={() => {
+                  haptics.selection();
+                  setRatingMode("slider");
+                }}
+              >
+                {t.home.slider}
+              </Button>
+              <Button
+                className="flex-1"
+                variant={ratingMode === "stars" ? "default" : "secondary"}
+                onPress={() => {
+                  haptics.selection();
+                  setRatingMode("stars");
+                }}
+              >
+                {t.home.stars}
+              </Button>
+            </View>
+            <View className="flex-row gap-2">
+              <Input className="flex-1" value={scoreMin} onChangeText={setScoreMin} keyboardType="decimal-pad" placeholder={t.home.minLabel} />
+              <Input className="flex-1" value={scoreMax} onChangeText={setScoreMax} keyboardType="decimal-pad" placeholder={t.home.maxLabel} />
+              <Input className="flex-1" value={scoreStep} onChangeText={setScoreStep} keyboardType="decimal-pad" placeholder={t.home.stepLabel} />
+            </View>
+            <View className="gap-2">
+              <Button
+                variant={resultsVisibility === "host_reveal" ? "default" : "secondary"}
+                onPress={() => {
+                  haptics.selection();
+                  setResultsVisibility("host_reveal");
+                }}
+              >
+                {t.home.revealAtEnd}
+              </Button>
+              <Button
+                variant={resultsVisibility === "after_submit" ? "default" : "secondary"}
+                onPress={() => {
+                  haptics.selection();
+                  setResultsVisibility("after_submit");
+                }}
+              >
+                {t.home.showAfterSubmit}
+              </Button>
+              <Button
+                variant={resultsVisibility === "live" ? "default" : "secondary"}
+                onPress={() => {
+                  haptics.selection();
+                  setResultsVisibility("live");
+                }}
+              >
+                {t.home.showImmediately}
+              </Button>
+            </View>
+          </View>
+
+          <Pressable
+            accessibilityRole="checkbox"
+            onPress={() => {
+              haptics.selection();
+              setSafetyAccepted((value) => !value);
+            }}
+          >
             <Text variant="muted">
               {safetyAccepted ? "✓" : "○"} {t.editor.safetyTerms}
             </Text>

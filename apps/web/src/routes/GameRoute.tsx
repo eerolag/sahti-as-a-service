@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronDown, Settings, Share2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, MoreHorizontal, Pencil, Share2, UserCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { GetResultsResponse, ResultBeerDto, UpdateGameRequest } from "@breview/shared/api-contracts";
 import { normalizeScore } from "@breview/shared/scoring";
@@ -120,6 +120,7 @@ export function GameRoute({ target, section, onSectionChange }: GameRouteProps) 
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [nicknameModalOpen, setNicknameModalOpen] = useState(false);
   const [playersAccordionOpen, setPlayersAccordionOpen] = useState(false);
+  const [sharePanelOpen, setSharePanelOpen] = useState(false);
   const [hasAttemptedResultsLoad, setHasAttemptedResultsLoad] = useState(false);
   const gameId = game?.id ?? (target.type === "game" ? target.gameId : 0);
   const shareId = game?.publicId ?? (target.type === "session" ? target.shareId : "");
@@ -292,6 +293,11 @@ export function GameRoute({ target, section, onSectionChange }: GameRouteProps) 
   function closeEdit() {
     haptics.selection();
     setEditDraft(null);
+  }
+
+  function toggleSharePanel() {
+    haptics.selection();
+    setSharePanelOpen((open) => !open);
   }
 
   function changeSection(next: GameSection) {
@@ -542,7 +548,11 @@ export function GameRoute({ target, section, onSectionChange }: GameRouteProps) 
           <a className="header-brand" href="/">
             Breview
           </a>
-          <span className="icon-btn-placeholder" aria-hidden="true" />
+          <div className="header-actions">
+            <a className="icon-btn" href="/account" aria-label={t.nav.account}>
+              <UserCircle size={18} />
+            </a>
+          </div>
         </div>
 
         <div className="mb-3 text-center text-sm text-muted">{title} • {t.game.editSession}</div>
@@ -630,19 +640,30 @@ export function GameRoute({ target, section, onSectionChange }: GameRouteProps) 
   return (
     <div className="app-wrap app-wrap-with-header pb-28">
       <div className="app-header">
-        <span className="icon-btn-placeholder" aria-hidden="true" />
-
-        <a className="header-brand" href="/">
+        <a className="header-logo" href="/">
           Breview
         </a>
 
-        {canHost ? (
-          <button className="icon-btn" type="button" onClick={openEdit} aria-label={t.home.sessionSettings}>
-            <Settings size={18} />
+        <span aria-hidden="true" />
+
+        <div className="header-actions">
+          <button className="icon-btn" type="button" onClick={toggleSharePanel} aria-label={t.share.shareSession}>
+            <Share2 size={18} />
           </button>
-        ) : (
-          <span className="icon-btn-placeholder" aria-hidden="true" />
-        )}
+          {canHost ? (
+            <button className="icon-btn" type="button" onClick={openEdit} aria-label={t.game.editSession}>
+              <Pencil size={18} />
+            </button>
+          ) : null}
+          {shareId ? (
+            <button className="icon-btn" type="button" onClick={() => void reportContent("session")} aria-label={t.game.reportContent}>
+              <MoreHorizontal size={18} />
+            </button>
+          ) : null}
+          <a className="icon-btn" href="/account" aria-label={t.nav.account}>
+            <UserCircle size={18} />
+          </a>
+        </div>
       </div>
 
       <div className="mb-4 px-1 text-center">
@@ -656,16 +677,10 @@ export function GameRoute({ target, section, onSectionChange }: GameRouteProps) 
           <button className="inline-link" type="button" onClick={openNicknameModal}>
             {t.game.change}
           </button>
-          {shareId ? (
-            <>
-              {" "}
-              <button className="inline-link" type="button" onClick={() => void reportContent("session")}>
-                {t.game.reportSession}
-              </button>
-            </>
-          ) : null}
         </div>
       </div>
+
+      {sharePanelOpen ? <SharePanel shareUrl={shareLink} hostUrl={hostLink} /> : null}
 
       <div className="segmented-control">
         <button
@@ -697,7 +712,6 @@ export function GameRoute({ target, section, onSectionChange }: GameRouteProps) 
                 comment={ratings[beer.id]?.comment ?? ""}
                 onScoreChange={(score) => setRating(beer.id, score)}
                 onCommentChange={(comment) => setComment(beer.id, comment)}
-                onReport={() => void reportContent("beer", beer.id)}
               />
             ))}
           </div>
