@@ -121,6 +121,8 @@ export interface Translations {
     namePlaceholder: string;
     imageOptional: string;
     noImage: string;
+    imagePreview: string;
+    imagePreviewFor: string;
     imageSelected: string;
     changeImage: string;
     selectImage: string;

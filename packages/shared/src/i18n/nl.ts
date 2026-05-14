@@ -119,6 +119,8 @@ export const nl: Translations = {
     namePlaceholder: "bijv. Pale Ale",
     imageOptional: "Afbeelding (optioneel)",
     noImage: "Geen afbeelding",
+    imagePreview: "Voorbeeld van drankafbeelding",
+    imagePreviewFor: "Voorbeeld van drankafbeelding voor",
     imageSelected: "Afbeelding geselecteerd",
     changeImage: "Afbeelding wijzigen",
     selectImage: "Afbeelding selecteren",

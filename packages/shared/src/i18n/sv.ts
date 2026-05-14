@@ -119,6 +119,8 @@ export const sv: Translations = {
     namePlaceholder: "t.ex. Pale Ale",
     imageOptional: "Bild (valfritt)",
     noImage: "Ingen bild",
+    imagePreview: "Förhandsvisning av dryckens bild",
+    imagePreviewFor: "Förhandsvisning av bild för",
     imageSelected: "Bild vald",
     changeImage: "Byt bild",
     selectImage: "Välj bild",

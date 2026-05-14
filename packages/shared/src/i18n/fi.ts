@@ -119,6 +119,8 @@ export const fi: Translations = {
     namePlaceholder: "esim. Mallaski IPA",
     imageOptional: "Kuva (valinnainen)",
     noImage: "Ei kuvaa",
+    imagePreview: "Juoman kuvan esikatselu",
+    imagePreviewFor: "Juoman kuvan esikatselu:",
     imageSelected: "Kuva valittu",
     changeImage: "Vaihda kuva",
     selectImage: "Valitse kuva",

@@ -119,6 +119,8 @@ export const en: Translations = {
     namePlaceholder: "e.g. Pale Ale",
     imageOptional: "Image (optional)",
     noImage: "No image",
+    imagePreview: "Drink image preview",
+    imagePreviewFor: "Drink image preview for",
     imageSelected: "Image selected",
     changeImage: "Change image",
     selectImage: "Select image",
