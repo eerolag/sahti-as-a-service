@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createUntappdSearchUrl } from "@breview/shared/untappd";
 import { apiClient } from "../api/client";
 import { useBeerReorder } from "../hooks/useBeerReorder";
@@ -59,6 +59,42 @@ export function BeerEditor({
   const resolvedCancelLabel = cancelLabel ?? t.editor.cancelLabel;
   const [identifyStatusByRow, setIdentifyStatusByRow] = useState<Record<string, IdentifyStatus>>({});
   const { dragIndex, overIndex, handlers } = useBeerReorder(beers, onBeersChange);
+
+  const filePreviewsRef = useRef<Map<File, string>>(new Map());
+  const [, setFilePreviewVersion] = useState(0);
+
+  useEffect(() => {
+    const previews = filePreviewsRef.current;
+    const activeFiles = new Set<File>();
+    for (const beer of beers) {
+      if (beer.file) activeFiles.add(beer.file);
+    }
+    let changed = false;
+    for (const [file, url] of previews) {
+      if (!activeFiles.has(file)) {
+        URL.revokeObjectURL(url);
+        previews.delete(file);
+        changed = true;
+      }
+    }
+    for (const file of activeFiles) {
+      if (!previews.has(file)) {
+        previews.set(file, URL.createObjectURL(file));
+        changed = true;
+      }
+    }
+    if (changed) setFilePreviewVersion((v) => v + 1);
+  }, [beers]);
+
+  useEffect(() => {
+    const previews = filePreviewsRef.current;
+    return () => {
+      for (const url of previews.values()) {
+        URL.revokeObjectURL(url);
+      }
+      previews.clear();
+    };
+  }, []);
 
   function setBeerField(index: number, patch: Partial<BeerEditorRow>) {
     onBeersChange(
@@ -207,6 +243,30 @@ export function BeerEditor({
                 />
 
                 <label className="text-sm text-muted">{t.editor.imageOptional}</label>
+                {(() => {
+                  const previewUrl = beer.file
+                    ? filePreviewsRef.current.get(beer.file) ?? null
+                    : beer.imageUrl?.trim() || null;
+                  const previewAlt = beer.name.trim()
+                    ? `${t.editor.imagePreviewFor} ${beer.name.trim()}`
+                    : t.editor.imagePreview;
+                  return (
+                    <div
+                      className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-xl border border-line bg-[#14161b] text-xs text-muted"
+                      data-testid="beer-image-preview"
+                    >
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          alt={previewAlt}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="px-1 text-center">{t.editor.noImage}</span>
+                      )}
+                    </div>
+                  );
+                })()}
                 <label className="btn inline-flex cursor-pointer justify-center">
                   {beer.file ? t.editor.changeImage : t.editor.selectImage}
                   <input
