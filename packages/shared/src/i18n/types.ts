@@ -187,6 +187,9 @@ export interface Translations {
     logout: string;
     deleteAccount: string;
     deleteAccountInstructions: string;
+    archive: string;
+    unarchive: string;
+    archivedSessions: string;
     confirmDelete: string;
     accountDeleted: string;
     deleteSuccess: string;

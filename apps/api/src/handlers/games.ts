@@ -37,6 +37,7 @@ import {
   isValidCreatorToken,
 } from "../services/session-security-service";
 import { ensureUntappdLinksForGame, enrichBeersWithUntappd } from "../services/untappd-service";
+import { getSessionUser } from "../services/auth-service";
 
 const PUBLIC_ID_ATTEMPTS = 5;
 
@@ -64,6 +65,7 @@ async function createGameWithPublicId(
   env: Env,
   name: string,
   settings: NormalizedSessionSettings,
+  creatorUserId: number | null,
 ): Promise<CreateGameResponse | null> {
   for (let attempt = 0; attempt < PUBLIC_ID_ATTEMPTS; attempt += 1) {
     const publicId = createSessionPublicId();
@@ -78,6 +80,7 @@ async function createGameWithPublicId(
         hostTokenHash,
         settings.ratingConfig,
         settings.resultsVisibility,
+        creatorUserId,
       );
     } catch (error) {
       if (String((error as Error)?.message ?? error).toLowerCase().includes("unique")) continue;
@@ -132,7 +135,9 @@ export async function handleCreateGame(request: Request, env: Env): Promise<Resp
 
   const beers = enrichBeersWithUntappd(normalizedBeers.beers);
 
-  const response = await createGameWithPublicId(request, env, gameName.value, settings.value);
+  const user = await getSessionUser(request, env);
+
+  const response = await createGameWithPublicId(request, env, gameName.value, settings.value, user?.id ?? null);
   if (!response) {
     return json({ error: "Session luonti epäonnistui" }, 500);
   }

@@ -4,6 +4,7 @@ import { apiClient } from "../api/client";
 import { useI18n } from "../i18n/i18nContext";
 import { clearAccountSession, loadAccountSession, saveAccountSession, type AccountSession } from "../utils/account-session";
 import { getOrCreateClientId } from "../utils/player-identity";
+import { getAllSavedHostTokens } from "../utils/creator-session";
 
 function PrivacyDetails({ descriptions }: { descriptions: readonly string[] }) {
   return (
@@ -19,12 +20,18 @@ function HistoryList({
   history,
   ratingsLabel,
   noDateLabel,
+  archiveLabel,
+  unarchiveLabel,
   locale,
+  onToggleArchive,
 }: {
   history: AccountHistoryItemDto[];
   ratingsLabel: string;
   noDateLabel: string;
+  archiveLabel: string;
+  unarchiveLabel: string;
   locale: string;
+  onToggleArchive: (gameId: number, isArchived: boolean) => void;
 }) {
   function formatHistoryDate(value: string | null, locale: string): string {
     if (!value) return noDateLabel;
@@ -50,10 +57,25 @@ function HistoryList({
           href={item.publicId ? `/s/${encodeURIComponent(item.publicId)}` : `/${item.gameId}`}
         >
           <span className="min-w-0">
-            <span className="block truncate font-semibold">{item.gameName || `Session #${item.gameId}`}</span>
+            <span className="block truncate font-semibold">
+              {item.gameName || `Session #${item.gameId}`}
+              {item.role === "host" ? " (Host)" : ""}
+            </span>
             <span className="block text-sm text-muted">{formatHistoryDate(item.updatedAt, locale)}</span>
           </span>
-          <span className="badge shrink-0">{item.ratingsCount} {ratingsLabel}</span>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="badge shrink-0">{item.ratingsCount} {ratingsLabel}</span>
+            <button
+              className="btn"
+              style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+              onClick={(e) => {
+                e.preventDefault();
+                onToggleArchive(item.gameId, !item.isArchived);
+              }}
+            >
+              {item.isArchived ? unarchiveLabel : archiveLabel}
+            </button>
+          </div>
         </a>
       ))}
     </div>
@@ -138,6 +160,7 @@ export function AccountRoute() {
         email,
         code,
         clientId: getOrCreateClientId(),
+        hostTokens: getAllSavedHostTokens(),
       });
       const nextSession = { sessionToken: response.sessionToken, user: response.user };
       saveAccountSession(nextSession);
@@ -192,6 +215,17 @@ export function AccountRoute() {
     }
   }
 
+  async function toggleArchive(gameId: number, isArchived: boolean) {
+    if (!session) return;
+    try {
+      setHistory((prev) => prev.map((h) => (h.gameId === gameId ? { ...h, isArchived } : h)));
+      await apiClient.archiveSession(gameId, isArchived, session.sessionToken);
+    } catch {
+      // Revert on failure
+      setHistory((prev) => prev.map((h) => (h.gameId === gameId ? { ...h, isArchived: !isArchived } : h)));
+    }
+  }
+
   function goBack() {
     if (window.history.length > 1) {
       window.history.back();
@@ -224,16 +258,33 @@ export function AccountRoute() {
               <div className="font-semibold">{t.account.loggedIn}</div>
               <div className="muted">{session.user.email}</div>
             </div>
-            {history.length ? (
+            {history.some((h) => !h.isArchived) ? (
               <HistoryList
-                history={history}
+                history={history.filter((h) => !h.isArchived)}
                 ratingsLabel={t.account.ratingsCount}
                 noDateLabel={t.account.noDate}
+                archiveLabel={t.account.archive}
+                unarchiveLabel={t.account.unarchive}
                 locale={locale}
+                onToggleArchive={toggleArchive}
               />
             ) : (
               <div className="muted">{t.account.noHistory}</div>
             )}
+            {history.some((h) => h.isArchived) ? (
+              <div className="mt-4 border-t border-line pt-4">
+                <div className="mb-3 font-semibold">{t.account.archivedSessions}</div>
+                <HistoryList
+                  history={history.filter((h) => h.isArchived)}
+                  ratingsLabel={t.account.ratingsCount}
+                  noDateLabel={t.account.noDate}
+                  archiveLabel={t.account.archive}
+                  unarchiveLabel={t.account.unarchive}
+                  locale={locale}
+                  onToggleArchive={toggleArchive}
+                />
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="grid gap-4">

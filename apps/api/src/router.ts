@@ -22,6 +22,7 @@ import {
   handleLogout,
   handleRequestLoginCode,
   handleVerifyLoginCode,
+  handleSetSessionArchived,
 } from "./handlers/auth";
 
 export async function routeApi(request: Request, env: Env): Promise<Response | null> {
@@ -126,6 +127,14 @@ export async function routeApi(request: Request, env: Env): Promise<Response | n
     }
     if (request.method === "DELETE") {
       return handleDeleteAccount(request, env);
+    }
+    return json({ error: "Not found" }, 404);
+  }
+
+  const archiveMatch = pathname.match(/^\/api\/account\/history\/(\d+)\/archive$/);
+  if (archiveMatch) {
+    if (request.method === "POST") {
+      return handleSetSessionArchived(Number(archiveMatch[1]), request, env);
     }
     return json({ error: "Not found" }, 404);
   }

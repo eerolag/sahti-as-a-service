@@ -20,6 +20,25 @@ export function loadHostToken(shareId: string): string {
   }
 }
 
+export function getAllSavedHostTokens(): Array<{ publicId: string; hostToken: string }> {
+  const tokens: Array<{ publicId: string; hostToken: string }> = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const storageKey = localStorage.key(i);
+      if (storageKey && storageKey.startsWith(`${HOST_TOKEN_PREFIX}:`)) {
+        const publicId = storageKey.slice(HOST_TOKEN_PREFIX.length + 1);
+        const hostToken = localStorage.getItem(storageKey);
+        if (publicId && hostToken) {
+          tokens.push({ publicId, hostToken });
+        }
+      }
+    }
+  } catch {
+    // Ignore errors if localStorage is unavailable
+  }
+  return tokens;
+}
+
 export function consumeHostTokenFromHash(): string {
   const raw = window.location.hash.replace(/^#/, "").trim();
   if (!raw) return "";

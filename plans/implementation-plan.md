@@ -18,7 +18,8 @@ Breview is a production web, iOS, and Android app for creating drink tasting ses
 ## Workstreams
 
 - Rebrand: update visible product copy, metadata, store copy, support/privacy pages, and share text to Breview with `breview.ing` as the canonical domain.
-- Authentication: maintain optional email-code login using Cloudflare Email Service, D1-backed users, hashed login challenges, sessions, and account-linked rating history.
+- Authentication: maintain optional email-code login using Cloudflare Email Service, D1-backed users, hashed login challenges, sessions, and account-linked rating history. Support syncing locally created host sessions to the user account on login.
+- Archiving: allow users to archive sessions (both as host and player) to hide them from the main history view while preserving data.
 - Privacy and account deletion: keep in-app and web account deletion available only after login, keep privacy basics visible before login, and keep public reviewer-ready `/privacy`, `/support`, and `/delete-account` pages reachable without login.
 - Mobile app: build a native Expo app with create/link-open/rate/results/edit/share/account flows, deep links, app links, image upload, and history sync.
 - AI and image handling: use Workers AI via the `AI` binding for beer-name recognition, keep R2 for uploads, remove paid web image search from the production app and API surface, and keep provider failures graceful.
@@ -72,4 +73,6 @@ Acceptance criteria:
 - Mobile image library selection avoids the extra pre-picker media permission prompt on iOS, and custom `Vibration` haptics are disabled; native `expo-haptics` feedback is limited to deliberate choices, rating input, and save/error confirmations rather than navigation or menu transitions.
 - Paid Brave image search is removed from the web UI, Worker route, shared API contracts, README, and runtime env.
 - Untappd API resolution is removed; stored beer metadata is kept to outbound search links only.
+- Web and mobile allow archiving sessions to a separate "Archived" history section.
+- Web and mobile synchronize host tokens from local storage to the user account during the login verification flow.
 - Tests, typecheck, and build pass.

@@ -19,6 +19,7 @@
 - Keep AI recognition warnings visible as popup/alert feedback in web and mobile, not only inline status text.
 - Keep the `/makers` creator-support page provider-agnostic: web reads `SUPPORT_PAYMENT_URL`, mobile only opens `EXPO_PUBLIC_SUPPORT_PAGE_URL` externally, and no native payment flow is added.
 - Keep optional email-code accounts working across web and mobile: Cloudflare Email Service sends login codes, resend cooldown UI prevents rapid repeat taps, D1 sessions link device ratings to accounts, and account deletion is shown only after login.
+- Keep session archiving and host synchronization active: users can archive/restore sessions in their history, and host sessions are synced to the user account upon login.
 - Keep structured auth logs in Worker logs for login-code requests, send success/failure, verify success/failure, logout, and account deletion; user-facing auth errors must remain concise and non-leaky.
 - Keep public `/privacy`, `/support`, and `/delete-account` pages reachable without login and linked from account/support surfaces.
 - Keep new production sessions on unguessable `/s/:shareId` participant links and `/h/:shareId#hostToken` host links; numeric routes are legacy compatibility only.
