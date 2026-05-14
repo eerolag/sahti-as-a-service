@@ -145,6 +145,16 @@ export interface AccountHistoryItemDto {
   gameName: string;
   ratingsCount: number;
   updatedAt: string | null;
+  isArchived: boolean;
+  role: "host" | "player";
+}
+
+export interface SetSessionArchivedRequest {
+  isArchived: boolean;
+}
+
+export interface SetSessionArchivedResponse {
+  ok: true;
 }
 
 export interface RequestLoginCodeRequest {
@@ -163,6 +173,7 @@ export interface VerifyLoginCodeRequest {
   code: string;
   clientId?: string;
   clientIds?: string[];
+  hostTokens?: Array<{ publicId: string; hostToken: string }>;
 }
 
 export interface VerifyLoginCodeResponse {

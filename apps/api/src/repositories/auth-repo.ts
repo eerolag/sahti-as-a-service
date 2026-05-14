@@ -268,32 +268,59 @@ export async function getRatingsForUserAndGame(
   }));
 }
 
+interface HistoryRow {
+  gameId: number;
+  publicId: string | null;
+  gameName: string | null;
+  ratingsCount: number;
+  updatedAt: string | null;
+  isArchived: number;
+  role: string;
+}
+
 export async function getAccountHistory(
   env: Env,
   userId: number,
 ): Promise<AccountHistoryItemDto[]> {
   const rows = await env.DB.prepare(`
-    SELECT
-      g.id AS gameId,
-      g.public_id AS publicId,
-      g.name AS gameName,
-      COUNT(r.beer_id) AS ratingsCount,
-      MAX(r.updated_at) AS updatedAt
-    FROM user_players up
-    INNER JOIN players p
-      ON p.id = up.player_id
-    INNER JOIN games g
-      ON g.id = p.game_id
-    LEFT JOIN ratings r
-      ON r.player_id = p.id
-      AND r.game_id = p.game_id
-    WHERE up.user_id = ?
-    GROUP BY g.id, g.public_id, g.name
-    HAVING COUNT(r.beer_id) > 0
-    ORDER BY MAX(r.updated_at) DESC, g.id DESC
+    SELECT * FROM (
+      SELECT
+        g.id AS gameId,
+        g.public_id AS publicId,
+        g.name AS gameName,
+        COUNT(r.beer_id) AS ratingsCount,
+        MAX(r.updated_at) AS updatedAt,
+        up.is_archived AS isArchived,
+        'player' AS role
+      FROM user_players up
+      INNER JOIN players p
+        ON p.id = up.player_id
+      INNER JOIN games g
+        ON g.id = p.game_id
+      LEFT JOIN ratings r
+        ON r.player_id = p.id
+        AND r.game_id = p.game_id
+      WHERE up.user_id = ? AND (g.creator_user_id IS NULL OR g.creator_user_id != ?)
+      GROUP BY g.id, g.public_id, g.name, up.is_archived
+      HAVING COUNT(r.beer_id) > 0
+
+      UNION ALL
+
+      SELECT
+        g.id AS gameId,
+        g.public_id AS publicId,
+        g.name AS gameName,
+        (SELECT COUNT(*) FROM ratings r2 WHERE r2.game_id = g.id) AS ratingsCount,
+        (SELECT MAX(r2.updated_at) FROM ratings r2 WHERE r2.game_id = g.id) AS updatedAt,
+        g.is_archived_by_creator AS isArchived,
+        'host' AS role
+      FROM games g
+      WHERE g.creator_user_id = ?
+    )
+    ORDER BY COALESCE(updatedAt, '1970-01-01') DESC, gameId DESC
   `)
-    .bind(userId)
-    .all<AccountHistoryItemDto>();
+    .bind(userId, userId, userId)
+    .all<HistoryRow>();
 
   return (rows.results ?? []).map((row) => ({
     gameId: Number(row.gameId),
@@ -301,7 +328,53 @@ export async function getAccountHistory(
     gameName: String(row.gameName ?? ""),
     ratingsCount: Number(row.ratingsCount ?? 0),
     updatedAt: row.updatedAt == null ? null : String(row.updatedAt),
+    isArchived: Boolean(row.isArchived),
+    role: row.role as "host" | "player",
   }));
+}
+
+export async function linkHostSessionToUser(
+  env: Env,
+  userId: number,
+  publicId: string,
+  tokenHash: string,
+): Promise<void> {
+  await env.DB.prepare(`
+    UPDATE games
+    SET creator_user_id = ?
+    WHERE public_id = ? AND creator_token_hash = ? AND creator_user_id IS NULL
+  `)
+    .bind(userId, publicId, tokenHash)
+    .run();
+}
+
+export async function setSessionArchived(
+  env: Env,
+  userId: number,
+  gameId: number,
+  isArchived: boolean,
+): Promise<void> {
+  // Try to update as host
+  const result = await env.DB.prepare(`
+    UPDATE games
+    SET is_archived_by_creator = ?
+    WHERE id = ? AND creator_user_id = ?
+  `)
+    .bind(isArchived ? 1 : 0, gameId, userId)
+    .run();
+
+  // If not host (or in addition to), update as player
+  if ((result.meta?.changes ?? 0) === 0) {
+    await env.DB.prepare(`
+      UPDATE user_players
+      SET is_archived = ?
+      WHERE user_id = ? AND player_id IN (
+        SELECT id FROM players WHERE game_id = ?
+      )
+    `)
+      .bind(isArchived ? 1 : 0, userId, gameId)
+      .run();
+  }
 }
 
 export async function deleteAccountAndLinkedPlayers(env: Env, userId: number): Promise<void> {

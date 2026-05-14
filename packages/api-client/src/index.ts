@@ -226,6 +226,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
       });
     },
 
+    archiveSession(gameId: number, isArchived: boolean, sessionToken: string) {
+      return request<{ ok: boolean }>(`/api/account/history/${gameId}/archive`, {
+        method: "POST",
+        headers: authHeaders(sessionToken),
+        bodyJson: { isArchived },
+      });
+    },
+
     async qrSvgDataUrl(url: string): Promise<string> {
       const res = await fetcher(resolveApiUrl(`/api/qr?url=${encodeURIComponent(url)}`, options.baseUrl));
       if (!res.ok) {

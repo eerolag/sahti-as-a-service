@@ -74,12 +74,13 @@ export async function createGame(
   creatorTokenHash: string,
   ratingConfig: RatingConfig,
   resultsVisibility: ResultsVisibility,
+  creatorUserId: number | null,
 ): Promise<number | null> {
   const result = await env.DB.prepare(
     [
       "INSERT INTO games",
-      "(name, public_id, creator_token_hash, rating_mode, score_min, score_max, score_step, results_visibility)",
-      "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "(name, public_id, creator_token_hash, rating_mode, score_min, score_max, score_step, results_visibility, creator_user_id)",
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     ].join(" "),
   )
     .bind(
@@ -91,6 +92,7 @@ export async function createGame(
       ratingConfig.scoreMax,
       ratingConfig.scoreStep,
       resultsVisibility,
+      creatorUserId,
     )
     .run();
   return (result.meta?.last_row_id as number | undefined) ?? null;

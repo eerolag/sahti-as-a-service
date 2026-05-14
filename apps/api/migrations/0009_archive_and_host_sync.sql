@@ -1,0 +1,6 @@
+PRAGMA foreign_keys = ON;
+
+ALTER TABLE user_players ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE games ADD COLUMN creator_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE games ADD COLUMN is_archived_by_creator INTEGER NOT NULL DEFAULT 0;

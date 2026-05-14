@@ -6,6 +6,7 @@ import type {
   RequestLoginCodeResponse,
   VerifyLoginCodeRequest,
   VerifyLoginCodeResponse,
+  SetSessionArchivedRequest,
 } from "@breview/shared/api-contracts";
 import { normalizeEmail } from "@breview/shared/validation";
 import type { Env } from "../env";
@@ -23,6 +24,8 @@ import {
   insertLoginChallenge,
   linkPlayersForClientId,
   revokeSession,
+  linkHostSessionToUser,
+  setSessionArchived,
 } from "../repositories/auth-repo";
 import {
   LOGIN_CODE_EXPIRES_IN_SECONDS,
@@ -46,6 +49,7 @@ import {
   sendLoginCodeEmail,
   uniqueClientIds,
 } from "../services/auth-service";
+import { hashSessionHostToken } from "../services/session-security-service";
 
 function normalizeLoginCode(raw: unknown): string | null {
   const value = String(raw ?? "").replace(/\s+/g, "");
@@ -197,6 +201,13 @@ export async function handleVerifyLoginCode(request: Request, env: Env): Promise
     await linkPlayersForClientId(env, user.id, clientId, nowIso);
   }
 
+  const hostTokens = Array.isArray(body?.hostTokens) ? body.hostTokens : [];
+  for (const item of hostTokens) {
+    if (typeof item?.publicId !== "string" || typeof item?.hostToken !== "string") continue;
+    const tokenHash = await hashSessionHostToken(env, item.publicId, item.hostToken);
+    await linkHostSessionToUser(env, user.id, item.publicId, tokenHash);
+  }
+
   await logAuthEvent(env, "login_code_verify_success", {
     email: email.value,
     challengeId: challenge.id,
@@ -272,4 +283,18 @@ export async function handleDeleteAccount(request: Request, env: Env): Promise<R
 
   const response: DeleteAccountResponse = { ok: true };
   return json(response);
+}
+
+export async function handleSetSessionArchived(gameId: number, request: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(request, env);
+  if (!user) return unauthorized();
+
+  const body = await parseJson<SetSessionArchivedRequest>(request);
+  if (typeof body?.isArchived !== "boolean") {
+    return json({ error: "Invalid payload" }, 400);
+  }
+
+  await setSessionArchived(env, user.id, gameId, body.isArchived);
+
+  return json({ ok: true });
 }
